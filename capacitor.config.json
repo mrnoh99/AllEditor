@@ -1,0 +1,7 @@
+{
+  "appId": "com.mrnoh99.alleditor",
+  "appName": "AllEditor",
+  "webDir": "www",
+  "ios": { "contentInset": "always", "scheme": "AllEditor" },
+  "server": { "iosScheme": "capacitor" }
+}
