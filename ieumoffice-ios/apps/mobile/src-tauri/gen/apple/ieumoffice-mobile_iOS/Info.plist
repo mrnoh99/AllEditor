@@ -158,6 +158,16 @@
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_ipp._tcp</string>
+		<string>_ipps._tcp</string>
+		<string>_pdl-datastream._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>네트워크 프린터로 바로 인쇄하려면 같은 네트워크의 프린터에 연결해야 합니다. (Needed to print directly to a printer on your network.)</string>
+	<key>UIFileSharingEnabled</key>
+	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
@@ -165,12 +175,23 @@
 		<string>arm64</string>
 		<string>metal</string>
 	</array>
+	<key>UIRequiresFullScreen</key>
+	<true/>
+	<key>UIStatusBarHidden~ipad</key>
+	<true/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict>
@@ -219,15 +240,15 @@
 			</dict>
 		</dict>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>com.apple.iwork.pages.sffpages</string>
-			<key>UTTypeDescription</key>
-			<string>Pages Document</string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.data</string>
 				<string>public.composite-content</string>
 			</array>
+			<key>UTTypeDescription</key>
+			<string>Pages Document</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.apple.iwork.pages.sffpages</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -241,15 +262,15 @@
 			</dict>
 		</dict>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>com.apple.iwork.numbers.sffnumbers</string>
-			<key>UTTypeDescription</key>
-			<string>Numbers Spreadsheet</string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.data</string>
 				<string>public.composite-content</string>
 			</array>
+			<key>UTTypeDescription</key>
+			<string>Numbers Spreadsheet</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.apple.iwork.numbers.sffnumbers</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -263,15 +284,15 @@
 			</dict>
 		</dict>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>com.apple.iwork.keynote.sffkey</string>
-			<key>UTTypeDescription</key>
-			<string>Keynote Presentation</string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.data</string>
 				<string>public.composite-content</string>
 			</array>
+			<key>UTTypeDescription</key>
+			<string>Keynote Presentation</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.apple.iwork.keynote.sffkey</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -285,15 +306,15 @@
 			</dict>
 		</dict>
 		<dict>
-			<key>UTTypeIdentifier</key>
-			<string>org.openxmlformats.spreadsheetml.sheet.macroenabled</string>
-			<key>UTTypeDescription</key>
-			<string>Excel Macro-Enabled Workbook</string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.data</string>
 				<string>public.composite-content</string>
 			</array>
+			<key>UTTypeDescription</key>
+			<string>Excel Macro-Enabled Workbook</string>
+			<key>UTTypeIdentifier</key>
+			<string>org.openxmlformats.spreadsheetml.sheet.macroenabled</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -307,26 +328,5 @@
 			</dict>
 		</dict>
 	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>UIRequiresFullScreen</key>
-	<true/>
-	<key>UIFileSharingEnabled</key>
-	<true/>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>네트워크 프린터로 바로 인쇄하려면 같은 네트워크의 프린터에 연결해야 합니다. (Needed to print directly to a printer on your network.)</string>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_ipp._tcp</string>
-		<string>_ipps._tcp</string>
-		<string>_pdl-datastream._tcp</string>
-	</array>
-	<key>UIStatusBarHidden~ipad</key>
-	<true/>
-	<key>UIViewControllerBasedStatusBarAppearance</key>
-	<false/>
 </dict>
 </plist>
