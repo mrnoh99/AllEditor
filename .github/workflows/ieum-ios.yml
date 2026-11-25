@@ -1,0 +1,40 @@
+name: ieumoffice-ios (Tauri) build
+# The ieumoffice mobile app (apps/mobile, Tauri 2) cannot generate its Xcode project on Linux;
+# this macOS job runs `tauri ios init`, injects the app's native config, builds, and uploads the generated project.
+on:
+  workflow_dispatch:
+  push:
+    paths: ['ieumoffice-ios/**', '.github/workflows/ieum-ios.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-latest
+    defaults: { run: { working-directory: ieumoffice-ios } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: 'aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios' }
+      - name: Install JS deps
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build rhwp-studio (HWP editor bundle) and the mobile web app
+        run: |
+          npm run studio -w @genoffice/hwp
+          npm run build -w @genoffice/mobile
+      - name: Generate the Xcode project (tauri ios init) and inject native config
+        working-directory: ieumoffice-ios/apps/mobile
+        run: |
+          npx --yes @tauri-apps/cli@2 ios init --ci
+          node scripts/apply-native-config.mjs
+          ls src-tauri/gen/apple
+      - name: Upload generated Xcode project
+        uses: actions/upload-artifact@v4
+        with:
+          name: ieumoffice-ios-xcode-project
+          path: ieumoffice-ios/apps/mobile/src-tauri/gen/apple
+          if-no-files-found: error
+      - name: Build for the iOS simulator (no signing)
+        working-directory: ieumoffice-ios/apps/mobile
+        run: npx --yes @tauri-apps/cli@2 ios build --debug --target aarch64-sim --ci

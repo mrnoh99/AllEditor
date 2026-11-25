@@ -1,0 +1,272 @@
+export {
+  buildContextMenuItems,
+  contextMenuLabels,
+  installContextMenu,
+  setContextMenuInterceptor,
+  VIEW_IMAGE_CHANNEL,
+  type ContextMenuInterceptor,
+  type ContextMenuItem,
+  type ContextMenuLabels,
+} from './context-menu'
+export {
+  decodeDataUrl,
+  isSavableImageUrl,
+  saveImageFromUrl,
+  suggestImageFileName,
+  type SaveImageResult,
+} from './save-image'
+export {
+  aboutMenuItem,
+  appMenuLabels,
+  appMenuPopupTemplate,
+  checkUpdatesMenuItem,
+  editMenuTemplate,
+  helpCheckUpdatesItems,
+  helpMenuTemplate,
+  macAppMenuTemplate,
+  SETTINGS_ACCELERATOR,
+  setOpenSettingsInvoker,
+  settingsMenuItem,
+  setUpdateCheckInvoker,
+  toggleDevToolsItem,
+  viewMenuTemplate,
+  windowMenuTemplate,
+  type AppMenuLabels,
+  type SettingsShortcut,
+  type ViewMenuOptions,
+} from './app-menu'
+export {
+  GITHUB_ISSUES_URL,
+  GITHUB_LATEST_RELEASE_URL,
+  GITHUB_NEW_ISSUE_URL,
+  GITHUB_RELEASES_URL,
+  GITHUB_REPO_DISPLAY,
+  GITHUB_REPO_NAME,
+  GITHUB_REPO_OWNER,
+  GITHUB_REPO_SLUG,
+  GITHUB_REPO_URL,
+  githubReleaseTagUrl,
+} from './github-menu'
+export {
+  AUTHOR_NAME_KEY,
+  AUTHOR_NAME_MAX,
+  configuredAuthorName,
+  readAuthorNameSetting,
+  resolveAuthorName,
+  sanitizeAuthorName,
+  systemAuthorName,
+} from './author-name'
+export {
+  saveAsSuggestion,
+  showOpenDialogWithMemory,
+  showSaveDialogWithMemory,
+} from './dialog-memory'
+export { numberedExportPaths } from './numbered-export-paths'
+export {
+  DEFAULT_SAVE_DIR_KEY,
+  configuredDefaultSaveDir,
+  defaultSaveDirFallback,
+  documentsDirOrFallback,
+  isUsableSaveDir,
+  readDefaultSaveDirSetting,
+  resolveDefaultSaveDir,
+  type PathProvider,
+} from './default-save-dir'
+export {
+  HWP_DEFAULT_FORMAT_KEY,
+  normalizeHwpDefaultFormat,
+  readHwpDefaultFormat,
+  type HwpDefaultFormat,
+  type SettingsPathProvider,
+} from './hwp-default-format'
+export { installNavigationGuard } from './navigation-guard'
+export {
+  decodeChunks,
+  decodeChunksUtf8,
+  decodeCommandOutput,
+  decodeUtf8,
+  windowsOemCodePage,
+  type DecodeCommandOptions,
+} from './console-output'
+export {
+  DROP_OPEN_CHANNEL,
+  droppableFilePaths,
+  installDropOpenBridge,
+  KNOWN_UNSUPPORTED_DOC_RE,
+  OPENABLE_DOC_RE,
+  partitionDropPayload,
+} from './drop-open'
+export { safeExternalUrl, type SafeExternalUrlOptions } from './safe-external-url'
+export {
+  fetchWithSsrfGuard,
+  isBlockedAddress,
+  isFakeIpDnsArtifact,
+  isSafeRemoteUrl,
+  type FetchWithSsrfGuardOptions,
+} from './safe-remote-url'
+export {
+  MAX_REMOTE_IMAGE_BYTES,
+  ResponseTooLargeError,
+  fetchRemoteImage,
+  readBodyCapped,
+  remoteImageHeaders,
+} from './remote-image'
+export {
+  GENERATED_IMAGE_DIR,
+  MAX_GENERATED_IMAGE_BYTES,
+  readGeneratedImage,
+  storeGeneratedImage,
+} from './generated-images'
+export {
+  buildPrintableHtml,
+  printHtmlToPdf,
+  sanitizePrintableBody,
+  type PrintableHtml,
+  type PrintWindow,
+} from './print-html-pdf'
+export { isHeadlessMode, setHeadlessMode } from './headless-mode'
+export {
+  UNSAVED_CHANGES_MESSAGE,
+  assertFileSaved,
+  fileHasUnsavedChanges,
+  setOpenFilesSource,
+  withoutUnsavedFiles,
+  type OpenFileState,
+  type OpenFilesSource,
+} from './unsaved-files'
+export {
+  DIAGRAM_BATCH_MODES,
+  DIAGRAM_FILE_TARGETS,
+  HEADLESS_EXIT,
+  HEADLESS_EXPORT_FLAG,
+  HEADLESS_PDF_EXTENSIONS,
+  HEADLESS_SUPPORTED_EXTENSIONS,
+  HEADLESS_TARGETS,
+  formatHeadlessEnvelope,
+  headlessExitCode,
+  headlessModuleFor,
+  headlessSummary,
+  isDiagramFileTarget,
+  parseHeadlessExportArgv,
+  type DiagramBatchMode,
+  type DiagramFileTarget,
+  type HeadlessArgvParse,
+  type HeadlessExitCode,
+  type HeadlessExportFormat,
+  type HeadlessExportModule,
+  type HeadlessExportOutcome,
+  type HeadlessExportProduct,
+  type HeadlessExportRequest,
+  type HeadlessExportTarget,
+} from './headless-export'
+export {
+  RENDERER_SCHEME,
+  DOCX_MEDIA_SCHEME_PRIVILEGE,
+  SLIDE_MEDIA_SCHEME_PRIVILEGE,
+  RENDERER_SCHEME_PRIVILEGE,
+  rendererUrl,
+  resolveRendererFile,
+  type RendererHost,
+} from './renderer-scheme'
+export { installRendererProtocol, registerRendererScheme } from './renderer-protocol'
+export { atomicWriteFile, atomicWriteVia, writeJsonAtomic } from './atomic-write'
+export {
+  PRINT_READY_SCRIPT,
+  printHtmlDocument,
+  type PrintDialogOutcome,
+  type PrintDialogWindow,
+  type PrintDocumentOptions,
+} from './print-window'
+export { abortOnDestroyed, type DestroyableSender } from './abort-on-destroyed'
+export {
+  TEMPLATE_FONTS_DIR_NAME,
+  TEMPLATE_FONTS_REPO_DIR,
+  templateFontsDir,
+  type TemplateFontsHost,
+} from './template-fonts-dir'
+export { UI_FONTS_DIR_NAME, UI_FONTS_REPO_DIR, uiFontsDir } from './ui-fonts-dir'
+export {
+  RECOVERY_COPY_MAX_AGE_MS,
+  RECOVERY_EDITOR_KINDS,
+  createRecoveryStore,
+  isAppShuttingDown,
+  isRecoveryEditorKind,
+  isUntitledIdentity,
+  markAppShuttingDown,
+  newUntitledRecoveryId,
+  recoveryFolderName,
+  recoveryRunId,
+  resetAppShuttingDown,
+  resumeDiscardedCopies,
+  type RecoveryCopyFilter,
+  type RecoveryCopyWriter,
+  type RecoveryCopyInfo,
+  type RecoveryCopyState,
+  type RecoveryDeleteReason,
+  type RecoveryEditorKind,
+  type RecoveryFileIdentity,
+  type RecoveryIdentity,
+  type RecoveryLaunchDecision,
+  type RecoveryOpenPlan,
+  type RecoveryStore,
+  type RecoveryStoreOptions,
+  type RecoveryUntitledIdentity,
+  type RecoveryWriteOptions,
+  type RecoveryWriteResult,
+  type RecoveryWriteTicket,
+} from './recovery-store'
+export {
+  promptRecoveryForFile,
+  resolveRecoveryOnOpen,
+  type RecoveryMessageBox,
+  type RecoveryOpenResult,
+  type RecoveryPromptOptions,
+  type ResolveRecoveryOnOpenOptions,
+} from './recovery-prompt'
+export {
+  RECOVERY_PROMPT_STRINGS,
+  recoveryPromptLabels,
+  unprotectableNoticeText,
+  type RecoveryPromptLabels,
+} from './recovery-labels'
+export {
+  recoveryEditor,
+  recoveryEditors,
+  registerRecoveryEditor,
+  type RecoveryEditorContract,
+  type RecoveryOpenFileRequest,
+  type RecoveryOpenUntitledRequest,
+} from './recovery-contract'
+export {
+  confirmOverwriteIfConflicted,
+  isModifiedSince,
+  isPathOpenElsewhere,
+  recordDiskState,
+  setOpenPathProbe,
+  shouldDeferAutoSave,
+  type SaveConflictOptions,
+  type SaveDiskState,
+} from './save-conflict'
+
+export {
+  MAX_PROMPT_SUMMARY_CHARS,
+  MAX_SINGLE_SNAPSHOT_BYTES,
+  MAX_TIMELINE_TOTAL_BYTES,
+  MAX_VERSIONS_PER_DOC,
+  VersionTimelineStore,
+  docKeyFromPath,
+  isValidDocKey,
+} from './version-timeline-store'
+export type { VersionTimelineStoreOptions } from './version-timeline-store'
+export { VERSION_TIMELINE_BRIDGE_KEY, VERSION_TIMELINE_CHANNELS } from './version-timeline-channels'
+export type {
+  RecordVersionInput,
+  RecordVersionResult,
+  TimelineEditorKind,
+  VersionEntry,
+  VersionSource,
+  VersionTimelineBridge,
+  VersionTimelineStats,
+} from './version-timeline-channels'
+export { GENERATE_EDITOR_CHANNELS } from './generate-editor-channels'
+export type { GenerateEditorBridge, GenerateEditorOpenResult } from './generate-editor-channels'
