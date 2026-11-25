@@ -36,12 +36,17 @@ if (famCount > 0) {
 const re = /shellScript = "((?:\\.|[^"\\])*tauri ios xcode-script(?:\\.|[^"\\])*)";/
 const m = re.exec(pbx)
 const WRAP_CALL = 'shellScript = "/bin/sh \\"${SRCROOT}/scripts/build-rust.sh\\"\\n";'
+const wrapperPath = join(APPLE, 'scripts', 'build-rust.sh')
+const MARK = '# --- from source (Tauri CLI) ---'
 let original
 if (m) {
   original = m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\').trim()
   pbx = pbx.replace(re, WRAP_CALL)
-} else if (pbx.includes('scripts/build-rust.sh')) {
-  original = null // already wrapped
+} else if (pbx.includes('scripts/build-rust.sh') && existsSync(wrapperPath)) {
+  // already wrapped: recover the from-source command (last line of the existing wrapper)
+  const lines = readFileSync(wrapperPath, 'utf8').trimEnd().split('\n')
+  original = lines[lines.length - 1].trim()
+  if (!original.includes('tauri ios xcode-script')) throw new Error('cannot recover the Tauri command from build-rust.sh')
 } else {
   throw new Error('"Build Rust Code" phase (tauri ios xcode-script) not found in project.pbxproj')
 }
@@ -50,41 +55,49 @@ writeFileSync(pbxPath, pbx)
 mkdirSync(join(APPLE, 'scripts'), { recursive: true })
 mkdirSync(join(APPLE, 'Prebuilt', 'iphoneos'), { recursive: true })
 mkdirSync(join(APPLE, 'Prebuilt', 'iphonesimulator'), { recursive: true })
-const wrapperPath = join(APPLE, 'scripts', 'build-rust.sh')
-if (original) {
-  writeFileSync(
-    wrapperPath,
-    `#!/bin/sh
+writeFileSync(
+  wrapperPath,
+  `#!/bin/sh
 # AllEditor — "Build Rust Code" phase.
-# Default: copy the committed prebuilt Rust library (Prebuilt/$PLATFORM_NAME/libapp.a, built by CI from
-# this repo's sources) so the project runs from Xcode without Node/npm/Rust.
-# AE_BUILD_RUST=1 (env or Xcode build setting), or a missing prebuilt file: build from source with the Tauri CLI
+# Default: use the committed prebuilt Rust library (built by CI from this repo's sources) so the project runs
+# from Xcode without Node/npm/Rust. It is stored gzip-compressed and split into < 100 MB parts for GitHub:
+#   Prebuilt/$PLATFORM_NAME/libapp.a.gz.part-aa, -ab, …  → joined with cat | gunzip (built into macOS).
+# AE_BUILD_RUST=1 (env or Xcode build setting), or no prebuilt parts: build from source with the Tauri CLI
 # (needs Node >= 22, Rust + iOS targets, and \`npm ci\` + the web build in ieumoffice-ios/ — see README-IOS.md).
 set -e
-PREBUILT="$SRCROOT/Prebuilt/$PLATFORM_NAME/libapp.a"
-if [ "\${AE_BUILD_RUST:-0}" != "1" ] && [ -f "$PREBUILT" ]; then
+DIR="$SRCROOT/Prebuilt/$PLATFORM_NAME"
+if [ "\${AE_BUILD_RUST:-0}" != "1" ] && ls "$DIR"/libapp.a.gz.part-* >/dev/null 2>&1; then
+  CACHE="$SRCROOT/Externals/prebuilt-$PLATFORM_NAME.a"
+  STAMP="$SRCROOT/Externals/prebuilt-$PLATFORM_NAME.sha"
+  SUM=$(cat "$DIR"/libapp.a.gz.part-* | /usr/bin/shasum | cut -d' ' -f1)
+  if [ ! -f "$CACHE" ] || [ "$(cat "$STAMP" 2>/dev/null)" != "$SUM" ]; then
+    mkdir -p "$SRCROOT/Externals"
+    cat "$DIR"/libapp.a.gz.part-* | /usr/bin/gunzip -c > "$CACHE.tmp"
+    mv -f "$CACHE.tmp" "$CACHE"
+    echo "$SUM" > "$STAMP"
+  fi
   for arch in $ARCHS; do
     if [ "$arch" != "arm64" ]; then
       echo "error: the prebuilt Rust library is arm64 only (asked for $arch). Use an Apple-silicon Mac / arm64 simulator, or set AE_BUILD_RUST=1."
       exit 1
     fi
     mkdir -p "$SRCROOT/Externals/$arch/$CONFIGURATION"
-    cp -f "$PREBUILT" "$SRCROOT/Externals/$arch/$CONFIGURATION/libapp.a"
+    cp -f "$CACHE" "$SRCROOT/Externals/$arch/$CONFIGURATION/libapp.a"
   done
-  echo "AllEditor: using prebuilt Rust library $PREBUILT"
+  echo "AllEditor: using prebuilt Rust library from $DIR"
   exit 0
 fi
 export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.cargo/bin:$PATH"
+${MARK}
 ${original}
 `,
-  )
-}
+)
 try { chmodSync(wrapperPath, 0o755) } catch {}
 
 // Build outputs never go into git (the committed library lives in Prebuilt/, not Externals/).
 const giPath = join(APPLE, '.gitignore')
 let gi = existsSync(giPath) ? readFileSync(giPath, 'utf8') : ''
-for (const line of ['Externals/', 'build/', 'xcuserdata/', 'DerivedData/', '*.xcuserstate']) {
+for (const line of ['Externals/', 'build/', 'xcuserdata/', 'DerivedData/', '*.xcuserstate', 'Prebuilt/*/libapp.a', 'Prebuilt/*/libapp.a.gz']) {
   if (!gi.split(/\r?\n/).includes(line)) gi += (gi && !gi.endsWith('\n') ? '\n' : '') + line + '\n'
 }
 writeFileSync(giPath, gi)

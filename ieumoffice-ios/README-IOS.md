@@ -19,8 +19,8 @@ open ieumoffice-ios/apps/mobile/src-tauri/gen/apple/*.xcodeproj
 ```
 Pick your Team under *Signing & Capabilities* (bundle id `com.mrnoh99.alleditor`), choose an iPad / iPhone or
 simulator, press Run. Targets iPhone and iPad (`TARGETED_DEVICE_FAMILY = 1,2`, all iPad orientations, multitasking).
-The Rust app library with the web UI embedded is committed as `gen/apple/Prebuilt/{iphoneos,iphonesimulator}/libapp.a`
-(built by CI from this folder's sources), so the "Build Rust Code" phase just copies it — no Node / npm / Rust needed.
+The Rust app library with the web UI embedded is committed gzip-compressed and split into < 100 MB parts as `gen/apple/Prebuilt/{iphoneos,iphonesimulator}/libapp.a.gz.part-*`
+(built by CI from this folder's sources), so the "Build Rust Code" phase just joins and unpacks it (`cat | gunzip`, built into macOS) — no Node / npm / Rust needed.
 arm64 only (Apple-silicon Mac for the simulator). CI regenerates the library on every push to `main` that touches
 `ieumoffice-ios/**` and commits it back. To build Rust from source in Xcode instead, set `AE_BUILD_RUST=1` (needs the
 steps below).

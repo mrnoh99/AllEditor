@@ -67,12 +67,16 @@ jobs:
           for t in aarch64-apple-ios:iphoneos aarch64-apple-ios-sim:iphonesimulator; do
             target=${t%%:*}; plat=${t##*:}
             cargo build --release --lib --target "$target" --features tauri/custom-protocol
-            mkdir -p gen/apple/Prebuilt/$plat
-            cp -f target/$target/release/libieumoffice_mobile_lib.a gen/apple/Prebuilt/$plat/libapp.a
-            xcrun strip -S gen/apple/Prebuilt/$plat/libapp.a || true
-            ls -lh gen/apple/Prebuilt/$plat/libapp.a
-            size=$(stat -f%z gen/apple/Prebuilt/$plat/libapp.a)
-            if [ "$size" -gt 99000000 ]; then echo "::error::$plat libapp.a is $size bytes (> GitHub 100 MB limit)"; exit 1; fi
+            d=gen/apple/Prebuilt/$plat
+            rm -rf "$d"; mkdir -p "$d"
+            cp -f target/$target/release/libieumoffice_mobile_lib.a "$d/libapp.a"
+            xcrun strip -S "$d/libapp.a" || true
+            ls -lh "$d/libapp.a"
+            # GitHub rejects files > 100 MB: store gzip-compressed, split into 90 MB parts (build-rust.sh joins them)
+            gzip -9 -n -c "$d/libapp.a" > "$d/libapp.a.gz"
+            split -b 90m "$d/libapp.a.gz" "$d/libapp.a.gz.part-"
+            rm -f "$d/libapp.a" "$d/libapp.a.gz"
+            ls -lh "$d"
           done
       - name: Verify the committed project builds from Xcode with only the prebuilt library (no npm/node)
         working-directory: ieumoffice-ios/apps/mobile/src-tauri/gen/apple
