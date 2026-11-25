@@ -87,17 +87,26 @@ jobs:
           dbg=$(python3 -c 'import json,sys; print([c for c in json.load(open(sys.argv[1]))["project"]["configurations"] if c.lower()=="debug"][0])' "$RUNNER_TEMP/list.json")
           rel=$(python3 -c 'import json,sys; print([c for c in json.load(open(sys.argv[1]))["project"]["configurations"] if c.lower()=="release"][0])' "$RUNNER_TEMP/list.json")
           echo "project=$proj scheme=$scheme configs=$dbg/$rel"
-          for cfg in $dbg $rel; do
-            env PATH=/usr/bin:/bin:/usr/sbin:/sbin xcodebuild -project "$proj" -scheme "$scheme" -configuration $cfg \
-              -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
-              CODE_SIGNING_ALLOWED=NO -derivedDataPath "$RUNNER_TEMP/dd-$cfg" build | tail -25
-            test "${PIPESTATUS[0]}" -eq 0
-          done
-          env PATH=/usr/bin:/bin:/usr/sbin:/sbin xcodebuild -project "$proj" -scheme "$scheme" -configuration $rel \
-            -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO \
-            -derivedDataPath "$RUNNER_TEMP/dd-dev" build | tail -25
-          test "${PIPESTATUS[0]}" -eq 0
-          app=$(find "$RUNNER_TEMP/dd-$dbg" -name '*.app' -path '*iphonesimulator*' | head -1)
+          # xcodebuild without node/npm/cargo on PATH; on failure the error lines become public annotations
+          xb() {
+            name=$1; shift
+            log="$RUNNER_TEMP/xb-$name.log"
+            if env PATH=/usr/bin:/bin:/usr/sbin:/sbin xcodebuild -project "$proj" -scheme "$scheme" CODE_SIGNING_ALLOWED=NO \
+                 -derivedDataPath "$RUNNER_TEMP/dd-$name" "$@" build > "$log" 2>&1; then
+              tail -5 "$log"; return 0
+            fi
+            tail -60 "$log"
+            grep -E 'error:|Error:|Undefined symbol|ld: |clang: error|\*\* BUILD FAILED' "$log" | sort -u | head -12 | while IFS= read -r l; do
+              echo "::error title=xcodebuild $name::$(echo "$l" | cut -c1-900)"
+            done
+            grep -B2 -A6 'Undefined symbols' "$log" | head -40 | tr '\n' '|' | cut -c1-3000 | sed 's/^/::error title=undefined symbols::/'; echo
+            return 1
+          }
+          xb sim-$dbg -configuration $dbg -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES
+          xb sim-$rel -configuration $rel -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES
+          xb dev-$rel -configuration $rel -sdk iphoneos -destination 'generic/platform=iOS'
+          dbg_app_dir="$RUNNER_TEMP/dd-sim-$dbg"
+          app=$(find "$dbg_app_dir" -name '*.app' -path '*iphonesimulator*' | head -1)
           /usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily' "$app/Info.plist"
       - name: Upload generated Xcode project
         uses: actions/upload-artifact@v4
