@@ -156,14 +156,26 @@ tryPb('Delete :UIStatusBarHidden~ipad')
 pb('Add :UIStatusBarHidden~ipad bool true')
 tryPb('Delete :UIViewControllerBasedStatusBarAppearance')
 pb('Add :UIViewControllerBasedStatusBarAppearance bool false')
-// version (tauri.conf.json) and build number (CI: AE_BUILD_NUMBER = commits on main; unchanged when not set)
+// version (tauri.conf.json) and build number (CI: AE_BUILD_NUMBER = commits on main; kept when not set) live in the
+// target's build settings MARKETING_VERSION / CURRENT_PROJECT_VERSION — what Xcode shows under General › Identity —
+// and Info.plist refers to them
 const tauriConf = JSON.parse(readFileSync(join(APP_DIR, 'src-tauri', 'tauri.conf.json'), 'utf8'))
-tryPb('Delete :CFBundleShortVersionString')
-pb(`Add :CFBundleShortVersionString string ${tauriConf.version}`)
-if (/^\d+$/.test(process.env.AE_BUILD_NUMBER ?? '')) {
-  tryPb('Delete :CFBundleVersion')
-  pb(`Add :CFBundleVersion string ${process.env.AE_BUILD_NUMBER}`)
+{
+  let proj = readFileSync(pbxPath, 'utf8')
+  const prevBuild = /CURRENT_PROJECT_VERSION = (\d+);/.exec(proj)?.[1]
+  let plistBuild = null
+  try { plistBuild = execFileSync('/usr/libexec/PlistBuddy', ['-c', 'Print :CFBundleVersion', plist], { encoding: 'utf8' }).trim() } catch {}
+  const build = /^\d+$/.test(process.env.AE_BUILD_NUMBER ?? '') ? process.env.AE_BUILD_NUMBER
+    : prevBuild ?? (/^\d+$/.test(plistBuild ?? '') ? plistBuild : '1')
+  proj = proj.replace(/^\s*(MARKETING_VERSION|CURRENT_PROJECT_VERSION) = [^;]*;\n/gm, '')
+  proj = proj.replace(/(\n(\s*)PRODUCT_BUNDLE_IDENTIFIER = [^;]*;)/g,
+    `$1\n$2MARKETING_VERSION = ${tauriConf.version};\n$2CURRENT_PROJECT_VERSION = ${build};`)
+  writeFileSync(pbxPath, proj)
 }
+tryPb('Delete :CFBundleShortVersionString')
+pb('Add :CFBundleShortVersionString string $(MARKETING_VERSION)')
+tryPb('Delete :CFBundleVersion')
+pb('Add :CFBundleVersion string $(CURRENT_PROJECT_VERSION)')
 // office suite: documents visible in Files › AllEditor, local-network permission for direct (IPP / 9100) printing
 tryPb('Delete :UIFileSharingEnabled')
 pb('Add :UIFileSharingEnabled bool true')
