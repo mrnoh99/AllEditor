@@ -1,6 +1,6 @@
 // printToPDF for the in-page "Electron": snapshot the live document (or a fake hidden window's HTML)
 // into a self-contained HTML string and let the native side paginate it with @media print rules.
-import { renderPdfNative } from './native-files'
+import { renderPdfNative, nativePrintDialog, nativeDirectPrint } from './native-files'
 
 const toDataUrl = async (src: string): Promise<string | null> => {
   try {
@@ -58,4 +58,60 @@ export async function htmlToPdf(html: string, o: PrintOpts): Promise<Uint8Array>
 
 export async function printCurrentDocument(o: PrintOpts) {
   return htmlToPdf(await snapshotDocument(o.scale ?? 1), o)
+}
+
+
+// ------------------------------------------------------------------ printers
+export interface PrinterCfg { id: string; name: string; host: string; protocol: 'auto' | 'ipp' | 'raw'; port?: number }
+const SKEY = 'alleditor.settings'
+export function getPrinters(): PrinterCfg[] {
+  try { const v = JSON.parse(localStorage.getItem(SKEY) || '{}').printers; return Array.isArray(v) ? v : [] } catch { return [] }
+}
+export function setPrinters(list: PrinterCfg[]) {
+  let s: Record<string, any> = {}; try { s = JSON.parse(localStorage.getItem(SKEY) || '{}') } catch {}
+  s.printers = list; localStorage.setItem(SKEY, JSON.stringify(s))
+}
+/** what the apps' print dialogs list (Electron's getPrintersAsync shape) */
+export const printerChoices = () => getPrinters().map((p) => ({ name: 'ip:' + p.id, displayName: `${p.name} (${p.host})`, isDefault: false }))
+
+export interface PrintJob { deviceName?: string; copies?: number; duplexMode?: 'simplex' | 'longEdge' | 'shortEdge' }
+
+/** Electron print() options -> page size in inches */
+export function pageInchesFromElectron(o: any): [number, number] {
+  if (o?.pageSizeIn?.width) return [o.pageSizeIn.width, o.pageSizeIn.height]
+  const ps = o?.pageSize
+  if (ps && typeof ps === 'object' && ps.width > 1000) return [ps.width / 25400, ps.height / 25400] // microns
+  return pageInches({ pageSize: ps, landscape: o?.landscape })
+}
+
+/** hand a finished PDF to the chosen printer: a configured IP printer, else the iOS print dialog */
+export async function sendToPrinter(pdf: Uint8Array, job: PrintJob = {}, jobName = 'AllEditor'): Promise<boolean> {
+  const cfg = job.deviceName?.startsWith('ip:') ? getPrinters().find((p) => 'ip:' + p.id === job.deviceName) : undefined
+  if (job.deviceName?.startsWith('ip:') && !cfg) throw new Error('프린터 설정을 찾을 수 없습니다. 설정 › 프린터를 확인하세요.')
+  const hook = (globalThis as any).__aePrintHook
+  if (hook) { await hook({ pdf, job, cfg }); return true } // dev/test hook
+  if (!(globalThis as any).Capacitor?.isNativePlatform?.()) throw new Error('인쇄는 iOS 앱에서만 지원됩니다.')
+  if (cfg) {
+    const sides = job.duplexMode === 'longEdge' ? 'two-sided-long-edge' : job.duplexMode === 'shortEdge' ? 'two-sided-short-edge' : undefined
+    await nativeDirectPrint({ host: cfg.host, port: cfg.port, protocol: cfg.protocol, pdf, jobName, copies: job.copies, sides })
+    return true
+  }
+  const r = await nativePrintDialog(pdf, jobName)
+  return r.completed
+}
+
+/** one-page test PDF (Helvetica text) for the Settings › Printer test button */
+export function testPdf(line: string): Uint8Array {
+  const text = line.replace(/[^\x20-\x7e]/g, '?').replace(/[()\\]/g, '')
+  const stream = `BT /F1 20 Tf 72 740 Td (ieum office - test page) Tj 0 -32 Td /F1 12 Tf (${text}) Tj 0 -20 Td (Developed by JaiSung NOH MD 2026) Tj ET`
+  const objs = [
+    '<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ]
+  let out = '%PDF-1.4\n'; const off: number[] = []
+  objs.forEach((o, i) => { off.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n` })
+  const xref = out.length
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + off.map((n) => String(n).padStart(10, '0') + ' 00000 n \n').join('') + `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`
+  return new TextEncoder().encode(out)
 }

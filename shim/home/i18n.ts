@@ -14,6 +14,9 @@ const D: Record<Lang, Record<string, string>> = {
     save2: '저장 중…', tabs: '탭',
     iworkConfirm: 'Apple iWork 파일을 편집 가능한 사본(docx/pptx/xlsx)으로 변환해 엽니다. 텍스트·표·이미지·차트는 유지되고, 수식은 계산 결과 값으로, 페이지 레이아웃과 애니메이션은 단순화됩니다. 원본은 그대로 보존됩니다.',
     converting: '변환 중…', convertFailed: '변환 실패',
+    printers: '프린터', printerName: '이름', printerHost: 'IP 주소', printerProto: '방식', protoAuto: '자동 (IPP → RAW)', protoIpp: 'IPP (포트 631)', protoRaw: 'RAW (포트 9100)',
+    addPrinter: '프린터 추가', test: '테스트 인쇄', remove: '삭제', iosPrint: 'iOS 인쇄 창 테스트 (AirPrint)', printOk: '인쇄 작업을 보냈습니다', printFail: '인쇄 실패',
+    printerHint: '같은 Wi-Fi 네트워크의 프린터 IP를 입력하세요. 앱의 인쇄 창에서 이 프린터를 고르면 PDF를 직접 보냅니다. PDF를 직접 받을 수 있는 프린터(IPP 또는 RAW 9100)만 지원합니다.',
   },
   en: {
     home: 'Home', settings: 'Settings', openFile: 'Open local file…', newDoc: 'New document', newSlides: 'New slides', newSheet: 'New spreadsheet',
@@ -29,6 +32,9 @@ const D: Record<Lang, Record<string, string>> = {
     save2: 'Saving…', tabs: 'Tabs',
     iworkConfirm: 'This Apple iWork file will be converted to an editable copy (docx/pptx/xlsx). Text, tables, images and charts are kept; formulas become their calculated values; page layout and animations are simplified. The original is left untouched.',
     converting: 'Converting…', convertFailed: 'Conversion failed',
+    printers: 'Printers', printerName: 'Name', printerHost: 'IP address', printerProto: 'Method', protoAuto: 'Auto (IPP → RAW)', protoIpp: 'IPP (port 631)', protoRaw: 'RAW (port 9100)',
+    addPrinter: 'Add printer', test: 'Test print', remove: 'Remove', iosPrint: 'iOS print dialog test (AirPrint)', printOk: 'Print job sent', printFail: 'Print failed',
+    printerHint: 'Enter the IP of a printer on the same Wi-Fi network. Pick it in an app’s print dialog to send the PDF directly. Only printers that accept PDF directly (IPP or RAW 9100) are supported.',
   },
 }
 export const LANGS: Array<[string, string]> = [['ko', '한국어'], ['en', 'English'], ['zh', '中文'], ['ja', '日本語'], ['fr', 'Français'], ['de', 'Deutsch'], ['es', 'Español'], ['th', 'ไทย'], ['id', 'Bahasa Indonesia'], ['ru', 'Русский'], ['ar', 'العربية']]

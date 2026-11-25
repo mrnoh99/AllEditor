@@ -3,6 +3,7 @@ import fs, { DOCS_ROOT, USER_ROOT, hydrate, flush } from '../runtime/fs'
 import { AI_PROVIDERS, defaultAiSettings, sanitizeAiSettings } from '@genoffice/ai-provider'
 import { LANGS, tr } from './i18n'
 import { convertIwork, IWORK_EXT } from '../iwork/convert'
+import { getPrinters, setPrinters, sendToPrinter, testPdf, type PrinterCfg } from '../runtime/print'
 
 const APP_BY_EXT: Record<string, string> = {
   docx: 'docs', dotx: 'docs', doc: 'docs', dot: 'docs', odt: 'docs', ott: 'docs', hwp: 'docs', hwpx: 'docs',
@@ -213,6 +214,36 @@ function renderSettings() {
   }
   a.append(field(t('provider'), select(metas.map((m: any) => [m.id, m.label]), provider, (v) => { provider = v; draw() })), body, note)
   draw()
+
+  wrap.append(el('h2', '', t('printers')))
+  const pr = el('div', 'group'); wrap.append(pr)
+  const drawPrinters = () => {
+    pr.textContent = ''
+    for (const p of getPrinters()) {
+      const row = el('div', 'fld')
+      row.append(el('span', 'fl', `${p.name}`), el('span', 'nm', `${p.host} · ${p.protocol.toUpperCase()}`))
+      const tb = el('button', 'mini', t('test')); tb.onclick = async () => {
+        try { await sendToPrinter(testPdf(`${p.name} ${p.host}`), { deviceName: 'ip:' + p.id }, 'AllEditor test'); toast(t('printOk')) } catch (e: any) { alert(`${t('printFail')}: ${e?.message ?? e}`) }
+      }
+      const rb = el('button', 'mini', '✕'); rb.setAttribute('aria-label', t('remove')); rb.onclick = () => { setPrinters(getPrinters().filter((x) => x.id !== p.id)); drawPrinters() }
+      row.append(tb, rb); pr.append(row)
+    }
+    const nm = el('input'); nm.type = 'text'; nm.placeholder = t('printerName')
+    const ho = el('input'); ho.type = 'text'; ho.placeholder = '192.168.0.10'; ho.inputMode = 'decimal'; ho.autocapitalize = 'off'
+    const pro = select([['auto', t('protoAuto')], ['ipp', t('protoIpp')], ['raw', t('protoRaw')]], 'auto', () => {})
+    pr.append(field(t('printerName'), nm), field(t('printerHost'), ho), field(t('printerProto'), pro))
+    const add = el('button', 'primary', t('addPrinter'))
+    add.onclick = () => {
+      const host = ho.value.trim(); if (!/^[\w.\-:]+$/.test(host)) { alert(t('printerHost')); return }
+      const cfg: PrinterCfg = { id: Math.random().toString(36).slice(2, 8), name: nm.value.trim() || host, host, protocol: pro.value as PrinterCfg['protocol'] }
+      setPrinters([...getPrinters(), cfg]); drawPrinters()
+    }
+    const ios = el('button', 'primary alt', t('iosPrint'))
+    ios.onclick = async () => { try { await sendToPrinter(testPdf('iOS print dialog'), {}, 'AllEditor test') } catch (e: any) { alert(`${t('printFail')}: ${e?.message ?? e}`) } }
+    pr.append(add, ios)
+  }
+  drawPrinters()
+  wrap.append(el('p', 'hint', t('printerHint')))
 
   wrap.append(el('h2', '', t('about')), el('p', 'hint', t('aboutText')), el('p', 'credit', CREDIT))
 }

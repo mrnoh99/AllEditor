@@ -1,7 +1,7 @@
 // Minimal in-page "Electron": ipcMain/ipcRenderer talk directly, dialogs are iOS pickers,
 // everything else is an inert deep Proxy so unported features no-op instead of crashing.
 import fs, { DOCS_ROOT, flush } from './fs'
-import { printCurrentDocument, htmlToPdf } from './print'
+import { printCurrentDocument, htmlToPdf, printerChoices, sendToPrinter, pageInchesFromElectron } from './print'
 
 const g = globalThis as any
 let readyResolve!: () => void
@@ -31,6 +31,17 @@ export const webContents: any = {
   send: (ch: string, ...a: any[]) => { for (const l of onRenderer.get(ch) ?? []) l({ sender: webContents }, ...a) },
   isDestroyed: () => false, getURL: () => location.href, isFocused: () => true,
   printToPDF: async (o: any = {}) => Buffer.from(await printCurrentDocument(o)),
+  getPrintersAsync: async () => printerChoices(),
+  print: (o: any = {}, cb?: (ok: boolean, reason?: string) => void) => {
+    void (async () => {
+      try {
+        const [w, h] = pageInchesFromElectron(o)
+        const pdf = await printCurrentDocument({ pageSize: { width: w, height: h }, scale: o.scaleFactor ? o.scaleFactor / 100 : 1 })
+        const done = await sendToPrinter(pdf, o, document.title || 'AllEditor')
+        cb?.(done, done ? undefined : 'cancelled')
+      } catch (e: any) { cb?.(false, String(e?.message ?? e)) }
+    })()
+  },
   getOwnerBrowserWindow: () => browserWindow,
 }
 const wcProxy = new Proxy(webContents, { get: (t, k) => (k in t ? t[k] : inert(`webContents.${String(k)}`)) })
@@ -45,6 +56,17 @@ function makeFakeWindow() {
     id: 2, send() {}, isDestroyed: () => false, on: () => wc, once: () => wc, off: () => wc, removeListener: () => wc, session: inert('session'),
     setWindowOpenHandler: () => {}, executeJavaScript: async () => true, insertCSS: async () => '',
     printToPDF: async (o: any = {}) => Buffer.from(await htmlToPdf(html, o)),
+    getPrintersAsync: async () => printerChoices(),
+    print: (o: any = {}, cb?: (ok: boolean, reason?: string) => void) => {
+      void (async () => {
+        try {
+          const [w, h] = pageInchesFromElectron(o)
+          const pdf = await htmlToPdf(html, { pageSize: { width: w, height: h } })
+          const done = await sendToPrinter(pdf, o, 'AllEditor')
+          cb?.(done, done ? undefined : 'cancelled')
+        } catch (e: any) { cb?.(false, String(e?.message ?? e)) }
+      })()
+    },
   }, { get: (t: any, k) => (k in t ? t[k] : inert(`fakewc.${String(k)}`)) })
   const win: any = new Proxy({
     webContents: wc, isDestroyed: () => false, destroy() {}, close() {}, hide() {}, show() {}, setBounds() {},

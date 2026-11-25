@@ -31,3 +31,14 @@ export async function renderPdfNative(html: string, widthPt: number, heightPt: n
   for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
   return u
 }
+
+// ---- AEPrint: iOS print dialog and direct network printing (IPP / raw 9100) ----
+interface AEPrint {
+  printPdf(o: { data: string; jobName: string }): Promise<{ completed: boolean }>
+  directPrint(o: { host: string; port?: number; protocol: string; data: string; jobName: string; copies?: number; sides?: string }): Promise<{ via: string }>
+}
+const printPlugin = registerPlugin<AEPrint>('AEPrint')
+const toB64 = (u: Uint8Array) => { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s) }
+export const nativePrintDialog = (pdf: Uint8Array, jobName: string) => printPlugin.printPdf({ data: toB64(pdf), jobName })
+export const nativeDirectPrint = (o: { host: string; port?: number; protocol: string; pdf: Uint8Array; jobName: string; copies?: number; sides?: string }) =>
+  printPlugin.directPrint({ host: o.host, port: o.port, protocol: o.protocol, data: toB64(o.pdf), jobName: o.jobName, copies: o.copies, sides: o.sides })
