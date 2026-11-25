@@ -271,6 +271,39 @@ export { TEXTBOX_EDIT_MODULE }
 export const WHEEL_ZOOM_MODULE = '@ieum/wheel-zoom'
 
 const PATCHES = {
+  // [AllEditor] iOS typing: rhwp's iOS path (contentEditable, no composition events) replaces the text at the anchor
+  // of the current input run with the whole hidden-input text on every keystroke, and only forgot that run when the
+  // document closed. After Enter, an arrow key, Backspace or a tap moved the caret, the next keystroke rewrote the
+  // previous run — the new paragraph was "ignored" and the text landed at the end of the line above. Any caret
+  // move that is not iOS text input now ends the run.
+  'studio-ios-input-run-state': {
+    file: /[\\/]rhwp-studio[\\/]src[\\/]engine[\\/]input-handler\.ts$/,
+    find: "  private _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||\n    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);",
+    replace:
+      "  private _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||\n    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);\n" +
+      '  /** [AllEditor] ends the current iOS input run: the next keystroke starts a new one at the caret */\n' +
+      '  resetIosInputRun = (): void => {\n' +
+      '    if (!this._isIOS) return;\n' +
+      '    this._iosAnchor = null;\n' +
+      '    this._iosLength = 0;\n' +
+      "    this._iosPrevText = '';\n" +
+      '    this._iosBeforePageIndex = undefined;\n' +
+      "    if (this.textarea) this.textarea.value = '';\n" +
+      '  };',
+  },
+  'studio-ios-input-run-keys': {
+    file: /[\\/]rhwp-studio[\\/]src[\\/]engine[\\/]input-handler-keyboard\.ts$/,
+    find: "  // IME 조합 중 처리 (한국어 IME에서 e.key는 항상 'Process'이므로 e.code로 판별)\n",
+    replace:
+      "  // [AllEditor] iOS: a key that moves the caret or edits around it ends the iOS input run\n" +
+      "  if (!(e.isComposing || e.keyCode === 229) && ['Enter', 'Backspace', 'Delete', 'Tab', 'Escape', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) this.resetIosInputRun?.();\n" +
+      "  // IME 조합 중 처리 (한국어 IME에서 e.key는 항상 'Process'이므로 e.code로 판별)\n",
+  },
+  'studio-ios-input-run-click': {
+    file: /[\\/]rhwp-studio[\\/]src[\\/]engine[\\/]input-handler-mouse\.ts$/,
+    find: 'export function onClick(this: any, e: MouseEvent): void {\n  rememberHyperlinkClick(this, e);\n',
+    replace: 'export function onClick(this: any, e: MouseEvent): void {\n  this.resetIosInputRun?.(); // [AllEditor] a tap moves the caret: new iOS input run\n  rememberHyperlinkClick(this, e);\n',
+  },
   'sdk-scheme': {
     file: /[\\/]@rhwp[\\/]editor[\\/]transport\.js$/,
     find: "if (targetUrl.protocol !== 'http:' && targetUrl.protocol !== 'https:') {",
@@ -2279,6 +2312,9 @@ const PATCHES = {
 /** The patches the studio build applies, in order; the SDK's own is applied by the renderer builds. */
 export const STUDIO_PATCHES = /** @type {const} */ ([
   'studio-scheme',
+  'studio-ios-input-run-state',
+  'studio-ios-input-run-keys',
+  'studio-ios-input-run-click',
   'studio-password-flag',
   'studio-plugin-allow',
   'studio-table-delete-at',

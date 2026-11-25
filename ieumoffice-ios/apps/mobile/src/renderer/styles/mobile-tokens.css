@@ -798,9 +798,11 @@ input:focus-visible {
   background: var(--bg-hover-subtle);
 }
 
+/* AllEditor: the AI dock sits on the left, as in the office editors (Word, PowerPoint, Excel, PDF) */
 .mobile-tablet-ai-dock {
+  order: -1;
   width: 340px;
-  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
   background: var(--surface);
   display: flex;
   flex-direction: column;
