@@ -55,6 +55,10 @@ writeFileSync(pbxPath, pbx)
 mkdirSync(join(APPLE, 'scripts'), { recursive: true })
 mkdirSync(join(APPLE, 'Prebuilt', 'iphoneos'), { recursive: true })
 mkdirSync(join(APPLE, 'Prebuilt', 'iphonesimulator'), { recursive: true })
+// The project has a folder reference to `assets` (bundle resources) that the Tauri CLI normally creates during
+// the build; keep it in git so a prebuilt-only build finds it.
+mkdirSync(join(APPLE, 'assets'), { recursive: true })
+if (readdirSync(join(APPLE, 'assets')).length === 0) writeFileSync(join(APPLE, 'assets', '.gitkeep'), '')
 writeFileSync(
   wrapperPath,
   `#!/bin/sh
@@ -65,6 +69,7 @@ writeFileSync(
 # AE_BUILD_RUST=1 (env or Xcode build setting), or no prebuilt parts: build from source with the Tauri CLI
 # (needs Node >= 22, Rust + iOS targets, and \`npm ci\` + the web build in ieumoffice-ios/ — see README-IOS.md).
 set -e
+mkdir -p "$SRCROOT/assets"
 DIR="$SRCROOT/Prebuilt/$PLATFORM_NAME"
 if [ "\${AE_BUILD_RUST:-0}" != "1" ] && ls "$DIR"/libapp.a.gz.part-* >/dev/null 2>&1; then
   CACHE="$SRCROOT/Externals/prebuilt-$PLATFORM_NAME.a"

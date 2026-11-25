@@ -6,6 +6,7 @@
 # AE_BUILD_RUST=1 (env or Xcode build setting), or no prebuilt parts: build from source with the Tauri CLI
 # (needs Node >= 22, Rust + iOS targets, and `npm ci` + the web build in ieumoffice-ios/ — see README-IOS.md).
 set -e
+mkdir -p "$SRCROOT/assets"
 DIR="$SRCROOT/Prebuilt/$PLATFORM_NAME"
 if [ "${AE_BUILD_RUST:-0}" != "1" ] && ls "$DIR"/libapp.a.gz.part-* >/dev/null 2>&1; then
   CACHE="$SRCROOT/Externals/prebuilt-$PLATFORM_NAME.a"
