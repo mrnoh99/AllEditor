@@ -101,10 +101,9 @@ const CSS = `
 .ae-sub-pop .md-item{display:flex;align-items:center;gap:8px;padding:9px 14px 9px 32px;border-radius:6px;cursor:pointer;font-size:14px;white-space:nowrap}
 .ae-sub-pop .md-item:hover{background:var(--ae-rb-hover,#f0f0f0)}.ae-sub-pop .md-item.disabled{opacity:.4;pointer-events:none}
 .ae-sub-pop .md-shortcut{display:none}
+/* the studio's effective theme (follows the app's 테마 setting, see installAllEditorTheme) */
+:root[data-theme-effective="dark"]{--ae-rb-bg:#1f1f21;--ae-rb-fg:#e8e8e8;--ae-rb-line:#3a3a3c;--ae-rb-hover:#2c2c2e}
 body.ae-ribbon-tab:not(.ae-ribbon-home) #icon-toolbar,body.ae-ribbon-tab:not(.ae-ribbon-home) #style-bar{display:none!important}
-@media (prefers-color-scheme: dark){:root{--ae-rb-bg:#1f1f21;--ae-rb-fg:#e8e8e8;--ae-rb-line:#3a3a3c;--ae-rb-hover:#2c2c2e}}
-:root[data-theme="dark"]{--ae-rb-bg:#1f1f21;--ae-rb-fg:#e8e8e8;--ae-rb-line:#3a3a3c;--ae-rb-hover:#2c2c2e}
-:root[data-theme="light"]{--ae-rb-bg:#fff;--ae-rb-fg:#333;--ae-rb-line:#e3e3e3;--ae-rb-hover:#f0f0f0}
 `
 
 /** a ribbon button for one menu item: the item itself, cloned (keeps data-cmd and its parameters) */
@@ -273,4 +272,42 @@ export function installAllEditorRibbon(bar, updateStates) {
   let saved = 'home'
   try { saved = localStorage.getItem(KEY) || 'home' } catch {}
   show(TABS.some((t) => t.id === saved) ? saved : 'home')
+  installAllEditorTheme(bar)
+}
+
+// [AllEditor] dark mode: the editor follows the app's 화면 테마 (설정 › 테마: 시스템 / 라이트 / 다크), and the paper
+// follows 문서 배경 (설정: 화면 따라가기 / 라이트 / 다크) the way the Word editor's paper does. The pages are
+// drawn on canvases, so a dark page is the drawn page with its lightness inverted (hues kept); the document
+// itself is not changed, and printing / PDF / saving use the real colours.
+const APP_SETTINGS = 'alleditor.settings'
+const readApp = () => { try { return JSON.parse(localStorage.getItem(APP_SETTINGS) || '{}') } catch { return {} } }
+const DARK_CSS = `
+html.ae-doc-dark #scroll-content canvas.document-page-canvas,html.ae-doc-dark #scroll-content canvas{filter:invert(.9) hue-rotate(180deg)}
+html.ae-doc-dark #scroll-content{background:#1b1b1d}
+`
+export function installAllEditorTheme(bar) {
+  const style = document.createElement('style')
+  style.textContent = DARK_CSS
+  document.head.appendChild(style)
+  const root = document.documentElement
+  const mq = matchMedia('(prefers-color-scheme: dark)')
+  const syncUi = () => {
+    const mode = ['light', 'dark', 'system'].includes(readApp().theme) ? readApp().theme : 'system'
+    if (root.dataset.themeMode === mode) return
+    // the studio's own theme command (보기 › 테마), so its settings and every part of its UI follow
+    const item = bar.querySelector(`.md-item[data-cmd="view:theme-${mode}"]`)
+    if (item) item.click()
+  }
+  const syncPaper = () => {
+    const doc = readApp().documentTheme ?? 'follow'
+    const uiDark = root.dataset.themeEffective ? root.dataset.themeEffective === 'dark' : mq.matches
+    root.classList.toggle('ae-doc-dark', doc === 'dark' || (doc === 'follow' && uiDark))
+  }
+  const sync = () => { syncUi(); syncPaper() }
+  syncPaper()
+  setTimeout(sync, 0) // after the studio has finished starting
+  mq.addEventListener?.('change', sync)
+  addEventListener('storage', (e) => { if (e.key === APP_SETTINGS) sync() })
+  new MutationObserver(syncPaper).observe(root, { attributes: true, attributeFilter: ['data-theme-effective'] })
+  addEventListener('focus', sync)
 }
