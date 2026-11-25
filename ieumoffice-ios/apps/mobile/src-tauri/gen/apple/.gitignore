@@ -3,3 +3,5 @@ build/
 Externals/
 DerivedData/
 *.xcuserstate
+Prebuilt/*/libapp.a
+Prebuilt/*/libapp.a.gz
