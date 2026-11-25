@@ -1,5 +1,7 @@
 # AllEditor (iOS)
 
+*ieum office — Developed by JaiSung NOH MD 2026*
+
 iOS build of the open-source [GenOffice](https://github.com/genspark-ai/genoffice) suite
 (Apache-2.0; pinned commit in `scripts/build-web.mjs`).
 
