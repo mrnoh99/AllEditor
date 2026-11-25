@@ -1,7 +1,7 @@
 // Builds the upstream GenOffice renderers as plain web apps and assembles www/ for Capacitor.
 //   UPSTREAM_DIR=/path/to/genoffice node scripts/build-web.mjs   (skip cloning)
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
@@ -80,6 +80,25 @@ start('${app}', (open) => { ${rt.code} }, ${JSON.stringify(rt.preload ?? [])})
   const idx = join(out, 'index.html')
   // runtime must run before the app bundle (module scripts are deferred, classic ones are not)
   writeFileSync(idx, readFileSync(idx, 'utf8').replace('<head>', '<head><script src="./runtime.js"></script>').replace(/script-src 'self'( 'wasm-unsafe-eval')?/, "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'").replace(/connect-src 'self'/, "connect-src 'self' https: wss: blob: data:"))
+}
+
+// 2b. AllEditor branding: the AI panel / ribbon entry read "AI", not the upstream product name "Genspark".
+// Only these UI labels change; strings about the real Genspark provider (sign-in, credits) stay accurate.
+const BRAND = [
+  [/\b(ribbonAiAssistant|aiPanelTitle):"Genspark"/g, '$1:"AI"'],
+  [/children:"Genspark AI"/g, 'children:"AI"'],
+  // panel header: [icon, "Genspark"] (Sheets, PDF)
+  [/(className:"ai-panel-title",children:\[[^\]]{0,60}?),"Genspark"\]/g, '$1,"AI"]'],
+]
+for (const app of APPS) {
+  const dir = join(www, app, 'assets')
+  if (!existsSync(dir)) continue
+  for (const f of readdirSync(dir).filter((n) => n.endsWith('.js'))) {
+    const p = join(dir, f); const src = readFileSync(p, 'utf8')
+    let out = src
+    for (const [re, to] of BRAND) out = out.replace(re, to)
+    if (out !== src) writeFileSync(p, out)
+  }
 }
 
 // 3. launcher

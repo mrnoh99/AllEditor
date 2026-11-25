@@ -1,7 +1,11 @@
-This app (iOS) was developed by JaiSung NOH MD, 2026, building on the open source of
-ieum office (이음 오피스, a.k.a. GenOffice, https://github.com/genspark-ai/genoffice),
-copyright its contributors / Mainfunc, Inc. (Genspark AI), licensed under the Apache License 2.0 (see LICENSE),
-and extended here for iOS.
+AllEditor (iOS / iPadOS)
+Developed by JaiSung NOH MD, 2026.
+
+This app is built on the open source of 이음오피스 (IeumOffice) by 박준일 (Jun-il Park),
+https://github.com/pblsketch/ieumoffice, licensed under the Apache License 2.0 (see LICENSE),
+which is itself based on GenOffice (https://github.com/genspark-ai/genoffice) by Genspark AI / Mainfunc, Inc.,
+licensed under the Apache License 2.0. The notices of both projects are kept below and in ieumoffice-ios/NOTICE,
+and are extended here for iOS / iPad.
 
 GenOffice
 Copyright 2026 Mainfunc, Inc.

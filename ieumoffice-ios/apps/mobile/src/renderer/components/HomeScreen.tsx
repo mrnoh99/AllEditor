@@ -10,7 +10,7 @@ import {
   IconSettings,
   IeumAppIcon,
 } from './MobileIcons'
-import { OfficeHomeSection } from './OfficeSuite'
+import { CreditFooter, OfficeHomeSection } from './OfficeSuite'
 
 type RecentFilter = 'all' | 'hwp' | 'md'
 
@@ -297,6 +297,8 @@ export function HomeScreen({
             </ul>
           )}
         </section>
+
+        <CreditFooter />
       </main>
     </div>
   )
