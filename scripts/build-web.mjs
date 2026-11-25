@@ -12,7 +12,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const REPO = 'https://github.com/pblsketch/ieumoffice' // 이음오피스 (박준일), Apache-2.0 — same pin as ieumoffice-ios/
 const PINNED = 'ad22c056a9d217f11079a4dc30df12ccf233f8d3'
 const upstream = process.env.UPSTREAM_DIR ?? join(root, '.upstream-ieum')
-const APPS = (process.env.APPS ?? 'docs,slides,sheets,pdf').split(',') // renderer apps to bundle
+const APPS = (process.env.APPS ?? 'docs,slides,sheets,pdf,hwp').split(',') // renderer apps to bundle
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: 'inherit' })
 
 if (!existsSync(join(upstream, 'package.json'))) {
@@ -119,10 +119,25 @@ const RUNTIMES = {
   pdf: { file: 'pdf-main', imports: 'createPdfView', code: 'createPdfView(open); registerAiIpc(); registerProjectIpc(); registerPdfTools(open)', tools: "import { registerPdfTools } from '" + join(root, 'shim/runtime/pdf-tools.ts') + "'; import { registerAiIpc, registerProjectIpc } from '" + upstream + "/apps/docs/src/main/docs-main'",
     preload: [['/app/wasm/pdfium.wasm', 'wasm/pdfium.wasm'], ['/app/wasm/harfbuzz-subset.wasm', 'wasm/harfbuzz-subset.wasm']] },
 }
+// 한글: the 이음오피스 desktop HWP app (hosts rhwp-studio). The studio is the one built in ieumoffice-ios/ (same
+// 이음오피스 pin + AllEditor's iOS input patches, apps/hwp/scripts/rhwp-patches.mjs).
+RUNTIMES.hwp = {
+  file: 'hwp-main', imports: 'createHwpView',
+  code: 'registerAiIpc(); registerProjectIpc(); createHwpView(open)',
+  tools: `import { registerAiIpc, registerProjectIpc } from '${upstream}/apps/docs/src/main/docs-main'`,
+}
+function prepareHwpStudio() {
+  const ieumIos = join(root, 'ieumoffice-ios')
+  run('npm', ['run', 'studio', '-w', '@genoffice/hwp'], ieumIos)
+  const dst = join(upstream, 'apps/hwp/public/studio')
+  rmSync(dst, { recursive: true, force: true })
+  cpSync(join(ieumIos, 'apps/hwp/public/studio'), dst, { recursive: true })
+}
 const bootFile = join(root, 'shim/runtime/boot.ts')
 
 // 2. renderers
 for (const app of APPS) {
+  if (app === 'hwp') prepareHwpStudio()
   const appDir = join(upstream, 'apps', app)
   const out = join(www, app)
   run('npx', ['vite', 'build', '--config', 'vite.renderer.config.ts', '--outDir', out,

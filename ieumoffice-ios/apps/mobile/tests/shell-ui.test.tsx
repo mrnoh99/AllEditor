@@ -186,8 +186,8 @@ describe('SettingsScreen ChatGPT visibility gate, usage link, and HWP backup act
   })
 })
 
-describe('HomeScreen permission-expired recent doc recovery UI', () => {
-  it('shows permission expired recovery controls when a recent doc returns PERMISSION_DENIED', () => {
+describe('HomeScreen recent documents (AllEditor: the Documents folder, opened as office tabs)', () => {
+  it('shows the Documents-folder recent list instead of the per-file recent list', () => {
     const el = renderInDom(
       <HomeScreen
         recentDocs={[
@@ -212,6 +212,7 @@ describe('HomeScreen permission-expired recent doc recovery UI', () => {
       />,
     )
 
-    expect(el.querySelector('[data-testid="recent-expired-rec-1"]')).not.toBeNull()
+    expect(el.querySelector('[data-testid="home-recent-docs"]')).not.toBeNull()
+    expect(el.querySelector('[data-testid="recent-expired-rec-1"]')).toBeNull()
   })
 })

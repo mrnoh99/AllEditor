@@ -72,6 +72,7 @@ pub fn run() {
             office::ae_pick_open_any,
             office::ae_open_documents_hwp,
             office::ae_app_version,
+            office::ae_list_documents,
         ])
         .build(tauri::generate_context!())
         .expect("error while running IeumOffice mobile application")

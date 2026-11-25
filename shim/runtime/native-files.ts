@@ -42,6 +42,8 @@ const plugin = bridge<AEFiles>('AEFiles')
 export const Directory = { Documents: 'documents', Support: 'support' } as const
 type D = (typeof Directory)[keyof typeof Directory]
 const dir = (d?: string): Dir => (d === 'support' ? 'support' : 'documents')
+/** rename a document inside its folder (Documents) */
+export const nativeRename = (from: string, to: string) => (plugin as any).rename({ path: from.replace(/^\/Documents\/?/, ''), to: to.replace(/^\/Documents\/?/, ''), dir: 'documents' }) as Promise<unknown>
 export const Filesystem = {
   readFile: (o: { path: string; directory?: D }) => plugin.readFile({ path: o.path, dir: dir(o.directory) }),
   writeFile: (o: { path: string; directory?: D; data: string; recursive?: boolean }) => plugin.writeFile({ path: o.path, data: o.data, dir: dir(o.directory) }),

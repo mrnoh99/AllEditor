@@ -196,14 +196,11 @@ impl MobileFileService {
         self.activate_picked(picked, true)
     }
 
-    /// AllEditor: one picker for every document type. 한글 (hwp/hwpx) opens as a session here; any other file is
-    /// read and handed back as (name, bytes) for the office suite.
+    /// AllEditor: one picker for every document type; the file is read and handed back as (name, bytes) for the
+    /// office suite (한글 included).
     pub fn pick_open_any(&self, exts: &[String]) -> MobileResult<PickedAny> {
         let picked = self.bridge.pick_open_file(exts).map_err(map_fs_error)?;
-        let lower = picked.name.to_ascii_lowercase();
-        if lower.ends_with(".hwp") || lower.ends_with(".hwpx") {
-            return Ok(PickedAny::Hwp(self.activate_picked(picked, true)?));
-        }
+        // 한글 opens in the office suite like every other document (one editor, tabs)
         let bytes = self.bridge.read_uri_bytes(&picked.uri).map_err(map_fs_error)?;
         Ok(PickedAny::Office { name: picked.name, data: B64.encode(bytes) })
     }

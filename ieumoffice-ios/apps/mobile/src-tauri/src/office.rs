@@ -163,6 +163,14 @@ fn files_call<R: Runtime>(app: &AppHandle<R>, method: &str, args: &Value) -> Res
             fs::rename(&tmp, &path).map_err(|e| format!("Cannot write file: {e}"))?;
             Ok(json!({}))
         }
+        "rename" => {
+            let to = safe_join(&base, args.get("to").and_then(Value::as_str).ok_or("to missing")?)?;
+            if to.exists() {
+                return Err("a file with that name already exists".into());
+            }
+            fs::rename(&path, &to).map_err(|e| format!("Cannot rename: {e}"))?;
+            Ok(json!({}))
+        }
         "deleteFile" => {
             if path.is_dir() { fs::remove_dir_all(&path) } else { fs::remove_file(&path) }
                 .map_err(|e| format!("Cannot delete file: {e}"))?;
@@ -377,9 +385,9 @@ mod tests {
 //  * office files → read natively, kept here until the page takes them (`ae_take_office_intents`), announced
 //    with `ae-office-intent`; the office suite imports them into Documents (iWork → editable copy) and opens them.
 
-const IEUM_EXTS: &[&str] = &["hwp", "hwpx", "md", "markdown", "txt"];
+const IEUM_EXTS: &[&str] = &["md", "markdown", "txt"];
 const OFFICE_EXTS: &[&str] = &[
-    "docx", "dotx", "doc", "dot", "odt", "ott", "pptx", "potx", "ppt", "odp", "otp", "xlsx", "xlsm", "xls", "ods",
+    "hwp", "hwpx", "docx", "dotx", "doc", "dot", "odt", "ott", "pptx", "potx", "ppt", "odp", "otp", "xlsx", "xlsm", "xls", "ods",
     "ots", "csv", "tsv", "pdf", "pages", "key", "numbers",
 ];
 
@@ -458,8 +466,8 @@ mod open_in_tests {
 
     #[test]
     fn routes() {
-        assert_eq!(route_for("보고서.HWP"), Some("ieum"));
-        assert_eq!(route_for("a.hwpx"), Some("ieum"));
+        assert_eq!(route_for("보고서.HWP"), Some("office"));
+        assert_eq!(route_for("a.hwpx"), Some("office"));
         assert_eq!(route_for("a.md"), Some("ieum"));
         assert_eq!(route_for("a.docx"), Some("office"));
         assert_eq!(route_for("a.key"), Some("office"));
@@ -517,4 +525,33 @@ fn app_version<R: Runtime>(app: &AppHandle<R>) -> Value {
 #[tauri::command]
 pub fn ae_app_version<R: Runtime>(app: AppHandle<R>) -> Value {
     app_version(&app)
+}
+
+/// The home's "최근 문서": documents of the app's Documents folder (where the office suite keeps every document,
+/// 한글 included), newest first.
+#[tauri::command]
+pub fn ae_list_documents<R: Runtime>(app: AppHandle<R>) -> Vec<Value> {
+    let base = storage_root(&app, "documents");
+    let mut rows: Vec<(u64, Value)> = Vec::new();
+    if let Ok(rd) = fs::read_dir(&base) {
+        for entry in rd.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name.starts_with('.') || route_for(&name) != Some("office") {
+                continue;
+            }
+            let Ok(meta) = entry.metadata() else { continue };
+            if !meta.is_file() {
+                continue;
+            }
+            let mtime = meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+            rows.push((mtime, json!({ "name": name, "path": format!("/Documents/{name}"), "size": meta.len(), "mtime": mtime })));
+        }
+    }
+    rows.sort_by(|a, b| b.0.cmp(&a.0));
+    rows.into_iter().take(30).map(|(_, v)| v).collect()
 }

@@ -18,6 +18,7 @@ http.createServer((req, res) => {
       try {
         if (method === 'readFile') out = { data: fs.readFileSync(f).toString('base64') }
         else if (method === 'writeFile') { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, Buffer.from(a.data, 'base64')) }
+        else if (method === 'rename') { const to = path.join(base, a.to); if (fs.existsSync(to)) throw new Error('exists'); fs.renameSync(f, to) }
         else if (method === 'deleteFile') fs.rmSync(f, { recursive: true })
         else if (method === 'readdir') out = { files: fs.existsSync(f) ? fs.readdirSync(f).map((n) => { const st = fs.statSync(path.join(f, n)); return { name: n, type: st.isDirectory() ? 'directory' : 'file', size: st.size, mtime: st.mtimeMs } }) : [] }
         else if (plugin === 'AEAi' && method === 'get') out = { selectedProvider: ai.selected, modelByProvider: ai.models, configuredProviders: Object.fromEntries(Object.keys(ai.keys).map((k) => [k, { hasKey: !!ai.keys[k], models: [] }])) }

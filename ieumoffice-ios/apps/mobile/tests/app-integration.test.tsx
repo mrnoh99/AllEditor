@@ -127,7 +127,7 @@ describe('MobileApp end-to-end integration', () => {
     expect(mdView?.getAttribute('data-mode')).toBe('view')
   })
 
-  it('offers 한글, Word, PowerPoint and Excel side by side and creates a 한글 document (AllEditor home)', async () => {
+  it('offers 한글, Word, PowerPoint and Excel side by side and opens a new 한글 tab in the office layer (AllEditor home)', async () => {
     const { transport } = makeMockTransport()
     const client = createMobileClient(transport)
 
@@ -149,11 +149,12 @@ describe('MobileApp end-to-end integration', () => {
     expect(div.querySelector('[data-testid="home-open-any"]')).not.toBeNull()
     expect(div.querySelector('[data-testid="home-library"]')).not.toBeNull()
 
+    // 한글 is an office tab now: the office layer opens over the home
     await act(async () => {
       div.querySelector<HTMLButtonElement>('[data-testid="home-new-hwp"]')?.click()
       await new Promise((r) => setTimeout(r, 30))
     })
-    expect(div.querySelector('[data-testid="mobile-home-screen"]')).toBeNull()
+    expect(div.querySelector('[data-testid="office-overlay"]')).not.toBeNull()
   })
 })
 

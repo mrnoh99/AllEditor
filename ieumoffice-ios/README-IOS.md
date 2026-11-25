@@ -73,4 +73,9 @@ that stays alive while you are back on the 이음오피스 home (‹ 이음 butt
 - Version / build: version in `src-tauri/tauri.conf.json` (1.0.0); build number = commits on `main`, set by CI
   (`AE_BUILD_NUMBER` → Info.plist CFBundleVersion via `ae-xcode-setup.mjs`, and baked into the Rust library).
   Shown on the home ("버전 1.0.0 (빌드 N)") and in the office Settings › About. Raise the version in tauri.conf.json.
+- 한글 is the fifth office app (이음오피스's desktop HWP app, `apps/hwp`, built into `office/hwp` with the rhwp-studio
+  built in ieumoffice-ios — same pin + AllEditor's iOS input patches): 한글 files open as office tabs with 한글's full
+  menus, the AI 도우미 docked on the left like Word. The home's 새 한글 / 파일 열기 / 최근 문서 (Documents folder,
+  `ae_list_documents`) and Open in route 한글 there too; files are kept in Documents like the other documents.
+- Rename: tap the active tab's name (office home) — the file is renamed in Documents and the tab reopens it.
 

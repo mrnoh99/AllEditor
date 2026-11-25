@@ -6,10 +6,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMobileLocale } from '../i18n'
 import { IconChevronRight, IconFolderOpen } from './MobileIcons'
 
-type OfficeApp = 'docs' | 'slides' | 'sheets'
+type OfficeApp = 'hwp' | 'docs' | 'slides' | 'sheets'
 type OfficeAction =
   | { action: 'home' }
   | { action: 'new'; app: OfficeApp }
+  | { action: 'open'; path: string } // a document of the Documents folder
   | { action: 'import'; name: string; data: string } // file handed over by another app (base64)
 
 interface TauriGlobal {
@@ -114,17 +115,15 @@ const HOME_TEXT = {
  */
 export function UnifiedHomeSection({
   hwpFormat,
-  onNewHwp,
   onOpenAny,
 }: {
   readonly hwpFormat: 'hwp' | 'hwpx'
-  readonly onNewHwp: () => void
   readonly onOpenAny: () => void
 }) {
   const { lang } = useMobileLocale()
   const s = lang === 'ko' ? HOME_TEXT.ko : HOME_TEXT.en
   const cards: Array<{ id: string; title: string; sub: string; label: string; color: string; run: () => void }> = [
-    { id: 'hwp', title: s.hwp, sub: '.' + hwpFormat, label: '한', color: '#1d9bd1', run: onNewHwp },
+    { id: 'hwp', title: s.hwp, sub: '.' + hwpFormat, label: '한', color: '#1d9bd1', run: () => openOffice({ action: 'new', app: 'hwp' }) },
     { id: 'docs', title: s.word, sub: '.docx', label: 'W', color: '#2b6cd4', run: () => openOffice({ action: 'new', app: 'docs' }) },
     { id: 'slides', title: s.ppt, sub: '.pptx', label: 'P', color: '#d24726', run: () => openOffice({ action: 'new', app: 'slides' }) },
     { id: 'sheets', title: s.excel, sub: '.xlsx', label: 'X', color: '#1e7145', run: () => openOffice({ action: 'new', app: 'sheets' }) },
@@ -274,5 +273,80 @@ export function CreditFooter() {
       {CREDIT_TEXT}
       {version && <div data-testid="home-version">{version}</div>}
     </footer>
+  )
+}
+
+const DOC_BADGE: Record<string, [string, string]> = {
+  hwp: ['한', '#1d9bd1'], hwpx: ['한', '#1d9bd1'],
+  docx: ['W', '#2b6cd4'], doc: ['W', '#2b6cd4'], dotx: ['W', '#2b6cd4'], odt: ['W', '#2b6cd4'],
+  pptx: ['P', '#d24726'], ppt: ['P', '#d24726'], odp: ['P', '#d24726'],
+  xlsx: ['X', '#1e7145'], xlsm: ['X', '#1e7145'], xls: ['X', '#1e7145'], ods: ['X', '#1e7145'], csv: ['X', '#1e7145'],
+  pdf: ['PDF', '#e03a3e'], pages: ['Pg', '#f39c12'], key: ['K', '#2980b9'], numbers: ['N', '#27ae60'],
+}
+
+interface DocRow { readonly name: string; readonly path: string; readonly size: number; readonly mtime: number }
+
+/** 최근 문서: the Documents folder (every document the app keeps, 한글 included), newest first; opens as a tab. */
+export function RecentDocuments() {
+  const { lang } = useMobileLocale()
+  const ko = lang === 'ko'
+  const [rows, setRows] = useState<readonly DocRow[] | null>(null)
+  useEffect(() => {
+    const t = tauri()
+    if (!t?.core) return
+    const load = () => void t.core!.invoke<DocRow[]>('ae_list_documents').then(setRows, () => setRows([]))
+    load()
+    // the office layer closed (‹ 이음): documents may have been saved, renamed or added
+    const onMessage = (e: MessageEvent) => {
+      if ((e.data as { type?: string } | null)?.type === 'ae-office-close') load()
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [])
+  const fmt = (ms: number) => {
+    try {
+      return new Intl.DateTimeFormat(ko ? 'ko-KR' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(ms))
+    } catch {
+      return ''
+    }
+  }
+  return (
+    <section className="mobile-section" aria-label={ko ? '최근 문서' : 'Recent documents'} data-testid="home-recent-docs">
+      <div className="mobile-section-bar">
+        <div className="mobile-section-heading-wrap">
+          <h2 className="mobile-section-heading">{ko ? '최근 문서' : 'Recent documents'}</h2>
+          {rows && rows.length > 0 && <span className="mobile-section-count">{rows.length}</span>}
+        </div>
+      </div>
+      {!rows || rows.length === 0 ? (
+        <div className="mobile-empty-state">
+          <p className="mobile-muted">{ko ? '아직 문서가 없습니다. 새로 만들거나 파일을 여세요.' : 'No documents yet. Create one or open a file.'}</p>
+        </div>
+      ) : (
+        <ul className="mobile-doc-list">
+          {rows.map((r) => {
+            const ext = r.name.split('.').pop()!.toLowerCase()
+            const [label, color] = DOC_BADGE[ext] ?? ['?', '#888']
+            return (
+              <li key={r.path} className="mobile-doc-list-item">
+                <button type="button" className="mobile-doc-row-btn" onClick={() => openOffice({ action: 'open', path: r.path })}>
+                  <Badge label={label} color={color} />
+                  <span className="mobile-doc-row-main">
+                    <span className="mobile-doc-row-info">
+                      <span className="mobile-list-name">{r.name}</span>
+                      <span className="mobile-doc-row-meta">
+                        <span>{ext.toUpperCase()}</span>
+                        <span>· {fmt(r.mtime)}</span>
+                      </span>
+                    </span>
+                    <IconChevronRight size={17} className="mobile-chevron" />
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
   )
 }

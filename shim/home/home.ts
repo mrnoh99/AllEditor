@@ -4,19 +4,19 @@ import { AI_PROVIDERS, defaultAiSettings, sanitizeAiSettings } from '@genoffice/
 import { LANGS, tr } from './i18n'
 import { convertIwork, IWORK_EXT } from '../iwork/convert'
 import { getPrinters, setPrinters, sendToPrinter, testPdf, type PrinterCfg } from '../runtime/print'
-import { nativeShare, nativeAi, isTauriOffice, nativeAppVersion, type AiSnapshot } from '../runtime/native-files'
+import { nativeShare, nativeAi, isTauriOffice, nativeAppVersion, nativeRename, type AiSnapshot } from '../runtime/native-files'
 import { openExternalUrl } from '../runtime/electron'
 
 const APP_BY_EXT: Record<string, string> = {
-  docx: 'docs', dotx: 'docs', doc: 'docs', dot: 'docs', odt: 'docs', ott: 'docs', hwp: 'docs', hwpx: 'docs',
+  docx: 'docs', dotx: 'docs', doc: 'docs', dot: 'docs', odt: 'docs', ott: 'docs', hwp: 'hwp', hwpx: 'hwp',
   pptx: 'slides', potx: 'slides', ppt: 'slides', odp: 'slides', otp: 'slides',
   xlsx: 'sheets', xlsm: 'sheets', xls: 'sheets', ods: 'sheets', ots: 'sheets', csv: 'sheets', tsv: 'sheets', pdf: 'pdf',
   // Apple iWork: converted to an editable copy first (see openPath)
   pages: 'docs', key: 'slides', numbers: 'sheets',
 }
 const IWORK_LABEL: Record<string, string> = { pages: 'Pages', key: 'Keynote', numbers: 'Numbers' }
-const tagLabel = (n: string) => /^(hwp|hwpx)$/.test(ext(n)) ? (lang() === 'ko' ? '한글' : 'Hangul') : IWORK_LABEL[ext(n)] ?? APP_LABEL[appFor(n)][lang() === 'ko' ? 0 : 1]
-const APP_LABEL: Record<string, [string, string]> = { docs: ['문서', 'Docs'], slides: ['슬라이드', 'Slides'], sheets: ['스프레드시트', 'Sheets'], pdf: ['PDF', 'PDF'] }
+const tagLabel = (n: string) => IWORK_LABEL[ext(n)] ?? APP_LABEL[appFor(n)][lang() === 'ko' ? 0 : 1]
+const APP_LABEL: Record<string, [string, string]> = { hwp: ['한글', 'Hangul'], docs: ['문서', 'Docs'], slides: ['슬라이드', 'Slides'], sheets: ['스프레드시트', 'Sheets'], pdf: ['PDF', 'PDF'] }
 const ext = (n: string) => n.split('.').pop()!.toLowerCase()
 const appFor = (n: string) => APP_BY_EXT[ext(n)]
 
@@ -88,7 +88,8 @@ function renderBar() {
   }
   for (const x of tabs) {
     const b = el('div', 'tab' + (x.id === active ? ' on' : '') + (x.app ? ' ' + x.app : ''))
-    const lab = el('button', 'tl', tabLabel(x)); lab.onclick = () => activate(x.id); b.append(lab)
+    const lab = el('button', 'tl', tabLabel(x)); lab.onclick = () => (x.id === active && x.kind === 'app' ? void renameTab(x) : activate(x.id)); b.append(lab)
+    if (x.id === active && x.kind === 'app') lab.title = lang() === 'ko' ? '눌러서 이름 바꾸기' : 'Tap to rename'
     if (x.kind !== 'home') { const c = el('button', 'tx', '✕'); c.setAttribute('aria-label', t('closeTab')); c.onclick = () => void closeTab(x.id); b.append(c) }
     bar.append(b)
   }
@@ -104,6 +105,35 @@ function renderBar() {
   bar.querySelector('.tab.on')?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
 }
 
+// ---- rename: tap the active tab's name ----
+// The tab's document is renamed in Documents and the tab reopens it under the new name (unsaved changes must be
+// saved first: the editors keep their own copy of the path).
+async function renameTab(x: Tab) {
+  const ko = lang() === 'ko'
+  const w = frames.get(x.id)?.contentWindow as any
+  const path: string | null = w?.__aeDocPath?.() ?? x.path ?? null
+  if (!path) { alert(ko ? '새 문서는 먼저 저장하세요 (파일 › 저장). 저장할 때 이름을 정할 수 있습니다.' : 'Save the new document first (File › Save); you can name it there.'); return }
+  const dir = path.slice(0, path.lastIndexOf('/')), file = path.slice(path.lastIndexOf('/') + 1)
+  const dot = file.lastIndexOf('.'), stem = dot > 0 ? file.slice(0, dot) : file, extn = dot > 0 ? file.slice(dot) : ''
+  const input = prompt(ko ? `새 이름 (${extn} 은 그대로 둡니다)\n저장하지 않은 변경이 있으면 취소하고 먼저 저장하세요.` : `New name (${extn} is kept)\nCancel and save first if there are unsaved changes.`, stem)
+  if (input === null) return
+  const name = input.trim().replace(/[\\/:*?"<>|]/g, '_').replace(new RegExp(extn.replace('.', '\\.') + '$', 'i'), '')
+  if (!name || name === stem) return
+  const to = `${dir}/${name}${extn}`
+  if (fs.existsSync(to)) { alert(ko ? '같은 이름의 파일이 이미 있습니다.' : 'A file with that name already exists.'); return }
+  try {
+    try { await w?.__aeFlush?.() } catch {}
+    await flush()
+    if (isTauriOffice()) await nativeRename(path, to)
+    else { await ensureLoaded(path); fs.renameSync(path, to); await flush() }
+  } catch (e: any) { alert((ko ? '이름을 바꾸지 못했습니다: ' : 'Could not rename: ') + (e?.message ?? e)); return }
+  try { if (fs.existsSync(path)) fs.renameSync(path, to) } catch {} // keep this page's listing in step
+  x.path = to; x.title = `${name}${extn}`
+  const f = frames.get(x.id)
+  if (f) f.src = `./${x.app}/index.html?open=${encodeURIComponent(to)}`
+  renderBar(); saveTabs()
+}
+
 // ---- send to Pages / Keynote / Numbers (iOS share sheet) ----
 // The tab's document as last saved: Pages / Keynote / Numbers open docx / pptx / xlsx and can keep it in Apple format.
 const SEND_TARGET: Record<string, [string, string]> = { docs: ['Pages', 'Pages'], slides: ['Keynote', 'Keynote'], sheets: ['Numbers', 'Numbers'] }
@@ -111,7 +141,7 @@ const MIME: Record<string, string> = {
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  pdf: 'application/pdf', csv: 'text/csv',
+  pdf: 'application/pdf', csv: 'text/csv', hwp: 'application/x-hwp', hwpx: 'application/hwp+zip',
 }
 function sendLabel(x: Tab) {
   const target = SEND_TARGET[x.app ?? '']
@@ -143,8 +173,6 @@ const credit = () => CREDIT
 const busy = new Set<string>()
 async function openPath(path: string) {
   const name = path.split('/').pop()!, app = appFor(name)
-  // AllEditor app: 한글 documents open in the 이음오피스 HWP editor, not as a converted Word copy
-  if (EMBED && /\.(hwp|hwpx)$/i.test(name)) { await flush(); toHost({ type: 'ae-open-hwp', path }); return }
   if (!app) { alert(`${t('unsupported')}: ${name}`); return }
   const kind = IWORK_EXT[ext(name)]
   if (!kind) { addTab({ kind: 'app', app, path, title: name }); return }
@@ -189,8 +217,8 @@ function renderHome() {
   const open = el('button', 'primary', t('openFile')); open.onclick = () => $<HTMLInputElement>('picker').click(); wrap.append(open)
   wrap.append(el('h2', '', t('newSection')))
   const grid = el('div', 'grid')
-  if (EMBED) { // AllEditor app: 한글 next to the office types, created by the 이음오피스 HWP editor
-    const b = el('button', 'card hwp', lang() === 'ko' ? '새 한글' : 'New Hangul'); b.onclick = () => toHost({ type: 'ae-new-hwp' }); grid.append(b)
+  { // 한글 next to the office types
+    const b = el('button', 'card hwp', lang() === 'ko' ? '새 한글' : 'New Hangul'); b.onclick = () => newBlank('hwp'); grid.append(b)
   }
   for (const [app, key] of [['docs', 'newDoc'], ['slides', 'newSlides'], ['sheets', 'newSheet']] as const) {
     const b = el('button', 'card ' + app, t(key)); b.onclick = () => newBlank(app); grid.append(b)
@@ -439,6 +467,7 @@ async function boot() {
     if (e.data?.type === 'ae-office' && e.source === window.parent) {
       if (e.data.action === 'new' && APP_LABEL[e.data.app]) newBlank(e.data.app)
       if (e.data.action === 'home') activate('home')
+      if (e.data.action === 'open' && typeof e.data.path === 'string') void openPath(e.data.path)
       // a file another app handed to AllEditor ("Open in AllEditor"): import into Documents and open it
       if (e.data.action === 'import' && typeof e.data.name === 'string' && typeof e.data.data === 'string') {
         const bin = atob(e.data.data); const u = new Uint8Array(bin.length)

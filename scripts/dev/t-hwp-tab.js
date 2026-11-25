@@ -1,0 +1,16 @@
+const { chromium } = require('playwright')
+const S = process.env.OUT ?? '/tmp'
+;(async () => { const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1194, height: 834 }, locale: 'ko-KR' })
+  const errs = []; p.on('pageerror', (e) => errs.push(e.message.slice(0, 150)))
+  p.on('dialog', async (d) => { console.log('dialog:', d.message().split('\n')[0]); if (d.type() === 'prompt') await d.accept('이름바꾼문서'); else await d.accept() })
+  await p.goto('http://localhost:8766/index.html'); await p.waitForTimeout(2500)
+  console.log('new cards:', (await p.locator('#homePane .grid').innerText()).replace(/\s+/g, ' '))
+  await p.locator('#homePane .files >> text=t.hwpx').first().click(); await p.waitForTimeout(12000)
+  console.log('tabs:', (await p.locator('#tabs').innerText()).replace(/\s+/g, ' '))
+  await p.screenshot({ path: S + '/hwp-tab.png' })
+  const f = p.frameLocator('iframe.pane:not([hidden])')
+  console.log('hwp app text:', (await f.locator('body').innerText()).replace(/\s+/g, ' ').slice(0, 160))
+  // rename by tapping the active tab name
+  await p.locator('#tabs .tab.on .tl').click(); await p.waitForTimeout(3000)
+  console.log('after rename tabs:', (await p.locator('#tabs').innerText()).replace(/\s+/g, ' '), '| files:', require('fs').readdirSync(process.env.DOCS ?? '/tmp/mockdocs').filter((n) => /hwpx/.test(n)))
+  console.log('errors', errs.slice(0, 8)); await b.close() })()
