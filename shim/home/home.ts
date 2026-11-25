@@ -88,8 +88,8 @@ function renderBar() {
 
 // ---- files ----
 const credit = () => (lang() === 'ko'
-  ? '이음 오피스(ieum office) 제작자 박준일(Jun-il Park)의 오픈소스를 가져와 iOS용으로 기능을 추가했습니다.\n원본 코드: GenOffice (Genspark AI · Mainfunc, Apache-2.0)\nDeveloped by JaiSung NOH MD 2026'
-  : 'Built on the open source of ieum office by Jun-il Park, extended for iOS.\nBase code: GenOffice (Genspark AI · Mainfunc, Apache-2.0)\nDeveloped by JaiSung NOH MD 2026')
+  ? '이음 오피스(ieum office, GenOffice) 오픈소스를 가져와 iOS용으로 기능을 추가했습니다.\n원작: Genspark AI · Mainfunc, Inc. (Apache-2.0)\nDeveloped by JaiSung NOH MD 2026'
+  : 'Built on the open source of ieum office (GenOffice), extended for iOS.\nOriginal work: Genspark AI · Mainfunc, Inc. (Apache-2.0)\nDeveloped by JaiSung NOH MD 2026')
 const busy = new Set<string>()
 async function openPath(path: string) {
   const name = path.split('/').pop()!, app = appFor(name)

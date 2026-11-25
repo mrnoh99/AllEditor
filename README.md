@@ -1,6 +1,6 @@
 # AllEditor (iOS)
 
-*Built on the open source of 이음 오피스 (ieum office) by Jun-il Park, extended for iOS. Base code: GenOffice (Genspark AI / Mainfunc, Apache-2.0).*
+*Built on the open source of 이음 오피스 (ieum office, GenOffice) by Genspark AI / Mainfunc, Inc. (Apache-2.0), extended for iOS.*
 *Developed by JaiSung NOH MD 2026*
 
 iOS build of the open-source [GenOffice](https://github.com/genspark-ai/genoffice) suite

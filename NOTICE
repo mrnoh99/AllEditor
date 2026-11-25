@@ -1,6 +1,6 @@
 This app (iOS) was developed by JaiSung NOH MD, 2026, building on the open source of
-ieum office (이음 오피스) by Jun-il Park. Its base code is the open-source GenOffice project (https://github.com/genspark-ai/genoffice),
-copyright its contributors / Mainfunc, Inc., licensed under the Apache License 2.0 (see LICENSE),
+ieum office (이음 오피스, a.k.a. GenOffice, https://github.com/genspark-ai/genoffice),
+copyright its contributors / Mainfunc, Inc. (Genspark AI), licensed under the Apache License 2.0 (see LICENSE),
 and extended here for iOS.
 
 GenOffice
