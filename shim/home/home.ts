@@ -81,8 +81,8 @@ const toHost = (msg: object) => { try { window.parent.postMessage(msg, '*') } ca
 function renderBar() {
   const bar = $('tabs'); bar.textContent = ''
   if (EMBED) {
-    const back = el('button', 'tl back', lang() === 'ko' ? '‹ 이음' : '‹ Ieum')
-    back.setAttribute('aria-label', lang() === 'ko' ? '이음오피스 홈으로' : 'Back to IeumOffice home')
+    const back = el('button', 'tl back', '‹ AllEditor')
+    back.setAttribute('aria-label', lang() === 'ko' ? 'AllEditor 홈으로' : 'Back to the AllEditor home')
     back.onclick = () => { void flush(); toHost({ type: 'ae-office-close' }) }
     bar.append(back)
   }

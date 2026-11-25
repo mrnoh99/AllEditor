@@ -243,6 +243,9 @@ export const APP_SCHEME = 'genoffice-app'
 /** Scheme used by the Tauri 2 mobile WebView (iOS WKWebView and Android local assets). */
 export const MOBILE_SCHEME = 'tauri'
 
+/** [AllEditor] scheme of the office suite inside the iOS app (src-tauri/src/office.rs): its 한글 tab hosts the studio */
+export const OFFICE_SCHEME = 'office'
+
 /** Field the studio-password-flag patch adds to the studio's command context. */
 export const PASSWORD_FLAG = 'passwordProtected'
 
@@ -307,12 +310,12 @@ const PATCHES = {
   'sdk-scheme': {
     file: /[\\/]@rhwp[\\/]editor[\\/]transport\.js$/,
     find: "if (targetUrl.protocol !== 'http:' && targetUrl.protocol !== 'https:') {",
-    replace: `if (targetUrl.protocol !== 'http:' && targetUrl.protocol !== 'https:' && targetUrl.protocol !== '${APP_SCHEME}:' && targetUrl.protocol !== '${MOBILE_SCHEME}:') {`,
+    replace: `if (targetUrl.protocol !== 'http:' && targetUrl.protocol !== 'https:' && targetUrl.protocol !== '${APP_SCHEME}:' && targetUrl.protocol !== '${MOBILE_SCHEME}:' && targetUrl.protocol !== '${OFFICE_SCHEME}:') {`,
   },
   'studio-scheme': {
     file: /[\\/]rhwp-studio[\\/]src[\\/]embed[\\/]protocol\.ts$/,
     find: "return protocol === 'http:' || protocol === 'https:';",
-    replace: `return protocol === 'http:' || protocol === 'https:' || protocol === '${APP_SCHEME}:' || protocol === '${MOBILE_SCHEME}:';`,
+    replace: `return protocol === 'http:' || protocol === 'https:' || protocol === '${APP_SCHEME}:' || protocol === '${MOBILE_SCHEME}:' || protocol === '${OFFICE_SCHEME}:';`,
   },
   'studio-password-flag': {
     file: /[\\/]rhwp-studio[\\/]src[\\/]main\.ts$/,

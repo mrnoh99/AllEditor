@@ -129,6 +129,8 @@ RUNTIMES.hwp = {
 function prepareHwpStudio() {
   const ieumIos = join(root, 'ieumoffice-ios')
   run('npm', ['run', 'studio', '-w', '@genoffice/hwp'], ieumIos)
+  // the HWP renderer's own SDK patch (sdk-scheme) must allow office:// too: use AllEditor's patch list
+  cpSync(join(ieumIos, 'apps/hwp/scripts/rhwp-patches.mjs'), join(upstream, 'apps/hwp/scripts/rhwp-patches.mjs'))
   const dst = join(upstream, 'apps/hwp/public/studio')
   rmSync(dst, { recursive: true, force: true })
   cpSync(join(ieumIos, 'apps/hwp/public/studio'), dst, { recursive: true })

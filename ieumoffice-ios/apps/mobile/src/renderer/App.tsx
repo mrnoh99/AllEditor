@@ -39,7 +39,7 @@ import {
 } from '@genoffice/mobile-bridge/view-edit-gate'
 import { AiSheetPanel, type ChatGptRecoveryNoticeKind } from './components/AiSheetPanel'
 import { HomeScreen } from './components/HomeScreen'
-import { OfficeOverlay, openOffice } from './components/OfficeSuite'
+import { OfficeOverlay, openOffice, tauri as tauriBridge } from './components/OfficeSuite'
 import { UnsavedModal } from './components/UnsavedModal'
 import { HwpMobileEditor, type HwpMobileEditorHandle } from './editors/HwpMobileEditor'
 import {
@@ -388,8 +388,7 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
 
   // AllEditor: the office suite's AI 연결 page changed the app's one AI setting
   useEffect(() => {
-    const ev = (window as unknown as { __TAURI__?: { event?: { listen: (n: string, cb: () => void) => Promise<() => void> } } })
-      .__TAURI__?.event
+    const ev = tauriBridge()?.event
     if (!ev) return
     let unlisten: (() => void) | undefined
     void ev.listen('ae-ai-settings-changed', () => void refreshAiState()).then((u) => (unlisten = u))
@@ -398,8 +397,7 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
 
   // AllEditor: "Open in AllEditor" while the app is running (HWP / HWPX / Markdown; see src-tauri/src/office.rs)
   useEffect(() => {
-    const ev = (window as unknown as { __TAURI__?: { event?: { listen: (n: string, cb: () => void) => Promise<() => void> } } })
-      .__TAURI__?.event
+    const ev = tauriBridge()?.event
     if (!ev) return
     let unlisten: (() => void) | undefined
     void ev
@@ -468,7 +466,7 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
 
   // AllEditor: one "파일 열기" for every type — 한글 opens here, office files / PDF / iWork in the office suite
   const handlePickOpenFile = useCallback(async () => {
-    const tauri = (window as unknown as { __TAURI__?: { core?: { invoke: <T>(c: string, a?: object) => Promise<T> } } }).__TAURI__
+    const tauri = tauriBridge()
     try {
       if (!tauri?.core) {
         const session = await client.pickOpenFile(['hwp', 'hwpx'])
@@ -498,7 +496,7 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
         return
       }
       if (d?.type !== 'ae-open-hwp' || typeof d.path !== 'string') return
-      const tauri = (window as unknown as { __TAURI__?: { core?: { invoke: <T>(c: string, a?: object) => Promise<T> } } }).__TAURI__
+      const tauri = tauriBridge()
       if (!tauri?.core) return
       void tauri.core
         .invoke<MobileDocSession>('ae_open_documents_hwp', { path: d.path })

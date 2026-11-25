@@ -1,6 +1,7 @@
 import type { SVGProps } from 'react'
 import type { MobileDocFormat } from '@genoffice/mobile-bridge/transport'
 import appIconSvg from '../assets/brand/app-icon.svg'
+import allEditorIconSvg from '../assets/brand/alleditor-icon.svg'
 import fileHwpSvg from '../assets/brand/file-hwp.svg'
 import fileMdSvg from '../assets/brand/file-md.svg'
 import fileTxtSvg from '../assets/brand/file-txt.svg'
@@ -287,5 +288,20 @@ export function IconStop(props: IconProps) {
     <SvgIcon {...props}>
       <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none" />
     </SvgIcon>
+  )
+}
+
+/** AllEditor: the app icon (이음오피스's mark on the orange tile), small, for the home header */
+export function AllEditorAppIcon({ size = 28 }: { readonly size?: number }) {
+  return (
+    <img
+      src={allEditorIconSvg}
+      width={size}
+      height={size}
+      alt=""
+      aria-hidden="true"
+      className="mobile-brand-img"
+      draggable={false}
+    />
   )
 }

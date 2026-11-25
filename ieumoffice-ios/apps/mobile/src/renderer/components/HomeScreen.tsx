@@ -3,7 +3,7 @@ import { useMobileLocale } from '../i18n'
 import {
   DocTypeIcon,
   IconSettings,
-  IeumAppIcon,
+  AllEditorAppIcon,
 } from './MobileIcons'
 import { CreditFooter, RecentDocuments, UnifiedHomeSection } from './OfficeSuite'
 
@@ -35,8 +35,8 @@ export function HomeScreen({
     <div className="mobile-page" data-testid="mobile-home-screen">
       <header className="mobile-appbar">
         <div className="mobile-brand-wrap">
-          <IeumAppIcon size={28} />
-          <h1 className="mobile-appbar-title">{t('appTitle')}</h1>
+          <AllEditorAppIcon size={28} />
+          <h1 className="mobile-appbar-title">AllEditor</h1>
         </div>
         <button
           type="button"

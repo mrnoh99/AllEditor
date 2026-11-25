@@ -34,7 +34,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: 'ieumoffice-ios/apps/mobile/src-tauri' }
       - name: Build number (commits on this branch) for CFBundleVersion and the app's About line
-        run: echo "AE_BUILD_NUMBER=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
+        run: |
+          n=$(git rev-list --count HEAD)
+          v=$(node -p "require('./apps/mobile/src-tauri/tauri.conf.json').version")
+          { echo "AE_BUILD_NUMBER=$n"; echo "VITE_AE_BUILD=$n"; echo "VITE_AE_VERSION=$v"; } >> "$GITHUB_ENV"
+          echo "version $v build $n"
       - name: Install JS deps
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Build rhwp-studio (HWP editor bundle) and the mobile web app

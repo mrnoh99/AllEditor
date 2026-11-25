@@ -17,7 +17,33 @@ interface TauriGlobal {
   core?: { invoke: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T> }
   event?: { listen: (name: string, cb: () => void) => Promise<() => void> }
 }
-const tauri = (): TauriGlobal | undefined => (window as unknown as { __TAURI__?: TauriGlobal }).__TAURI__
+interface TauriInternals {
+  invoke: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>
+  transformCallback: (cb: (payload: unknown) => void, once?: boolean) => number
+}
+/**
+ * The Tauri bridge the same way 이음오피스's transport finds it (packages/mobile-bridge/src/transport.ts):
+ * `window.__TAURI__` when the global API is injected, else `__TAURI_INTERNALS__` (always present in a Tauri webview).
+ */
+export const tauri = (): TauriGlobal | undefined => {
+  const g = window as unknown as { __TAURI__?: TauriGlobal; __TAURI_INTERNALS__?: TauriInternals }
+  const internals = g.__TAURI_INTERNALS__
+  const invoke = g.__TAURI__?.core?.invoke ?? internals?.invoke.bind(internals)
+  if (!invoke) return undefined
+  const listen =
+    g.__TAURI__?.event?.listen ??
+    (internals
+      ? (name: string, cb: () => void) =>
+          internals
+            .invoke<number>('plugin:event|listen', {
+              event: name,
+              target: { kind: 'Any' },
+              handler: internals.transformCallback(() => cb()),
+            })
+            .then((eventId) => () => void internals.invoke('plugin:event|unlisten', { event: name, eventId }).catch(() => {}))
+      : undefined)
+  return { core: { invoke }, event: listen ? { listen } : undefined }
+}
 
 const OPEN_EVENT = 'ae-office-open'
 
@@ -259,8 +285,11 @@ export function useAppVersion(): string | null {
     if (!t?.core) return
     void t.core.invoke<{ version: string; build: string }>('ae_app_version').then(setV, () => {})
   }, [])
-  if (!v) return null
-  return lang === 'ko' ? `버전 ${v.version} (빌드 ${v.build})` : `Version ${v.version} (build ${v.build})`
+  // baked in when the web UI is built (CI: AE_BUILD_NUMBER), so the line shows even without the native call
+  const env = (import.meta as { env?: Record<string, string | undefined> }).env ?? {}
+  const shown = v ?? (env.VITE_AE_VERSION ? { version: env.VITE_AE_VERSION, build: env.VITE_AE_BUILD ?? 'dev' } : null)
+  if (!shown) return null
+  return lang === 'ko' ? `버전 ${shown.version} (빌드 ${shown.build})` : `Version ${shown.version} (build ${shown.build})`
 }
 
 export function CreditFooter() {
