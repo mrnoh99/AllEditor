@@ -18,8 +18,8 @@ open AllEditor.xcworkspace
 
 | Scheme | App |
 |---|---|
-| **ieumoffice-mobile_iOS** (base) | 이음오피스's own mobile app (HWP / Markdown), Tauri — see `ieumoffice-ios/README-IOS.md` |
-| **App** (earlier, reference) | GenOffice suite (Docs / Slides / Sheets / PDF), Capacitor — same as `open ios/App/App.xcworkspace` |
+| **ieumoffice-mobile_iOS** (base) | **AllEditor**: 이음오피스 mobile app (HWP / Markdown) + office suite (Word / PowerPoint / Excel / PDF, iWork import, printing, AI) — see `ieumoffice-ios/README-IOS.md` |
+| **App** (earlier, reference) | GenOffice suite (Docs / Slides / Sheets / PDF), Capacitor — same as `open ios/App/App.xcworkspace`; same bundle id, do not install both |
 
 No npm, CocoaPods, Node or Rust is needed: the web bundle, `Pods/` and the prebuilt Rust library are committed.
 CI (`.github/workflows/xcode-open.yml`) builds both schemes from a fresh clone with nothing installed.
@@ -27,6 +27,20 @@ The ieumoffice app's prebuilt library is arm64 only → Apple-silicon Mac (or a 
 Pick your Team under *Signing & Capabilities* (bundle id `com.mrnoh99.alleditor`, change if taken),
 choose an iPhone/iPad or simulator, press Run. The built web app is committed in
 `ios/App/App/public` and CocoaPods' `Pods/` is committed, so no `npm install` / `pod install` is needed.
+
+## AllEditor (base app) — what it does
+| Area | Status |
+|---|---|
+| 한글 HWP / HWPX, Markdown | 이음오피스's mobile editor (one document at a time) |
+| Word / PowerPoint / Excel / PDF | 이음오피스 editors (engine `pblsketch/ieumoffice@ad22c05`, built by `scripts/build-web.mjs`) in a full-screen layer with tabs; Excel engine as WebAssembly |
+| PDF tools, PDF export, printing | PDF → Word/Excel/PowerPoint on device; Export as PDF; iOS print dialog or direct IP printer (IPP / 9100, Settings › Printers) |
+| Apple Pages / Keynote / Numbers | imported as editable docx / pptx / xlsx copies; "Pages/Keynote/Numbers로 보내기" hands the edited file back through the share sheet |
+| Open in AllEditor | docx/xlsx/pptx/pdf/iWork → office suite; hwp/hwpx/md → 이음오피스 editor |
+| AI | Settings › AI 연결: Gemini (free key), OpenAI, Claude API, OpenRouter, other key providers; foldable AI panel |
+| iPad | landscape, full screen; files in Files › AllEditor (iCloud via the Files app) |
+| Languages | 한국어 (default), English |
+
+Verified in desktop Chromium with an `office://` stand-in (`scripts/dev/`) and by macOS CI builds; **not yet run on a device.**
 
 ## Capacitor app (`ios/`, earlier approach) — what works
 | Feature | How |

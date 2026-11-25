@@ -255,6 +255,21 @@ fn handle<R: Runtime>(app: &AppHandle<R>, req: Request<Vec<u8>>) -> Response<Vec
     serve_static(&path)
 }
 
+/// `genoffice-app://ui-fonts/<file>`: the UI font the 이음오피스 screens (home, editors) load from the desktop shell's
+/// scheme; served from the office bundle's `ui-fonts/` (Pretendard, OFL).
+pub const FONT_SCHEME: &str = "genoffice-app";
+pub fn font_protocol<R: Runtime>(_ctx: UriSchemeContext<'_, R>, req: Request<Vec<u8>>, responder: UriSchemeResponder) {
+    std::thread::spawn(move || {
+        let uri = req.uri();
+        let host = uri.host().unwrap_or("");
+        let path = uri.path().trim_start_matches('/');
+        // iOS: genoffice-app://ui-fonts/X; Android/Windows style: http://genoffice-app.localhost/ui-fonts/X
+        let rel = if host == "ui-fonts" { format!("ui-fonts/{path}") } else { path.to_string() };
+        let resp = if rel.starts_with("ui-fonts/") { serve_static(&rel) } else { respond(StatusCode::NOT_FOUND, "text/plain", Vec::new()) };
+        responder.respond(resp)
+    });
+}
+
 /// Asynchronous `office://` handler (register with `register_asynchronous_uri_scheme_protocol`).
 pub fn protocol<R: Runtime>(ctx: UriSchemeContext<'_, R>, req: Request<Vec<u8>>, responder: UriSchemeResponder) {
     let app = ctx.app_handle().clone();

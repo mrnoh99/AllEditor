@@ -20,6 +20,7 @@ pub fn run() {
         .plugin(tauri_plugin_ieum_mobile::init_office())
         // AllEditor: Word / PowerPoint / Excel / PDF suite on office:// (see office.rs)
         .register_asynchronous_uri_scheme_protocol(office::SCHEME, office::protocol)
+        .register_asynchronous_uri_scheme_protocol(office::FONT_SCHEME, office::font_protocol)
         .setup(|app| {
             let app_data_dir = app
                 .path()
