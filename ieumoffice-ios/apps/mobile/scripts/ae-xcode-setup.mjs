@@ -52,6 +52,23 @@ if (m) {
 }
 writeFileSync(pbxPath, pbx)
 
+// 2b. AllEditor office suite (Word / PowerPoint / Excel / PDF web apps, repository folder ios/App/App/public):
+// a folder reference copied into the app bundle as `public/`, served on office:// by src-tauri/src/office.rs.
+const OFFICE_REF = 'AE0FF1CE0000000000000001', OFFICE_BUILD = 'AE0FF1CE0000000000000002'
+const OFFICE_PATH = '../../../../../../ios/App/App/public'
+if (!pbx.includes(OFFICE_REF)) {
+  const add = (re, text, what) => {
+    const before = pbx
+    pbx = pbx.replace(re, (m) => m + text)
+    if (pbx === before) throw new Error('could not add the office folder: ' + what)
+  }
+  add(/\/\* Begin PBXBuildFile section \*\/\n/, `\t\t${OFFICE_BUILD} /* office in Resources */ = {isa = PBXBuildFile; fileRef = ${OFFICE_REF} /* office */; };\n`, 'build file')
+  add(/\/\* Begin PBXFileReference section \*\/\n/, `\t\t${OFFICE_REF} /* office */ = {isa = PBXFileReference; lastKnownFileType = folder; name = office; path = "${OFFICE_PATH}"; sourceTree = SOURCE_ROOT; };\n`, 'file reference')
+  add(/\t\t\t\t[0-9A-F]{24} \/\* assets \*\/,\n/, `\t\t\t\t${OFFICE_REF} /* office */,\n`, 'group child')
+  add(/\t\t\t\t[0-9A-F]{24} \/\* assets in Resources \*\/,\n/, `\t\t\t\t${OFFICE_BUILD} /* office in Resources */,\n`, 'resources phase')
+  writeFileSync(pbxPath, pbx)
+}
+
 mkdirSync(join(APPLE, 'scripts'), { recursive: true })
 mkdirSync(join(APPLE, 'Prebuilt', 'iphoneos'), { recursive: true })
 mkdirSync(join(APPLE, 'Prebuilt', 'iphonesimulator'), { recursive: true })
@@ -133,5 +150,13 @@ for (const o of ['Portrait', 'PortraitUpsideDown', 'LandscapeLeft', 'LandscapeRi
 }
 tryPb('Delete :UIRequiresFullScreen')
 pb('Add :UIRequiresFullScreen bool false')
+// office suite: documents visible in Files › AllEditor, local-network permission for direct (IPP / 9100) printing
+tryPb('Delete :UIFileSharingEnabled')
+pb('Add :UIFileSharingEnabled bool true')
+tryPb('Delete :NSLocalNetworkUsageDescription')
+pb('Add :NSLocalNetworkUsageDescription string 네트워크 프린터로 바로 인쇄하려면 같은 네트워크의 프린터에 연결해야 합니다. (Needed to print directly to a printer on your network.)')
+tryPb('Delete :NSBonjourServices')
+pb('Add :NSBonjourServices array')
+for (const svc of ['_ipp._tcp', '_ipps._tcp', '_pdl-datastream._tcp']) pb(`Add :NSBonjourServices: string ${svc}`)
 
 console.log(`AllEditor Xcode setup done: ${proj} (iPhone+iPad), wrapper ${original ? 'written' : 'kept'}, ${plist}`)

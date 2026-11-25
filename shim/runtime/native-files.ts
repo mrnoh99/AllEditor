@@ -1,6 +1,38 @@
-// Thin JS side of AEFilesPlugin (ios/App/App/AppDelegate.swift); same shape as @capacitor/filesystem.
+// Native bridge of the office suite. Two hosts:
+//  * Capacitor app (ios/): plugins AEFiles / AEPdf / AEPrint in ios/App/App/AppDelegate.swift;
+//  * Tauri app (ieumoffice-ios/): the suite is served on office://, and the same calls go to
+//    POST office://localhost/__ae/<plugin>/<method> (src-tauri/src/office.rs + AllEditorOfficePlugin.swift).
 // Directory.Documents = app Documents (visible in Files.app); Directory.Support = private app data.
 import { registerPlugin } from '@capacitor/core'
+
+/** true inside the Tauri app (pages loaded from the office:// scheme, or forced for tests) */
+export const isTauriOffice = () => {
+  const g = globalThis as any
+  if (g.__AE_NATIVE__ === 'tauri') return true
+  try { return location.protocol === 'office:' || location.hostname === 'office.localhost' } catch { return false }
+}
+/** a native host (Capacitor or Tauri) is present */
+export const isNative = () => isTauriOffice() || (globalThis as any).Capacitor?.isNativePlatform?.() === true
+
+const tauriBase = () => ((globalThis as any).__AE_NATIVE_BASE__ as string | undefined) ?? '/__ae/'
+async function tauriCall(plugin: string, method: string, args: object): Promise<any> {
+  const r = await fetch(tauriBase() + plugin + '/' + method, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(args) })
+  let body: any = null
+  try { body = await r.json() } catch {}
+  if (!r.ok || body?.error) throw new Error(body?.error ?? `${plugin}.${method} failed (${r.status})`)
+  return body ?? {}
+}
+/** plugin proxy: Capacitor plugin on the Capacitor app, office:// fetch on the Tauri app */
+function bridge<T extends object>(name: string): T {
+  let cap: any = null
+  return new Proxy({} as T, {
+    get: (_t, method: string) => (args: object = {}) => {
+      if (isTauriOffice()) return tauriCall(name, method, args)
+      cap ??= registerPlugin<any>(name)
+      return cap[method](args)
+    },
+  })
+}
 
 type Dir = 'documents' | 'support'
 interface AEFiles {
@@ -9,7 +41,7 @@ interface AEFiles {
   deleteFile(o: { path: string; dir: Dir }): Promise<void>
   readdir(o: { path: string; dir: Dir }): Promise<{ files: Array<{ name: string; type: string; size: number; mtime: number }> }>
 }
-const plugin = registerPlugin<AEFiles>('AEFiles')
+const plugin = bridge<AEFiles>('AEFiles')
 
 export const Directory = { Documents: 'documents', Support: 'support' } as const
 type D = (typeof Directory)[keyof typeof Directory]
@@ -21,9 +53,9 @@ export const Filesystem = {
   readdir: (o: { path: string; directory?: D }) => plugin.readdir({ path: o.path, dir: dir(o.directory) }),
 }
 
-// ---- AEPdf: HTML -> PDF through an offscreen WKWebView + UIPrintPageRenderer (AppDelegate.swift) ----
+// ---- AEPdf: HTML -> PDF through an offscreen WKWebView + UIPrintPageRenderer ----
 interface AEPdf { render(o: { html: string; width: number; height: number }): Promise<{ data: string }> }
-const pdfPlugin = registerPlugin<AEPdf>('AEPdf')
+const pdfPlugin = bridge<AEPdf>('AEPdf')
 /** page size in points; returns the PDF bytes */
 export async function renderPdfNative(html: string, widthPt: number, heightPt: number): Promise<Uint8Array> {
   const { data } = await pdfPlugin.render({ html, width: widthPt, height: heightPt })
@@ -37,7 +69,7 @@ interface AEPrint {
   printPdf(o: { data: string; jobName: string }): Promise<{ completed: boolean }>
   directPrint(o: { host: string; port?: number; protocol: string; data: string; jobName: string; copies?: number; sides?: string }): Promise<{ via: string }>
 }
-const printPlugin = registerPlugin<AEPrint>('AEPrint')
+const printPlugin = bridge<AEPrint>('AEPrint')
 const toB64 = (u: Uint8Array) => { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s) }
 export const nativePrintDialog = (pdf: Uint8Array, jobName: string) => printPlugin.printPdf({ data: toB64(pdf), jobName })
 export const nativeDirectPrint = (o: { host: string; port?: number; protocol: string; pdf: Uint8Array; jobName: string; copies?: number; sides?: string }) =>

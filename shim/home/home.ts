@@ -72,8 +72,18 @@ function activate(id: string) {
   renderBar(); saveTabs()
 }
 function tabLabel(x: Tab) { return x.kind === 'home' ? t('home') : x.kind === 'settings' ? t('settings') : x.title }
+// Inside the Tauri app the suite runs in an overlay iframe (office://localhost/index.html?embed=1):
+// a "back" button returns to the 이음오피스 home, and the host can send { type: 'ae-office', action: 'new', app }.
+const EMBED = (() => { try { return new URLSearchParams(location.search).has('embed') && window.parent !== window } catch { return false } })()
+const toHost = (msg: object) => { try { window.parent.postMessage(msg, '*') } catch {} }
 function renderBar() {
   const bar = $('tabs'); bar.textContent = ''
+  if (EMBED) {
+    const back = el('button', 'tl back', lang() === 'ko' ? '‹ 이음' : '‹ Ieum')
+    back.setAttribute('aria-label', lang() === 'ko' ? '이음오피스 홈으로' : 'Back to IeumOffice home')
+    back.onclick = () => { void flush(); toHost({ type: 'ae-office-close' }) }
+    bar.append(back)
+  }
   for (const x of tabs) {
     const b = el('div', 'tab' + (x.id === active ? ' on' : '') + (x.app ? ' ' + x.app : ''))
     const lab = el('button', 'tl', tabLabel(x)); lab.onclick = () => activate(x.id); b.append(lab)
@@ -88,8 +98,8 @@ function renderBar() {
 
 // ---- files ----
 const credit = () => (lang() === 'ko'
-  ? '이음 오피스(ieum office, GenOffice) 오픈소스를 가져와 iOS용으로 기능을 추가했습니다.\n원작: Genspark AI · Mainfunc, Inc. (Apache-2.0)\nDeveloped by JaiSung NOH MD 2026'
-  : 'Built on the open source of ieum office (GenOffice), extended for iOS.\nOriginal work: Genspark AI · Mainfunc, Inc. (Apache-2.0)\nDeveloped by JaiSung NOH MD 2026')
+  ? '이음오피스(박준일, pblsketch/ieumoffice) 오픈소스를 바탕으로 iOS·iPad용 기능을 더했습니다. 이음오피스는 GenOffice(Genspark AI · Mainfunc, Inc.)를 바탕으로 합니다. (Apache-2.0)\nDeveloped by JaiSung NOH MD 2026'
+  : 'Built on the open source of IeumOffice by Jun-il Park (pblsketch/ieumoffice), extended for iOS / iPad. IeumOffice is based on GenOffice by Genspark AI · Mainfunc, Inc. (Apache-2.0)\nDeveloped by JaiSung NOH MD 2026')
 const busy = new Set<string>()
 async function openPath(path: string) {
   const name = path.split('/').pop()!, app = appFor(name)
@@ -268,7 +278,14 @@ async function boot() {
   // single-window rule: remember which tab was focused last
   const last = (restore.tabs ?? []).length ? tabs[tabs.length - 1].id : 'home'
   activate(last)
-  window.addEventListener('message', (e) => { if (e.data?.type === 'ae-open' && typeof e.data.path === 'string') void openPath(e.data.path) })
+  window.addEventListener('message', (e) => {
+    if (e.data?.type === 'ae-open' && typeof e.data.path === 'string') void openPath(e.data.path)
+    if (e.data?.type === 'ae-office' && e.source === window.parent) {
+      if (e.data.action === 'new' && APP_LABEL[e.data.app]) newBlank(e.data.app)
+      if (e.data.action === 'home') activate('home')
+    }
+  })
+  if (EMBED) toHost({ type: 'ae-office-ready' })
   window.addEventListener('pagehide', () => { void flush() })
   document.addEventListener('visibilitychange', () => { if (document.hidden) void flush() })
 }

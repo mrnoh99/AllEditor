@@ -39,6 +39,7 @@ import {
 } from '@genoffice/mobile-bridge/view-edit-gate'
 import { AiSheetPanel, type ChatGptRecoveryNoticeKind } from './components/AiSheetPanel'
 import { HomeScreen } from './components/HomeScreen'
+import { OfficeOverlay } from './components/OfficeSuite'
 import { UnsavedModal } from './components/UnsavedModal'
 import { HwpMobileEditor, type HwpMobileEditorHandle } from './editors/HwpMobileEditor'
 import {
@@ -891,6 +892,8 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
         docTitle={unsavedPromptDoc ?? ''}
         onChoice={resolveUnsavedChoice}
       />
+
+      <OfficeOverlay />
     </MobileLocaleProvider>
   )
 }

@@ -20,6 +20,16 @@ from `pblsketch/ieumoffice @ ad22c05`, plus the workspace packages / vendored rh
 - Credit: 이음오피스 = 박준일 (pblsketch/ieumoffice), based on GenOffice (Genspark AI / Mainfunc, Inc.); keep both.
   Root `NOTICE` still needs fixing (it credits ieum to Mainfunc and lacks ieumoffice's 3rd-party notices).
 
+## 0b. 2026-11-25 — office suite inside the Tauri app (user: "hybrid", Word/PowerPoint/Excel, PDF view/edit/convert, iWork import, printing)
+Implemented as described in `ieumoffice-ios/README-IOS.md` § "AllEditor: Word / PowerPoint / Excel / PDF". The Capacitor app's
+web suite (`ios/App/App/public`) is reused as-is; `shim/runtime/native-files.ts` picks the Tauri bridge when served from office://.
+`scripts/build-web.mjs` is the GenOffice build again (the ieumoffice-rebase WIP version was dropped, §5 is obsolete).
+Fixed on the way: `shim/runtime/fs.ts` flush deleted a directory natively whenever it was `mkdir`ed (data loss in existing folders).
+Verified in Chromium with the mock (open docx/pptx/xlsx/pdf, Documents listing, print → AEPdf.render + AEPrint.directPrint).
+**Not verified: Swift (`AllEditorOfficePlugin`), the office:// scheme in WKWebView, anything on a device.**
+Open: "Open in AllEditor" for docx/xlsx/pptx/pdf/iWork from other apps (Info.plist document types → office suite), office UI
+texts only ko/en, iPhone memory with several office tabs.
+
 ## 1. Goal
 An iOS/iPadOS app that runs the open-source office suite **이음오피스 (IeumOffice)** — which is itself built on
 **GenOffice** — "the same way" as the Mac/desktop app: Docs, Slides, Sheets, PDF (+PDF tools), HWP, local file open,

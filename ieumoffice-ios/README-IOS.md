@@ -43,3 +43,16 @@ Xcode project as an artifact (`ieumoffice-ios-xcode-project`).
 
 Release notes from the upstream `apps/mobile/AGENTS.md`: ChatGPT sign-in needs `IEUM_MOBILE_CHATGPT_CLIENT_ID`;
 API keys live only in the Rust sealed store; HWP files get a backup before the first overwrite.
+
+## AllEditor: Word / PowerPoint / Excel / PDF inside this app (hybrid)
+The home screen has an **오피스 문서** section (new Word / PowerPoint / Excel, open any office file). It opens the
+AllEditor office suite — the GenOffice Docs / Slides / Sheets / PDF web apps with PDF tools, Pages·Keynote·Numbers
+import, PDF export and printing (Settings › Printers: IPP 631 / raw 9100 / iOS print dialog) — in a full-screen layer
+that stays alive while you are back on the 이음오피스 home (‹ 이음 button).
+- Web suite: repository folder `ios/App/App/public` (built by `npm run build:web && npx cap copy ios` at the repo root),
+  copied into the app as a folder reference `office` (added by `scripts/ae-xcode-setup.mjs`).
+- Served by Rust on `office://localhost/…` (`src-tauri/src/office.rs`); native calls `POST office://localhost/__ae/<plugin>/<method>`:
+  files (Documents, visible in Files › AllEditor), and `AEPdf` / `AEPrint` → Swift `AllEditorOfficePlugin`
+  (`src-tauri/plugins/tauri-plugin-ieum-mobile/ios/Sources/AllEditorOfficePlugin.swift`).
+- Desktop check without a device: `node scripts/dev/mock-office.js <dir>` + `scripts/dev/t-office-native.js`,
+  `scripts/dev/t-tauri-office.js` (Playwright).

@@ -1,7 +1,7 @@
 // memfs-backed `fs` for the in-WebView "main process". Everything under DOCS_ROOT is
-// mirrored to the app's iOS Documents folder (Files app > AllEditor) via Capacitor.
+// mirrored to the app's iOS Documents folder (Files app > AllEditor) via the native bridge.
 import { createFsFromVolume, Volume } from 'memfs'
-import { Directory, Filesystem } from './native-files'
+import { Directory, Filesystem, isNative } from './native-files'
 
 export const DOCS_ROOT = '/Documents'
 export const vol = new Volume()
@@ -12,7 +12,7 @@ for (const d of [DOCS_ROOT, '/tmp', '/userData', '/home']) vol.mkdirSync(d, { re
 // so tabs (iframes) still share files like they do on device.
 const idbOpen = () => new Promise<IDBDatabase>((res, rej) => { const r = indexedDB.open('alleditor-fs', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error) })
 const idbTx = async <T,>(mode: IDBTransactionMode, f: (s: IDBObjectStore) => IDBRequest<T>) => { const db = await idbOpen(); return new Promise<T>((res, rej) => { const r = f(db.transaction('f', mode).objectStore('f')); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error) }) }
-const native = () => (window as any).Capacitor?.isNativePlatform?.() === true
+const native = isNative
 export const USER_ROOT = '/userData'
 const rootOf = (p: string) => (p.startsWith(USER_ROOT + '/') ? USER_ROOT : DOCS_ROOT)
 const dirOfRoot = (r: string) => (r === USER_ROOT ? Directory.Support : Directory.Documents)
@@ -39,7 +39,7 @@ export async function flush() {
     for (const p of paths) {
       try {
         if (fs.existsSync(p) && fs.statSync(p).isFile()) await idbTx('readwrite', (st) => st.put(new Uint8Array(fs.readFileSync(p)), p))
-        else await idbTx('readwrite', (st) => st.delete(p))
+        else if (!fs.existsSync(p)) await idbTx('readwrite', (st) => st.delete(p))
       } catch (e) { console.warn('[idb mirror]', p, e) }
     }
     return
@@ -49,7 +49,9 @@ export async function flush() {
       if (fs.existsSync(p) && fs.statSync(p).isFile())
         await Filesystem.writeFile({ path: rel(p), directory: dirOfRoot(rootOf(p)), recursive: true,
           data: b64(fs.readFileSync(p)) })
-      else await Filesystem.deleteFile({ path: rel(p), directory: dirOfRoot(rootOf(p)) }).catch(() => {})
+      // only a path that is really gone is deleted natively: a (re)created directory must never wipe
+      // the files already stored in it (mkdirSync marks its path dirty too)
+      else if (!fs.existsSync(p)) await Filesystem.deleteFile({ path: rel(p), directory: dirOfRoot(rootOf(p)) }).catch(() => {})
     } catch (e) { console.warn('[fs mirror]', p, e) }
   }
 }

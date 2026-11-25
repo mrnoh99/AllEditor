@@ -10,6 +10,7 @@ import {
   IconSettings,
   IeumAppIcon,
 } from './MobileIcons'
+import { OfficeHomeSection } from './OfficeSuite'
 
 type RecentFilter = 'all' | 'hwp' | 'md'
 
@@ -190,6 +191,8 @@ export function HomeScreen({
             <IconChevronRight size={18} className="mobile-chevron" />
           </button>
         </section>
+
+        <OfficeHomeSection />
 
         <section className="mobile-section" aria-label={t('recentDocs')}>
           <div className="mobile-section-bar">

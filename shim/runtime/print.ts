@@ -1,6 +1,6 @@
 // printToPDF for the in-page "Electron": snapshot the live document (or a fake hidden window's HTML)
 // into a self-contained HTML string and let the native side paginate it with @media print rules.
-import { renderPdfNative, nativePrintDialog, nativeDirectPrint } from './native-files'
+import { renderPdfNative, nativePrintDialog, nativeDirectPrint, isNative } from './native-files'
 
 const toDataUrl = async (src: string): Promise<string | null> => {
   try {
@@ -52,7 +52,7 @@ export async function htmlToPdf(html: string, o: PrintOpts): Promise<Uint8Array>
   const [w, h] = pageInches(o)
   const hook = (globalThis as any).__aePdfHook
   if (hook) { const b64: string = await hook(html, w * 72, h * 72); const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u }
-  if (!(globalThis as any).Capacitor?.isNativePlatform?.()) throw new Error('PDF 내보내기는 iOS 앱에서만 지원됩니다.')
+  if (!isNative()) throw new Error('PDF 내보내기는 iOS 앱에서만 지원됩니다.')
   return renderPdfNative(html, w * 72, h * 72)
 }
 
@@ -90,7 +90,7 @@ export async function sendToPrinter(pdf: Uint8Array, job: PrintJob = {}, jobName
   if (job.deviceName?.startsWith('ip:') && !cfg) throw new Error('프린터 설정을 찾을 수 없습니다. 설정 › 프린터를 확인하세요.')
   const hook = (globalThis as any).__aePrintHook
   if (hook) { await hook({ pdf, job, cfg }); return true } // dev/test hook
-  if (!(globalThis as any).Capacitor?.isNativePlatform?.()) throw new Error('인쇄는 iOS 앱에서만 지원됩니다.')
+  if (!isNative()) throw new Error('인쇄는 iOS 앱에서만 지원됩니다.')
   if (cfg) {
     const sides = job.duplexMode === 'longEdge' ? 'two-sided-long-edge' : job.duplexMode === 'shortEdge' ? 'two-sided-short-edge' : undefined
     await nativeDirectPrint({ host: cfg.host, port: cfg.port, protocol: cfg.protocol, pdf, jobName, copies: job.copies, sides })
