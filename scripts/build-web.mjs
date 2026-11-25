@@ -24,6 +24,42 @@ if (!existsSync(join(upstream, 'node_modules'))) {
 }
 
 /**
+ * AllEditor source edits on the 이음오피스 checkout, applied to pristine files (git checkout first, so a re-run
+ * never stacks them). Every edit must apply.
+ *  - font pickers: the iPad's own fonts and the bundled free Korean fonts (fonts/, shim/runtime/fonts.ts)
+ *  - template fonts: loaded from the bundled folder instead of the desktop shell's genoffice-docx-media:// scheme
+ */
+const SOURCE_EDITS = {
+  'packages/ui/src/font-list.ts': [
+    ["  'Courier New',\n  'Impact',\n",
+     "  'Courier New',\n  'Impact',\n  // iPad (iPadOS) fonts\n" +
+     ['Helvetica Neue', 'Helvetica', 'Avenir Next', 'Avenir', 'Futura', 'Gill Sans', 'Optima', 'Palatino', 'Baskerville',
+      'Didot', 'Hoefler Text', 'Charter', 'American Typewriter', 'Menlo', 'Courier', 'Noteworthy', 'Marker Felt',
+      'Chalkboard SE', 'Snell Roundhand'].map((f) => `  '${f}',\n`).join('')],
+  ],
+  'packages/i18n/src/font-names.ts': [
+    ["export const KOREAN_FAMILIES: readonly string[] = [\n",
+     "export const KOREAN_FAMILIES: readonly string[] = [\n  // AllEditor: bundled free fonts first, then the iPad's own\n  'Nanum Gothic',\n  'Nanum Myeongjo',\n  'Nanum Gothic Coding',\n  'AppleMyungjo',\n"],
+    ["  Pretendard: ['프리텐다드'],\n",
+     "  Pretendard: ['프리텐다드'],\n  'Nanum Gothic': ['나눔고딕'],\n  'Nanum Myeongjo': ['나눔명조'],\n  'Nanum Gothic Coding': ['나눔고딕코딩'],\n  AppleMyungjo: ['애플명조'],\n  'Gowun Batang': ['고운바탕'],\n  'Gowun Dodum': ['고운돋움'],\n"],
+  ],
+  'packages/ui/src/template-fonts.ts': [
+    ['  return `${TEMPLATE_FONT_SCHEME}://${TEMPLATE_FONT_HOST}/${encodeURIComponent(file)}`',
+     '  return `/hwp/studio/fonts/tpl/${encodeURIComponent(file)}` // AllEditor: bundled copy (office/hwp/studio/fonts/tpl)'],
+  ],
+}
+for (const [file, edits] of Object.entries(SOURCE_EDITS)) {
+  run('git', ['checkout', '--', file], upstream)
+  const p = join(upstream, file)
+  let code = readFileSync(p, 'utf8')
+  for (const [from, to] of edits) {
+    if (!code.includes(from)) throw new Error(`${file} changed upstream; cannot apply: ${from.slice(0, 60)}`)
+    code = code.replace(from, to)
+  }
+  writeFileSync(p, code)
+}
+
+/**
  * A copy of the 이음오피스 xlsx engine with the WASI-only branches GenOffice later added upstream (its engine runs
  * in a browser too): no `std::env::temp_dir` (panics on WASI), worksheet indexing inline instead of on a thread.
  * Native builds of the same source behave exactly as before; every edit must apply.
@@ -135,6 +171,10 @@ function prepareHwpStudio() {
   rmSync(dst, { recursive: true, force: true })
   cpSync(join(ieumIos, 'apps/hwp/public/studio'), dst, { recursive: true })
 }
+// bundled fonts: the folder the 한글 editor reads its font files from (studio/fonts); every editor shares it
+function copyBundledFonts(studioDir) {
+  cpSync(join(root, 'fonts'), join(studioDir, 'fonts'), { recursive: true, filter: (p) => !p.endsWith('.md') || p.endsWith('README.md') })
+}
 const bootFile = join(root, 'shim/runtime/boot.ts')
 
 // 2. renderers
@@ -150,6 +190,7 @@ for (const app of APPS) {
     cpSync(join(upstream, 'node_modules/harfbuzzjs/dist/harfbuzz-subset.wasm'), join(out, 'wasm/harfbuzz-subset.wasm'))
   }
   if (app === 'sheets') cpSync(join(root, 'dist/xlsx.wasm'), join(out, 'xlsx.wasm'))
+  if (app === 'hwp') copyBundledFonts(join(out, 'studio'))
   const rt = RUNTIMES[app]
   await bundleRuntime({
     upstream, outfile: join(out, 'runtime.js'), appendExports: {},

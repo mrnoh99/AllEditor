@@ -3,6 +3,7 @@ import { markReady, webContents } from './electron'
 import { registerShellIpc, syncAiFromNative } from './shell-ipc'
 import { applyPhoneLayer, isPhone } from './phone'
 import { installAiToggle } from './ai-toggle'
+import { installBundledFonts } from './fonts'
 
 export function start(app: string, register: (open: string | null) => void, preload: Array<[string, string]> = []) {
   applyPhoneLayer()
@@ -10,6 +11,7 @@ export function start(app: string, register: (open: string | null) => void, prel
   ;(window as any).__aeFlush = flush
   addHomeButton()
   installAiToggle()
+  installBundledFonts()
   ;(async () => {
     try { await hydrate() } catch (e) { console.warn('[hydrate]', e) }
     const base = (document.currentScript as HTMLScriptElement | null)?.src || location.href

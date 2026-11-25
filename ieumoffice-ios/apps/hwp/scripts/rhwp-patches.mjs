@@ -307,6 +307,12 @@ const PATCHES = {
     find: 'export function onClick(this: any, e: MouseEvent): void {\n  rememberHyperlinkClick(this, e);\n',
     replace: 'export function onClick(this: any, e: MouseEvent): void {\n  this.resetIosInputRun?.(); // [AllEditor] a tap moves the caret: new iOS input run\n  rememberHyperlinkClick(this, e);\n',
   },
+  'studio-base-fonts': {
+    file: /[\\/]rhwp-studio[\\/]src[\\/]ui[\\/]toolbar\.ts$/,
+    find: "const BASE_FONTS = ['함초롬바탕', '함초롬돋움', '맑은 고딕', '나눔고딕', '바탕', '돋움', '궁서'];",
+    // [AllEditor] the bundled free fonts (studio/fonts) and the iPad's own Korean fonts in every font list
+    replace: "const BASE_FONTS = ['함초롬바탕', '함초롬돋움', '맑은 고딕', '나눔고딕', '나눔명조', '나눔고딕코딩', 'Noto Sans KR', 'Noto Serif KR', 'Pretendard', '고운바탕', '고운돋움', 'Apple SD Gothic Neo', 'AppleMyungjo', '바탕', '돋움', '궁서'];",
+  },
   'sdk-scheme': {
     file: /[\\/]@rhwp[\\/]editor[\\/]transport\.js$/,
     find: "if (targetUrl.protocol !== 'http:' && targetUrl.protocol !== 'https:') {",
@@ -2318,6 +2324,7 @@ export const STUDIO_PATCHES = /** @type {const} */ ([
   'studio-ios-input-run-state',
   'studio-ios-input-run-keys',
   'studio-ios-input-run-click',
+  'studio-base-fonts',
   'studio-password-flag',
   'studio-plugin-allow',
   'studio-table-delete-at',

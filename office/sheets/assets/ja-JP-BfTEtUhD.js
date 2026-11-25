@@ -1,1 +1,0 @@
-import{m as e}from"./index-C83BaM5_.js";const o={"sheets-note-ui":{note:{placeholder:"ここに入力"},rightClick:{addNote:"コメントを追加",deleteNote:"コメントを削除",toggleNote:"コメントの表示/非表示"}}},l=e(o);export{l as default};

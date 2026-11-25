@@ -1,1 +1,0 @@
-import{m as e}from"./index-C83BaM5_.js";const o={"sheets-note-ui":{note:{placeholder:"Scrivi qui"},rightClick:{addNote:"Aggiungi nota",deleteNote:"Elimina nota",toggleNote:"Mostra/Nascondi nota"}}},a=e(o);export{a as default};
