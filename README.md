@@ -22,7 +22,10 @@ choose an iPhone/iPad or simulator, press Run. The built web app is committed in
 | **PDF tools** PDF → Word / Excel / PowerPoint (on-device, PDFium wasm) | PDF ▸ “PDF 转换/Convert” menu |
 | **Open local files** | launcher “Open local file…” (Files app, iCloud Drive, …); files are copied into the app's Documents folder, which is visible in *Files ▸ AllEditor* |
 
-Tap the round ⌂ button (bottom-left) inside any editor to return to the launcher; edge-swipe also goes back.
+The app opens on a **Home** tab (open local file, new document/slides/sheet, file list). Every file opens in its own
+**tab** (one editor per tab, restored on next launch); **⚙ Settings** has language (Korean default), theme,
+document theme, units, autosave, author name and the **AI model** (provider, API key, model, base URL).
+App settings/keys live in the app's private storage, documents in Documents (visible in Files).
 
 ## iPad vs iPhone
 - **iPad** (shorter screen side ≥ 600 pt): the unchanged Mac UI.
@@ -48,6 +51,6 @@ npm run ios:sync      # clones upstream @ pinned commit, builds renderers + runt
 - Verified in desktop Chromium only (this was built on Linux with no Xcode); first on-device run is yours.
 - No system fonts on iOS: bundled fonts + web fonts only, CJK text in Slides uses heuristic metrics.
 - AI features need a provider configured in settings and network access; printing, spellcheck,
-  system share sheet, "Open in AllEditor" from other apps, Markdown/HTML apps and the multi-tab shell are not included.
+  system share sheet, "Open in AllEditor" from other apps and the Markdown/HTML apps are not included.
 - Documents folder files > 30 MB are not loaded into memory.
 - `ee/` (GenOffice Enterprise License) is intentionally not included.

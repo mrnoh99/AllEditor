@@ -84,6 +84,8 @@ start('${app}', (open) => { ${rt.code} }, ${JSON.stringify(rt.preload ?? [])})
 
 // 3. launcher
 cpSync(join(root, 'web/index.html'), join(www, 'index.html'))
-await build({ entryPoints: [join(root, 'web/launcher.ts')], bundle: true, format: 'iife', target: 'safari16',
-  outfile: join(www, 'launcher.js'), minify: true })
+await bundleRuntime({
+  upstream, outfile: join(www, 'home.js'),
+  entry: `import '${bootFile}'\nimport '${root}/shim/home/home'\n`,
+})
 console.log('www/ ready:', APPS.join(', '))

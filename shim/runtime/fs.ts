@@ -9,14 +9,17 @@ const fs: any = createFsFromVolume(vol)
 for (const d of [DOCS_ROOT, '/tmp', '/userData', '/home']) vol.mkdirSync(d, { recursive: true })
 
 const native = () => (window as any).Capacitor?.isNativePlatform?.() === true
-const rel = (p: string) => p.slice(DOCS_ROOT.length + 1)
+export const USER_ROOT = '/userData'
+const rootOf = (p: string) => (p.startsWith(USER_ROOT + '/') ? USER_ROOT : DOCS_ROOT)
+const dirOfRoot = (r: string) => (r === USER_ROOT ? Directory.Support : Directory.Documents)
+const rel = (p: string) => p.slice(rootOf(p).length + 1)
 const dirty = new Set<string>()
 let timer: any = null
 const norm = (p: unknown) => (typeof p === 'string' ? (p.startsWith('/') ? p : '/' + p) : null)
 function mark(...ps: unknown[]) {
   for (const p of ps) {
     const n = norm(p)
-    if (n && n.startsWith(DOCS_ROOT + '/') && !n.includes('/.')) dirty.add(n)
+    if (n && (n.startsWith(DOCS_ROOT + '/') && !n.includes('/.') || n.startsWith(USER_ROOT + '/'))) dirty.add(n)
   }
   if (dirty.size && !timer) timer = setTimeout(flush, 250)
 }
@@ -32,9 +35,9 @@ export async function flush() {
   for (const p of paths) {
     try {
       if (fs.existsSync(p) && fs.statSync(p).isFile())
-        await Filesystem.writeFile({ path: rel(p), directory: Directory.Documents, recursive: true,
+        await Filesystem.writeFile({ path: rel(p), directory: dirOfRoot(rootOf(p)), recursive: true,
           data: b64(fs.readFileSync(p)) })
-      else await Filesystem.deleteFile({ path: rel(p), directory: Directory.Documents }).catch(() => {})
+      else await Filesystem.deleteFile({ path: rel(p), directory: dirOfRoot(rootOf(p)) }).catch(() => {})
     } catch (e) { console.warn('[fs mirror]', p, e) }
   }
 }
@@ -62,21 +65,21 @@ export async function hydrate() {
   const seed = (globalThis as any).__seedFiles
   if (seed) for (const [n, d] of Object.entries<string>(seed)) { const bin = atob(d); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); fs.writeFileSync(`${DOCS_ROOT}/${n}`, u) }
   if (!native()) return
-  const walk = async (dir: string) => {
-    const { files } = await Filesystem.readdir({ path: dir, directory: Directory.Documents }).catch(() => ({ files: [] as any[] }))
+  const walk = async (base: string, directory: typeof Directory[keyof typeof Directory], dir: string) => {
+    const { files } = await Filesystem.readdir({ path: dir, directory }).catch(() => ({ files: [] as any[] }))
     for (const f of files) {
       const p = dir ? `${dir}/${f.name}` : f.name
       if (f.name.startsWith('.') || (f.size ?? 0) > 30e6) continue
-      if (f.type === 'directory') { vol.mkdirSync(`${DOCS_ROOT}/${p}`, { recursive: true }); await walk(p) }
+      if (f.type === 'directory') { vol.mkdirSync(`${base}/${p}`, { recursive: true }); await walk(base, directory, p) }
       else {
-        const { data } = await Filesystem.readFile({ path: p, directory: Directory.Documents })
+        const { data } = await Filesystem.readFile({ path: p, directory })
         const bin = atob(data as string); const u = new Uint8Array(bin.length)
         for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
-        fs.writeFileSync(`${DOCS_ROOT}/${p}`, u)
+        fs.writeFileSync(`${base}/${p}`, u)
       }
     }
   }
-  const saved = new Set(dirty); await walk('')
+  const saved = new Set(dirty); await walk(DOCS_ROOT, Directory.Documents, ''); await walk(USER_ROOT, Directory.Support, '')
   for (const p of saved) dirty.add(p)
   dirty.clear()
 }

@@ -61,16 +61,21 @@ public class AEFilesPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "readdir", returnType: CAPPluginReturnPromise),
     ]
 
-    private var root: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].standardizedFileURL
+    /// "documents" (visible in Files.app) or "support" (private app data: settings, AI keys)
+    private func root(_ call: CAPPluginCall) -> URL {
+        let dir: FileManager.SearchPathDirectory = call.getString("dir") == "support" ? .applicationSupportDirectory : .documentDirectory
+        let url = FileManager.default.urls(for: dir, in: .userDomainMask)[0].standardizedFileURL
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
     }
 
     /// Resolves a Documents-relative path; refuses anything that escapes the folder.
     private func resolve(_ call: CAPPluginCall) -> URL? {
         let rel = call.getString("path") ?? ""
-        let url = root.appendingPathComponent(rel).standardizedFileURL
-        guard url.path == root.path || url.path.hasPrefix(root.path + "/") else {
-            call.reject("Path escapes Documents")
+        let base = root(call)
+        let url = base.appendingPathComponent(rel).standardizedFileURL
+        guard url.path == base.path || url.path.hasPrefix(base.path + "/") else {
+            call.reject("Path escapes its folder")
             return nil
         }
         return url

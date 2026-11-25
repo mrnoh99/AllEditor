@@ -1,6 +1,8 @@
 import './process'
 import { Buffer } from 'buffer'
 const g = globalThis as any
+// inside a tab (iframe) the native bridge only exists on the parent window
+try { if (window.parent !== window && (window.parent as any).Capacitor && !g.Capacitor) g.Capacitor = (window.parent as any).Capacitor } catch {}
 g.Buffer = g.Buffer ?? Buffer
 g.__dirname = '/app/out/main'; g.__filename = '/app/out/main/index.js'
 g.global = g.global ?? g

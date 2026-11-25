@@ -5,6 +5,7 @@ import { applyPhoneLayer, isPhone } from './phone'
 
 export function start(app: string, register: (open: string | null) => void, preload: Array<[string, string]> = []) {
   applyPhoneLayer()
+  ;(window as any).__aeFlush = flush
   addHomeButton()
   ;(async () => {
     try { await hydrate() } catch (e) { console.warn('[hydrate]', e) }
@@ -24,6 +25,7 @@ export function start(app: string, register: (open: string | null) => void, prel
 /** floating "home" button so every app can return to the launcher */
 export function addHomeButton() {
   const add = () => {
+    if (window.parent !== window) return // inside a tab: the shell's tab bar is the way back
     if (document.getElementById('ae-home')) return
     const b = document.createElement('button')
     b.id = 'ae-home'; b.textContent = '\u2302'; b.setAttribute('aria-label', '홈')
