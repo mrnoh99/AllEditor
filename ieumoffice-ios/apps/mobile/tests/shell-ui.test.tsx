@@ -8,7 +8,6 @@ import type {
   MobileChatGptStatus,
 } from '@genoffice/mobile-bridge/transport'
 import { MobileLocaleProvider } from '../src/renderer/i18n'
-import { HomeScreen } from '../src/renderer/components/HomeScreen'
 import { EditorShell } from '../src/renderer/shell/EditorShell'
 import { SettingsScreen } from '../src/renderer/settings/SettingsScreen'
 
@@ -183,36 +182,5 @@ describe('SettingsScreen ChatGPT visibility gate, usage link, and HWP backup act
     expect(el.querySelector('[data-testid="settings-backup-list"]')?.textContent).toContain(
       'official.hwp',
     )
-  })
-})
-
-describe('HomeScreen recent documents (AllEditor: the Documents folder, opened as office tabs)', () => {
-  it('shows the Documents-folder recent list instead of the per-file recent list', () => {
-    const el = renderInDom(
-      <HomeScreen
-        recentDocs={[
-          {
-            id: 'rec-1',
-            docKey: 'aaaa1111bbbb2222',
-            name: 'moved.hwp',
-            format: 'hwp',
-            openedAt: 1700000000000,
-          },
-        ]}
-        recoveryEntries={[]}
-        permissionDeniedRecentId="rec-1"
-        defaultHwpFormat="hwp"
-        onCreateNew={() => {}}
-        onOpenFile={() => {}}
-        onOpenRecent={() => {}}
-        onRemoveRecent={() => {}}
-        onRestoreRecovery={() => {}}
-        onDiscardRecovery={() => {}}
-        onOpenSettings={() => {}}
-      />,
-    )
-
-    expect(el.querySelector('[data-testid="home-recent-docs"]')).not.toBeNull()
-    expect(el.querySelector('[data-testid="recent-expired-rec-1"]')).toBeNull()
   })
 })

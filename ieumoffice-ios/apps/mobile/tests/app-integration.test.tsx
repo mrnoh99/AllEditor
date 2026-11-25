@@ -127,7 +127,7 @@ describe('MobileApp end-to-end integration', () => {
     expect(mdView?.getAttribute('data-mode')).toBe('view')
   })
 
-  it('offers 한글, Word, PowerPoint and Excel side by side and opens a new 한글 tab in the office layer (AllEditor home)', async () => {
+  it('opens on the office home (AllEditor: the office suite is the app home; the 이음오피스 home is gone)', async () => {
     const { transport } = makeMockTransport()
     const client = createMobileClient(transport)
 
@@ -141,20 +141,11 @@ describe('MobileApp end-to-end integration', () => {
       await new Promise((r) => setTimeout(r, 30))
     })
 
-    // Markdown is not offered; one "open" for every type and the document library
-    expect(div.querySelector('[data-testid="home-new-md-btn"]')).toBeNull()
-    for (const id of ['hwp', 'docs', 'slides', 'sheets']) {
-      expect(div.querySelector(`[data-testid="home-new-${id}"]`)).not.toBeNull()
-    }
-    expect(div.querySelector('[data-testid="home-open-any"]')).not.toBeNull()
-    expect(div.querySelector('[data-testid="home-library"]')).not.toBeNull()
-
-    // 한글 is an office tab now: the office layer opens over the home
-    await act(async () => {
-      div.querySelector<HTMLButtonElement>('[data-testid="home-new-hwp"]')?.click()
-      await new Promise((r) => setTimeout(r, 30))
-    })
-    expect(div.querySelector('[data-testid="office-overlay"]')).not.toBeNull()
+    expect(div.querySelector('[data-testid="mobile-home-screen"]')).toBeNull()
+    const overlay = div.querySelector<HTMLElement>('[data-testid="office-overlay"]')
+    expect(overlay).not.toBeNull()
+    expect(overlay?.style.display).toBe('block')
+    expect(overlay?.querySelector('iframe')?.getAttribute('src')).toMatch(/index\.html\?embed=1$/)
   })
 })
 

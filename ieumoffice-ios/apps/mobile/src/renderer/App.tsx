@@ -38,7 +38,6 @@ import {
   type DocumentMode,
 } from '@genoffice/mobile-bridge/view-edit-gate'
 import { AiSheetPanel, type ChatGptRecoveryNoticeKind } from './components/AiSheetPanel'
-import { HomeScreen } from './components/HomeScreen'
 import { OfficeOverlay, openOffice, tauri as tauriBridge } from './components/OfficeSuite'
 import { UnsavedModal } from './components/UnsavedModal'
 import { HwpMobileEditor, type HwpMobileEditorHandle } from './editors/HwpMobileEditor'
@@ -790,26 +789,6 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
 
   return (
     <MobileLocaleProvider lang={lang}>
-      {screen === 'home' && (
-        <HomeScreen
-          recentDocs={recentDocs}
-          recoveryEntries={recoveryEntries}
-          permissionDeniedRecentId={permissionDeniedRecentId}
-          defaultHwpFormat={prefs.hwpDefaultFormat}
-          onCreateNew={(fmt) => void handleCreateNew(fmt)}
-          onOpenFile={() => void handlePickOpenFile()}
-          onOpenRecent={(entry) => void handleOpenRecent(entry)}
-          onRemoveRecent={(id) => void handleRemoveRecent(id)}
-          onRestoreRecovery={(entry) => void handleRestoreRecovery(entry)}
-          onDiscardRecovery={(docKey) => void handleDiscardRecovery(docKey)}
-          onOpenSettings={() => {
-            void refreshAiState()
-            void refreshHomeData()
-            setScreen('settings')
-          }}
-        />
-      )}
-
       {screen === 'settings' && (
         <SettingsScreen
           prefs={prefs}
@@ -951,7 +930,7 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
         onChoice={resolveUnsavedChoice}
       />
 
-      <OfficeOverlay />
+      <OfficeOverlay active={screen === 'home'} onShow={() => setScreen('home')} />
     </MobileLocaleProvider>
   )
 }

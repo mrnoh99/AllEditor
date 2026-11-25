@@ -234,6 +234,7 @@ for (const app of APPS) {
 
 // 3. launcher
 cpSync(join(root, 'web/index.html'), join(www, 'index.html'))
+cpSync(join(root, 'ieumoffice-ios/apps/mobile/src/renderer/assets/brand/alleditor-icon.svg'), join(www, 'alleditor-icon.svg'))
 await bundleRuntime({
   upstream, outfile: join(www, 'home.js'),
   entry: `import '${bootFile}'\nimport '${root}/shim/home/home'\n`,

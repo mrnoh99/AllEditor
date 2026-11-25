@@ -74,18 +74,12 @@ function activate(id: string) {
   renderBar(); saveTabs()
 }
 function tabLabel(x: Tab) { return x.kind === 'home' ? t('home') : x.kind === 'settings' ? t('settings') : x.title }
-// Inside the Tauri app the suite runs in an overlay iframe (office://localhost/index.html?embed=1):
-// a "back" button returns to the 이음오피스 home, and the host can send { type: 'ae-office', action: 'new', app }.
+// Inside the Tauri app the suite is the app's home, in a full-screen iframe (office://localhost/index.html?embed=1);
+// the host can send { type: 'ae-office', action: 'new', app }.
 const EMBED = (() => { try { return new URLSearchParams(location.search).has('embed') && window.parent !== window } catch { return false } })()
 const toHost = (msg: object) => { try { window.parent.postMessage(msg, '*') } catch {} }
 function renderBar() {
   const bar = $('tabs'); bar.textContent = ''
-  if (EMBED) {
-    const back = el('button', 'tl back', '‹ AllEditor')
-    back.setAttribute('aria-label', lang() === 'ko' ? 'AllEditor 홈으로' : 'Back to the AllEditor home')
-    back.onclick = () => { void flush(); toHost({ type: 'ae-office-close' }) }
-    bar.append(back)
-  }
   for (const x of tabs) {
     const b = el('div', 'tab' + (x.id === active ? ' on' : '') + (x.app ? ' ' + x.app : ''))
     const lab = el('button', 'tl', tabLabel(x)); lab.onclick = () => (x.id === active && x.kind === 'app' ? void renameTab(x) : activate(x.id)); b.append(lab)
@@ -219,34 +213,64 @@ async function importFile(f: File) {
 }
 const fmt = (n: number) => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB')
 
+// Home (the one home of the app; same look as the former 이음오피스 home): AllEditor header, 새로 만들기 cards,
+// 파일 열기, 최근 문서 (Documents of the app = Files › AllEditor), credit.
+const BADGE: Record<string, [string, string]> = { hwp: ['한', '#1d9bd1'], docs: ['W', '#2b6cd4'], slides: ['P', '#d24726'], sheets: ['X', '#1e7145'], pdf: ['PDF', '#e03a3e'] }
+const IWORK_BADGE: Record<string, [string, string]> = { pages: ['Pg', '#f39c12'], key: ['K', '#2980b9'], numbers: ['N', '#27ae60'] }
+const TYPE_NAME: Record<string, string> = { docs: 'Word', slides: 'PowerPoint', sheets: 'Excel', pdf: 'PDF' }
+const typeName = (n: string) => IWORK_LABEL[ext(n)] ?? (appFor(n) === 'hwp' ? (lang() === 'ko' ? '한글' : 'Hangul') : TYPE_NAME[appFor(n)] ?? '')
+const badgeFor = (n: string): [string, string] => IWORK_BADGE[ext(n)] ?? BADGE[appFor(n)] ?? ['?', '#8e8e93']
+function badge([label, color]: [string, string], cls = 'badge') { const b = el('span', cls, label); b.style.background = color; return b }
+const ago = (ms: number) => {
+  if (!ms) return ''
+  const d = new Date(ms), now = new Date()
+  const same = d.toDateString() === now.toDateString()
+  return same ? d.toLocaleTimeString(lang() === 'ko' ? 'ko-KR' : 'en-US', { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString(lang() === 'ko' ? 'ko-KR' : 'en-US')
+}
 function renderHome() {
+  const ko = lang() === 'ko'
   const root = $('homePane'); root.textContent = ''
-  const wrap = el('main'); root.append(wrap)
-  const open = el('button', 'primary', t('openFile')); open.onclick = () => $<HTMLInputElement>('picker').click(); wrap.append(open)
+  const wrap = el('main', 'home'); root.append(wrap)
+  const head = el('header', 'brand')
+  const icon = el('img', 'brand-icon') as HTMLImageElement; icon.src = './alleditor-icon.svg'; icon.alt = ''
+  head.append(icon, el('h1', '', 'AllEditor')); wrap.append(head)
+
   wrap.append(el('h2', '', t('newSection')))
-  const grid = el('div', 'grid')
-  { // 한글 next to the office types
-    const b = el('button', 'card hwp', lang() === 'ko' ? '새 한글' : 'New Hangul'); b.onclick = () => newBlank('hwp'); grid.append(b)
-  }
-  for (const [app, key] of [['docs', 'newDoc'], ['slides', 'newSlides'], ['sheets', 'newSheet']] as const) {
-    const b = el('button', 'card ' + app, t(key)); b.onclick = () => newBlank(app); grid.append(b)
+  const grid = el('div', 'cards')
+  const NEW: Array<[string, string, string]> = [
+    ['hwp', ko ? '새 한글 문서' : 'New Hangul document', '.hwpx'], ['docs', ko ? '새 Word 문서' : 'New Word document', '.docx'],
+    ['slides', ko ? '새 PowerPoint' : 'New PowerPoint', '.pptx'], ['sheets', ko ? '새 Excel 시트' : 'New Excel sheet', '.xlsx'],
+  ]
+  for (const [app, title, sub] of NEW) {
+    const b = el('button', 'newcard'); b.dataset.app = app
+    b.append(badge(BADGE[app], 'badge big'), el('span', 'nc-title', title), el('span', 'nc-sub', sub))
+    b.onclick = () => newBlank(app); grid.append(b)
   }
   wrap.append(grid)
-  wrap.append(el('h2', '', t('recent')))
+
+  const open = el('button', 'opencard')
+  const ic = el('span', 'oc-icon')
+  ic.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>'
+  const txt = el('span', 'oc-text'); txt.append(el('span', 'oc-title', ko ? '파일 열기' : 'Open a file'), el('span', 'oc-sub', ko ? '한글 · Word · PowerPoint · Excel · PDF · Pages · Keynote · Numbers' : 'Hangul · Word · PowerPoint · Excel · PDF · Pages · Keynote · Numbers'))
+  open.append(ic, txt, el('span', 'oc-chev', '›'))
+  open.onclick = () => $<HTMLInputElement>('picker').click()
+  wrap.append(open)
+
+  wrap.append(el('h2', '', ko ? '최근 문서' : 'Recent documents'))
   const list = el('div', 'files'); wrap.append(list)
   let names: string[] = []
   try { names = fs.readdirSync(DOCS_ROOT).map(String).filter((n: string) => !n.startsWith('.') && appFor(n)) } catch {}
   const rows = names.map((n) => { const st = fs.statSync(`${DOCS_ROOT}/${n}`); return { n, size: st.size as number, m: Number(st.mtimeMs ?? 0) } }).sort((a, b) => b.m - a.m)
-  if (!rows.length) list.append(el('p', 'empty', t('empty')))
-  wrap.append(creditEl())
+  if (!rows.length) { list.classList.add('none'); list.append(el('p', 'empty', ko ? '아직 문서가 없습니다. 새로 만들거나 파일을 여세요.' : 'No documents yet. Create one or open a file.')) }
   for (const r of rows) {
     const row = el('div', 'row'); const b = el('button', 'file')
-    const tag = el('span', 'tag ' + appFor(r.n), tagLabel(r.n)); const nm = el('span', 'nm', r.n); const sz = el('span', 'sz', fmt(r.size))
-    b.append(tag, nm, sz); b.onclick = () => openPath(`${DOCS_ROOT}/${r.n}`)
+    const meta = el('span', 'meta'); meta.append(el('span', 'nm', r.n), el('span', 'sz', [typeName(r.n), fmt(r.size), ago(r.m)].filter(Boolean).join(' · ')))
+    b.append(badge(badgeFor(r.n)), meta); b.onclick = () => openPath(`${DOCS_ROOT}/${r.n}`)
     const d = el('button', 'del', '✕'); d.setAttribute('aria-label', t('del'))
     d.onclick = async () => { if (!confirm(`${r.n}\n${t('confirmDel')}`)) return; fs.rmSync(`${DOCS_ROOT}/${r.n}`, { force: true }); await flush(); renderHome() }
     row.append(b, d); list.append(row)
   }
+  wrap.append(creditEl())
 }
 
 // ---- settings ----
