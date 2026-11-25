@@ -135,6 +135,8 @@
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -148,11 +150,23 @@
 			</array>
 		</dict>
 	</array>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_ipp._tcp</string>
+		<string>_ipps._tcp</string>
+		<string>_pdl-datastream._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>네트워크 프린터로 바로 인쇄하려면 같은 네트워크의 프린터에 연결해야 합니다. (Needed to print directly to a printer on your network.)</string>
+	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
@@ -161,12 +175,23 @@
 		<string>arm64</string>
 		<string>metal</string>
 	</array>
+	<key>UIRequiresFullScreen</key>
+	<true/>
+	<key>UIStatusBarHidden~ipad</key>
+	<true/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict>
@@ -302,31 +327,6 @@
 				</array>
 			</dict>
 		</dict>
-	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>UIRequiresFullScreen</key>
-	<true/>
-	<key>UIStatusBarHidden~ipad</key>
-	<true/>
-	<key>UIViewControllerBasedStatusBarAppearance</key>
-	<false/>
-	<key>CFBundleShortVersionString</key>
-	<string>$(MARKETING_VERSION)</string>
-	<key>CFBundleVersion</key>
-	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>UIFileSharingEnabled</key>
-	<true/>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>네트워크 프린터로 바로 인쇄하려면 같은 네트워크의 프린터에 연결해야 합니다. (Needed to print directly to a printer on your network.)</string>
-	<key>NSBonjourServices</key>
-	<array>
-		<string>_ipp._tcp</string>
-		<string>_ipps._tcp</string>
-		<string>_pdl-datastream._tcp</string>
 	</array>
 </dict>
 </plist>
