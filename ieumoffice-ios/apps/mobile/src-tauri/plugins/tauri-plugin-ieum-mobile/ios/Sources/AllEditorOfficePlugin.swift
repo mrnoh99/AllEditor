@@ -1,0 +1,231 @@
+import Foundation
+import Network
+import Tauri
+import UIKit
+import WebKit
+
+// AllEditor office suite — native side of `AEPdf` / `AEPrint` (ported from the Capacitor app, ios/App/App/AppDelegate.swift).
+//   renderPdf   : HTML -> PDF through an offscreen WKWebView paginated with @media print rules
+//   printPdf    : iOS print dialog (AirPrint printers, "Save to Files", …)
+//   directPrint : straight to an IP printer — IPP Print-Job (application/pdf) or raw TCP port 9100
+
+struct AERenderPdfArgs: Decodable {
+    let html: String
+    let width: Double?
+    let height: Double?
+}
+
+struct AEPrintPdfArgs: Decodable {
+    let data: String
+    let jobName: String?
+}
+
+struct AEDirectPrintArgs: Decodable {
+    let host: String
+    let port: Int?
+    let `protocol`: String?
+    let data: String
+    let jobName: String?
+    let copies: Int?
+    let sides: String?
+}
+
+final class AEPageRenderer: UIPrintPageRenderer {
+    private let paper: CGRect
+    init(paper: CGRect) { self.paper = paper; super.init() }
+    override var paperRect: CGRect { paper }
+    override var printableRect: CGRect { paper }
+}
+
+public final class AllEditorOfficePlugin: Plugin, WKNavigationDelegate {
+    private var jobs: [ObjectIdentifier: (invoke: Invoke, paper: CGRect, view: WKWebView)] = [:]
+
+    // MARK: HTML -> PDF
+
+    @objc public func renderPdf(_ invoke: Invoke) throws {
+        let args = try invoke.parseArgs(AERenderPdfArgs.self)
+        let w = CGFloat(args.width ?? 595.28), h = CGFloat(args.height ?? 841.89)
+        guard w > 10, h > 10, w < 6000, h < 6000 else { invoke.reject("invalid page size"); return }
+        DispatchQueue.main.async {
+            let wv = WKWebView(frame: CGRect(x: 0, y: 0, width: w, height: h))
+            wv.alpha = 0.01
+            wv.isUserInteractionEnabled = false
+            wv.navigationDelegate = self
+            self.manager.viewController?.view.insertSubview(wv, at: 0)
+            self.jobs[ObjectIdentifier(wv)] = (invoke, CGRect(x: 0, y: 0, width: w, height: h), wv)
+            wv.loadHTMLString(args.html, baseURL: nil)
+        }
+    }
+
+    public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        // give images / layout a moment to settle before paginating
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.finish(webView) }
+    }
+
+    public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { fail(webView, error) }
+    public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { fail(webView, error) }
+
+    private func fail(_ webView: WKWebView, _ error: Error) {
+        guard let job = jobs.removeValue(forKey: ObjectIdentifier(webView)) else { return }
+        webView.removeFromSuperview()
+        job.invoke.reject("PDF render failed: \(error.localizedDescription)")
+    }
+
+    private func finish(_ webView: WKWebView) {
+        guard let job = jobs.removeValue(forKey: ObjectIdentifier(webView)) else { return }
+        let renderer = AEPageRenderer(paper: job.paper)
+        renderer.addPrintFormatter(webView.viewPrintFormatter(), startingAtPageAt: 0)
+        let pages = max(renderer.numberOfPages, 1)
+        renderer.prepare(forDrawingPages: NSRange(location: 0, length: pages))
+        let pdf = UIGraphicsPDFRenderer(bounds: job.paper).pdfData { ctx in
+            for i in 0..<pages {
+                ctx.beginPage()
+                renderer.drawPage(at: i, in: ctx.pdfContextBounds)
+            }
+        }
+        webView.removeFromSuperview()
+        job.invoke.resolve(["data": pdf.base64EncodedString()])
+    }
+
+    // MARK: iOS print dialog
+
+    @objc public func printPdf(_ invoke: Invoke) throws {
+        let args = try invoke.parseArgs(AEPrintPdfArgs.self)
+        guard let data = Data(base64Encoded: args.data) else { invoke.reject("data missing"); return }
+        let name = args.jobName ?? "AllEditor"
+        DispatchQueue.main.async {
+            let ctl = UIPrintInteractionController.shared
+            let info = UIPrintInfo(dictionary: nil)
+            info.outputType = .general
+            info.jobName = name
+            ctl.printInfo = info
+            ctl.printingItem = data
+            let done: UIPrintInteractionController.CompletionHandler = { _, completed, error in
+                if let error = error { invoke.reject("Print failed: \(error.localizedDescription)") } else { invoke.resolve(["completed": completed]) }
+            }
+            if UIDevice.current.userInterfaceIdiom == .pad, let view = self.manager.viewController?.view {
+                let r = CGRect(x: view.bounds.midX - 1, y: view.bounds.midY - 1, width: 2, height: 2)
+                ctl.present(from: r, in: view, animated: true, completionHandler: done)
+            } else {
+                ctl.present(animated: true, completionHandler: done)
+            }
+        }
+    }
+
+    // MARK: direct printing to an IP printer
+
+    @objc public func directPrint(_ invoke: Invoke) throws {
+        let args = try invoke.parseArgs(AEDirectPrintArgs.self)
+        guard !args.host.isEmpty, let pdf = Data(base64Encoded: args.data) else { invoke.reject("host/data missing"); return }
+        let proto = args.protocol ?? "auto"
+        let name = args.jobName ?? "AllEditor"
+        let copies = args.copies ?? 1
+        Task {
+            var errors: [String] = []
+            if proto == "auto" || proto == "ipp" {
+                do {
+                    try await self.ippPrint(host: args.host, port: args.port ?? 631, pdf: pdf, name: name, copies: copies, sides: args.sides)
+                    invoke.resolve(["via": "ipp"]); return
+                } catch { errors.append("IPP: \(error.localizedDescription)") }
+            }
+            if proto == "auto" || proto == "raw" {
+                do {
+                    try await self.rawPrint(host: args.host, port: proto == "raw" ? (args.port ?? 9100) : 9100, pdf: pdf)
+                    invoke.resolve(["via": "raw"]); return
+                } catch { errors.append("RAW: \(error.localizedDescription)") }
+            }
+            invoke.reject(errors.joined(separator: " / "))
+        }
+    }
+
+    private func ippAttr(_ tag: UInt8, _ name: String, _ value: String) -> Data {
+        var d = Data([tag])
+        d.append(contentsOf: withUnsafeBytes(of: UInt16(name.utf8.count).bigEndian, Array.init))
+        d.append(name.data(using: .utf8)!)
+        d.append(contentsOf: withUnsafeBytes(of: UInt16(value.utf8.count).bigEndian, Array.init))
+        d.append(value.data(using: .utf8)!)
+        return d
+    }
+
+    private func ippInt(_ name: String, _ value: Int32) -> Data {
+        var d = Data([0x21])
+        d.append(contentsOf: withUnsafeBytes(of: UInt16(name.utf8.count).bigEndian, Array.init))
+        d.append(name.data(using: .utf8)!)
+        d.append(contentsOf: withUnsafeBytes(of: UInt16(4).bigEndian, Array.init))
+        d.append(contentsOf: withUnsafeBytes(of: value.bigEndian, Array.init))
+        return d
+    }
+
+    /// IPP Print-Job with an application/pdf document
+    private func ippPrint(host: String, port: Int, pdf: Data, name: String, copies: Int, sides: String?) async throws {
+        var lastError: Error = NSError(domain: "AEPrint", code: 1, userInfo: [NSLocalizedDescriptionKey: "no response"])
+        for path in ["/ipp/print", "/ipp", "/ipp/printer", "/printers/ipp"] {
+            var body = Data([0x01, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01]) // IPP 1.1, Print-Job, request-id 1
+            body.append(0x01) // operation-attributes-tag
+            body.append(ippAttr(0x47, "attributes-charset", "utf-8"))
+            body.append(ippAttr(0x48, "attributes-natural-language", "en"))
+            body.append(ippAttr(0x45, "printer-uri", "ipp://\(host):\(port)\(path)"))
+            body.append(ippAttr(0x42, "requesting-user-name", "AllEditor"))
+            body.append(ippAttr(0x42, "job-name", name))
+            body.append(ippAttr(0x49, "document-format", "application/pdf"))
+            body.append(0x02) // job-attributes-tag
+            if copies > 1 { body.append(ippInt("copies", Int32(copies))) }
+            if let sides = sides { body.append(ippAttr(0x44, "sides", sides)) }
+            body.append(0x03) // end-of-attributes
+            body.append(pdf)
+            guard let url = URL(string: "http://\(host):\(port)\(path)") else { continue }
+            var req = URLRequest(url: url, timeoutInterval: 60)
+            req.httpMethod = "POST"
+            req.setValue("application/ipp", forHTTPHeaderField: "Content-Type")
+            req.httpBody = body
+            do {
+                let (data, resp) = try await URLSession.shared.data(for: req)
+                guard let http = resp as? HTTPURLResponse, http.statusCode == 200, data.count >= 4 else {
+                    lastError = NSError(domain: "AEPrint", code: 2, userInfo: [NSLocalizedDescriptionKey: "HTTP \((resp as? HTTPURLResponse)?.statusCode ?? 0) at \(path)"]); continue
+                }
+                let status = (Int(data[2]) << 8) | Int(data[3])
+                if status <= 0x00ff { return }
+                lastError = NSError(domain: "AEPrint", code: status, userInfo: [NSLocalizedDescriptionKey: String(format: "printer status 0x%04x", status)])
+            } catch { lastError = error }
+        }
+        throw lastError
+    }
+
+    /// Raw TCP (JetDirect, port 9100): the printer must accept PDF directly
+    private func rawPrint(host: String, port: Int, pdf: Data) async throws {
+        guard let p = NWEndpoint.Port(rawValue: UInt16(port)) else { throw NSError(domain: "AEPrint", code: 3) }
+        let conn = NWConnection(host: NWEndpoint.Host(host), port: p, using: .tcp)
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            let lock = NSLock()
+            var finished = false
+            let finish: (Error?) -> Void = { err in
+                lock.lock(); defer { lock.unlock() }
+                if finished { return }
+                finished = true
+                conn.cancel()
+                if let err = err { cont.resume(throwing: err) } else { cont.resume() }
+            }
+            conn.stateUpdateHandler = { state in
+                switch state {
+                case .ready:
+                    conn.send(content: pdf, completion: .contentProcessed { err in
+                        // let the printer drain the stream before closing
+                        DispatchQueue.global().asyncAfter(deadline: .now() + 1.0) { finish(err) }
+                    })
+                case .failed(let err): finish(err)
+                case .waiting(let err): finish(err)
+                default: break
+                }
+            }
+            conn.start(queue: .global())
+            DispatchQueue.global().asyncAfter(deadline: .now() + 30) {
+                finish(NSError(domain: "AEPrint", code: 4, userInfo: [NSLocalizedDescriptionKey: "timeout"]))
+            }
+        }
+    }
+}
+
+@_cdecl("init_plugin_ae_office")
+func initPluginAeOffice() -> Plugin {
+    return AllEditorOfficePlugin()
+}

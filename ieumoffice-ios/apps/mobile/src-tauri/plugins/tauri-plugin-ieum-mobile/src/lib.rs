@@ -292,3 +292,57 @@ pub fn init_auth<R: Runtime>() -> TauriPlugin<R> {
         })
         .build()
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// AllEditor office suite: HTML -> PDF (offscreen WKWebView), iOS print dialog, direct network printing (IPP / 9100).
+// Called from the app's office:// protocol handler, never from the main thread (run_mobile_plugin blocks).
+
+#[cfg(target_os = "ios")]
+tauri::ios_plugin_binding!(init_plugin_ae_office);
+
+/// Managed handle of the `AllEditorOfficePlugin` Swift plugin (iOS only).
+pub struct OfficeNativeHandle<R: Runtime> {
+    #[cfg(mobile)]
+    handle: Option<tauri::plugin::PluginHandle<R>>,
+    #[cfg(not(mobile))]
+    _r: std::marker::PhantomData<fn() -> R>,
+}
+
+/// Registers the office native plugin (`ae-office`).
+pub fn init_office<R: Runtime>() -> TauriPlugin<R> {
+    Builder::new("ae-office")
+        .setup(|app, api| {
+            #[cfg(target_os = "ios")]
+            let state = OfficeNativeHandle::<R> { handle: Some(api.register_ios_plugin(init_plugin_ae_office)?) };
+            #[cfg(target_os = "android")]
+            let state = { let _ = api; OfficeNativeHandle::<R> { handle: None } };
+            #[cfg(not(mobile))]
+            let state = { let _ = api; OfficeNativeHandle::<R> { _r: std::marker::PhantomData } };
+            app.manage(state);
+            Ok(())
+        })
+        .build()
+}
+
+/// Calls a method of the Swift office plugin with JSON arguments and returns its JSON result.
+pub fn office_native_call<R: Runtime>(
+    app: &AppHandle<R>,
+    method: &str,
+    args: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let Some(state) = app.try_state::<OfficeNativeHandle<R>>() else {
+        return Err("office native plugin not registered".into());
+    };
+    #[cfg(mobile)]
+    {
+        match &state.handle {
+            Some(h) => h.run_mobile_plugin::<serde_json::Value>(method, args).map_err(|e| e.to_string()),
+            None => Err(format!("{method}: not available on this platform")),
+        }
+    }
+    #[cfg(not(mobile))]
+    {
+        let _ = (state, args);
+        Err(format!("{method}: PDF rendering and printing need the iOS app"))
+    }
+}

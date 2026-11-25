@@ -2,6 +2,7 @@ pub mod ai;
 pub mod commands;
 pub mod error;
 pub mod hwp;
+pub mod office;
 pub mod secrets;
 pub mod storage;
 
@@ -16,6 +17,9 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_ieum_mobile::init_file())
         .plugin(tauri_plugin_ieum_mobile::init_auth())
+        .plugin(tauri_plugin_ieum_mobile::init_office())
+        // AllEditor: Word / PowerPoint / Excel / PDF suite on office:// (see office.rs)
+        .register_asynchronous_uri_scheme_protocol(office::SCHEME, office::protocol)
         .setup(|app| {
             let app_data_dir = app
                 .path()
