@@ -468,3 +468,39 @@ mod open_in_tests {
         assert_eq!(route_for("noext"), None);
     }
 }
+
+// ---- one home for every document type (AllEditor) ---------------------------------------------------------------
+
+/// every type the home's "파일 열기" offers
+const OPEN_ANY_EXTS: &[&str] = &[
+    "hwp", "hwpx", "docx", "doc", "dotx", "odt", "xlsx", "xlsm", "xls", "ods", "csv", "pptx", "ppt", "odp", "pdf",
+    "pages", "numbers", "key",
+];
+
+/// The home's single "파일 열기": 한글 → HWP editor session, anything else → bytes for the office suite.
+#[tauri::command]
+pub async fn ae_pick_open_any(
+    state: tauri::State<'_, std::sync::Arc<crate::storage::MobileFileService>>,
+) -> crate::error::MobileResult<crate::storage::PickedAny> {
+    let svc = state.inner().clone();
+    let exts: Vec<String> = OPEN_ANY_EXTS.iter().map(|e| (*e).to_string()).collect();
+    tauri::async_runtime::spawn_blocking(move || svc.pick_open_any(&exts))
+        .await
+        .map_err(|e| crate::error::MobileError::with_detail(crate::error::MobileErrorCode::InternalError, "mobile.open.join", e.to_string()))?
+}
+
+/// The office home lists the Documents folder; a 한글 file there opens in the HWP editor.
+#[tauri::command]
+pub async fn ae_open_documents_hwp<R: Runtime>(
+    app: AppHandle<R>,
+    state: tauri::State<'_, std::sync::Arc<crate::storage::MobileFileService>>,
+    path: String,
+) -> crate::error::MobileResult<crate::storage::MobileDocSession> {
+    let rel = path.trim_start_matches("/Documents").trim_start_matches('/').to_string();
+    let full = safe_join(&storage_root(&app, "documents"), &rel)
+        .map_err(|e| crate::error::MobileError::with_detail(crate::error::MobileErrorCode::InvalidArgument, "mobile.open.path", e))?;
+    let svc = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || svc.open_documents_file(&full))
+        .await
+        .map_err(|e| crate::error::MobileError::with_detail(crate::error::MobileErrorCode::InternalError, "mobile.open.join", e.to_string()))?
+}

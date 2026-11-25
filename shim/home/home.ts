@@ -15,7 +15,7 @@ const APP_BY_EXT: Record<string, string> = {
   pages: 'docs', key: 'slides', numbers: 'sheets',
 }
 const IWORK_LABEL: Record<string, string> = { pages: 'Pages', key: 'Keynote', numbers: 'Numbers' }
-const tagLabel = (n: string) => IWORK_LABEL[ext(n)] ?? APP_LABEL[appFor(n)][lang() === 'ko' ? 0 : 1]
+const tagLabel = (n: string) => /^(hwp|hwpx)$/.test(ext(n)) ? (lang() === 'ko' ? '한글' : 'Hangul') : IWORK_LABEL[ext(n)] ?? APP_LABEL[appFor(n)][lang() === 'ko' ? 0 : 1]
 const APP_LABEL: Record<string, [string, string]> = { docs: ['문서', 'Docs'], slides: ['슬라이드', 'Slides'], sheets: ['스프레드시트', 'Sheets'], pdf: ['PDF', 'PDF'] }
 const ext = (n: string) => n.split('.').pop()!.toLowerCase()
 const appFor = (n: string) => APP_BY_EXT[ext(n)]
@@ -143,6 +143,8 @@ const credit = () => CREDIT
 const busy = new Set<string>()
 async function openPath(path: string) {
   const name = path.split('/').pop()!, app = appFor(name)
+  // AllEditor app: 한글 documents open in the 이음오피스 HWP editor, not as a converted Word copy
+  if (EMBED && /\.(hwp|hwpx)$/i.test(name)) { await flush(); toHost({ type: 'ae-open-hwp', path }); return }
   if (!app) { alert(`${t('unsupported')}: ${name}`); return }
   const kind = IWORK_EXT[ext(name)]
   if (!kind) { addTab({ kind: 'app', app, path, title: name }); return }
@@ -187,6 +189,9 @@ function renderHome() {
   const open = el('button', 'primary', t('openFile')); open.onclick = () => $<HTMLInputElement>('picker').click(); wrap.append(open)
   wrap.append(el('h2', '', t('newSection')))
   const grid = el('div', 'grid')
+  if (EMBED) { // AllEditor app: 한글 next to the office types, created by the 이음오피스 HWP editor
+    const b = el('button', 'card hwp', lang() === 'ko' ? '새 한글' : 'New Hangul'); b.onclick = () => toHost({ type: 'ae-new-hwp' }); grid.append(b)
+  }
   for (const [app, key] of [['docs', 'newDoc'], ['slides', 'newSlides'], ['sheets', 'newSheet']] as const) {
     const b = el('button', 'card ' + app, t(key)); b.onclick = () => newBlank(app); grid.append(b)
   }

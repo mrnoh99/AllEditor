@@ -99,6 +99,14 @@ fn map_fs_error(err: NativeFsError) -> MobileError {
 }
 
 /// Coordinates single active document session, OS file bridge, HWP container fixes, backups, recovery, and prefs.
+/// result of the AllEditor "open any file" picker
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum PickedAny {
+    Hwp(MobileDocSession),
+    Office { name: String, data: String },
+}
+
 pub struct MobileFileService {
     bridge: Arc<dyn NativeFileBridge>,
     recent: RecentStore,
@@ -186,6 +194,27 @@ impl MobileFileService {
     pub fn pick_open_file(&self, exts: &[String]) -> MobileResult<MobileDocSession> {
         let picked = self.bridge.pick_open_file(exts).map_err(map_fs_error)?;
         self.activate_picked(picked, true)
+    }
+
+    /// AllEditor: one picker for every document type. 한글 (hwp/hwpx) opens as a session here; any other file is
+    /// read and handed back as (name, bytes) for the office suite.
+    pub fn pick_open_any(&self, exts: &[String]) -> MobileResult<PickedAny> {
+        let picked = self.bridge.pick_open_file(exts).map_err(map_fs_error)?;
+        let lower = picked.name.to_ascii_lowercase();
+        if lower.ends_with(".hwp") || lower.ends_with(".hwpx") {
+            return Ok(PickedAny::Hwp(self.activate_picked(picked, true)?));
+        }
+        let bytes = self.bridge.read_uri_bytes(&picked.uri).map_err(map_fs_error)?;
+        Ok(PickedAny::Office { name: picked.name, data: B64.encode(bytes) })
+    }
+
+    /// AllEditor: open a 한글 file of the app's Documents folder (the office home's file list) in the HWP editor
+    pub fn open_documents_file(&self, path: &std::path::Path) -> MobileResult<MobileDocSession> {
+        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let uri = url::Url::from_file_path(path)
+            .map_err(|_| MobileError::with_detail(MobileErrorCode::InvalidArgument, "mobile.open.path", "bad path"))?
+            .to_string();
+        self.activate_picked(PickedFile { uri, name, writable: true, ephemeral: false }, true)
     }
 
     pub fn open_recent_doc(&self, id: &str) -> MobileResult<MobileDocSession> {

@@ -1544,3 +1544,8 @@ input:focus-visible {
     transform: rotate(360deg);
   }
 }
+
+/* AllEditor home: 한글 · Word · PowerPoint · Excel side by side on a tablet */
+@media (min-width: 768px) {
+  .ae-home-grid4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}

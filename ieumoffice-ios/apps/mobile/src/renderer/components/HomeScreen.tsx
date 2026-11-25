@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { htmlLang } from '@genoffice/i18n'
 import type { RecentDocEntry, RecoveryEntry } from '@genoffice/mobile-bridge/transport'
 import { useMobileLocale } from '../i18n'
@@ -6,13 +6,10 @@ import {
   DocTypeIcon,
   IconChevronRight,
   IconFileText,
-  IconFolderOpen,
   IconSettings,
   IeumAppIcon,
 } from './MobileIcons'
-import { CreditFooter, OfficeHomeSection } from './OfficeSuite'
-
-type RecentFilter = 'all' | 'hwp' | 'md'
+import { CreditFooter, UnifiedHomeSection } from './OfficeSuite'
 
 function formatOpenedTime(timestamp: number, locale: string): string {
   if (!Number.isFinite(timestamp) || timestamp <= 0) return ''
@@ -63,27 +60,13 @@ export function HomeScreen({
   onOpenSettings,
 }: HomeScreenProps) {
   const { lang, t } = useMobileLocale()
-  const [filter, setFilter] = useState<RecentFilter>('all')
   const locale = htmlLang(lang)
 
-  const hasBothFamilies = useMemo(() => {
-    let hwp = false
-    let md = false
-    for (const doc of recentDocs) {
-      if (doc.format === 'hwp' || doc.format === 'hwpx') hwp = true
-      else md = true
-    }
-    return hwp && md
-  }, [recentDocs])
-
-  const filteredRecent = useMemo(() => {
-    if (!hasBothFamilies || filter === 'all') return recentDocs
-    return recentDocs.filter((doc) =>
-      filter === 'hwp'
-        ? doc.format === 'hwp' || doc.format === 'hwpx'
-        : doc.format === 'md' || doc.format === 'txt',
-    )
-  }, [filter, hasBothFamilies, recentDocs])
+  // AllEditor: Markdown is not offered; the recent list shows 한글 documents
+  const filteredRecent = useMemo(
+    () => recentDocs.filter((doc) => doc.format === 'hwp' || doc.format === 'hwpx'),
+    [recentDocs],
+  )
 
   return (
     <div className="mobile-page" data-testid="mobile-home-screen">
@@ -144,95 +127,20 @@ export function HomeScreen({
           </section>
         )}
 
-        <section className="mobile-home-cta-group" aria-label={t('newDoc')}>
-          <div className="mobile-home-create-grid">
-            <button
-              type="button"
-              className="mobile-quick-card"
-              onClick={() => onCreateNew(defaultHwpFormat)}
-              data-testid="home-new-hwp-btn"
-            >
-              <DocTypeIcon format={defaultHwpFormat} size={38} />
-              <div className="mobile-quick-card-text">
-                <span className="mobile-quick-card-title">
-                  {defaultHwpFormat === 'hwpx' ? t('newHwpx') : t('newHwp')}
-                </span>
-                <span className="mobile-quick-card-sub">.{defaultHwpFormat}</span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              className="mobile-quick-card"
-              onClick={() => onCreateNew('md')}
-              data-testid="home-new-md-btn"
-            >
-              <DocTypeIcon format="md" size={38} />
-              <div className="mobile-quick-card-text">
-                <span className="mobile-quick-card-title">{t('newMarkdown')}</span>
-                <span className="mobile-quick-card-sub">.md</span>
-              </div>
-            </button>
-          </div>
-
-          <button
-            type="button"
-            className="mobile-open-card"
-            onClick={onOpenFile}
-            data-testid="home-open-file-btn"
-          >
-            <span className="mobile-quick-folder" aria-hidden="true">
-              <IconFolderOpen size={19} />
-            </span>
-            <span className="mobile-open-card-text">
-              <span className="mobile-quick-card-title">{t('openFile')}</span>
-              <span className="mobile-quick-card-sub">.hwp · .hwpx · .md · .txt</span>
-            </span>
-            <IconChevronRight size={18} className="mobile-chevron" />
-          </button>
-        </section>
-
-        <OfficeHomeSection />
+        <UnifiedHomeSection
+          hwpFormat={defaultHwpFormat}
+          onNewHwp={() => onCreateNew(defaultHwpFormat)}
+          onOpenAny={onOpenFile}
+        />
 
         <section className="mobile-section" aria-label={t('recentDocs')}>
           <div className="mobile-section-bar">
             <div className="mobile-section-heading-wrap">
               <h2 className="mobile-section-heading">{t('recentDocs')}</h2>
-              {recentDocs.length > 0 && (
-                <span className="mobile-section-count">{recentDocs.length}</span>
+              {filteredRecent.length > 0 && (
+                <span className="mobile-section-count">{filteredRecent.length}</span>
               )}
             </div>
-            {hasBothFamilies && (
-              <div className="mobile-filter-pills" role="tablist">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={filter === 'all'}
-                  className={filter === 'all' ? 'mobile-filter-pill active' : 'mobile-filter-pill'}
-                  onClick={() => setFilter('all')}
-                >
-                  •
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={filter === 'hwp'}
-                  className={filter === 'hwp' ? 'mobile-filter-pill active' : 'mobile-filter-pill'}
-                  onClick={() => setFilter('hwp')}
-                >
-                  HWP
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={filter === 'md'}
-                  className={filter === 'md' ? 'mobile-filter-pill active' : 'mobile-filter-pill'}
-                  onClick={() => setFilter('md')}
-                >
-                  MD
-                </button>
-              </div>
-            )}
           </div>
 
           {filteredRecent.length === 0 ? (

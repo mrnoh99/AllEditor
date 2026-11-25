@@ -127,7 +127,7 @@ describe('MobileApp end-to-end integration', () => {
     expect(mdView?.getAttribute('data-mode')).toBe('view')
   })
 
-  it('creates a new Markdown document directly in edit mode from HomeScreen', async () => {
+  it('offers 한글, Word, PowerPoint and Excel side by side and creates a 한글 document (AllEditor home)', async () => {
     const { transport } = makeMockTransport()
     const client = createMobileClient(transport)
 
@@ -141,17 +141,19 @@ describe('MobileApp end-to-end integration', () => {
       await new Promise((r) => setTimeout(r, 30))
     })
 
-    const newMdBtn = div.querySelector<HTMLButtonElement>('[data-testid="home-new-md-btn"]')
-    expect(newMdBtn).not.toBeNull()
+    // Markdown is not offered; one "open" for every type and the document library
+    expect(div.querySelector('[data-testid="home-new-md-btn"]')).toBeNull()
+    for (const id of ['hwp', 'docs', 'slides', 'sheets']) {
+      expect(div.querySelector(`[data-testid="home-new-${id}"]`)).not.toBeNull()
+    }
+    expect(div.querySelector('[data-testid="home-open-any"]')).not.toBeNull()
+    expect(div.querySelector('[data-testid="home-library"]')).not.toBeNull()
 
     await act(async () => {
-      newMdBtn?.click()
+      div.querySelector<HTMLButtonElement>('[data-testid="home-new-hwp"]')?.click()
       await new Promise((r) => setTimeout(r, 30))
     })
-
-    const mdEditor = div.querySelector('[data-editor="markdown"]')
-    expect(mdEditor).not.toBeNull()
-    expect(mdEditor?.getAttribute('data-mode')).toBe('edit')
+    expect(div.querySelector('[data-testid="mobile-home-screen"]')).toBeNull()
   })
 })
 

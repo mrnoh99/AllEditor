@@ -83,26 +83,58 @@ function Badge({ label, color }: { label: string; color: string }) {
   )
 }
 
-/** Home-screen section: new Word / PowerPoint / Excel, open any office file (incl. PDF and iWork). */
-export function OfficeHomeSection() {
-  const s = useOfficeText()
-  const cards: Array<{ app: OfficeApp; title: string; sub: string; label: string; color: string }> = [
-    { app: 'docs', title: s.word, sub: '.docx', label: 'W', color: '#2b6cd4' },
-    { app: 'slides', title: s.ppt, sub: '.pptx', label: 'P', color: '#d24726' },
-    { app: 'sheets', title: s.excel, sub: '.xlsx', label: 'X', color: '#1e7145' },
+const HOME_TEXT = {
+  ko: {
+    newSection: '새로 만들기',
+    hwp: '새 한글 문서',
+    word: '새 Word 문서',
+    ppt: '새 PowerPoint',
+    excel: '새 Excel 시트',
+    open: '파일 열기',
+    openSub: '한글 · Word · PowerPoint · Excel · PDF · Pages · Keynote · Numbers',
+    library: '문서 보관함',
+    librarySub: '파일 앱 › AllEditor 의 문서 (오피스 문서, PDF, 한글)',
+  },
+  en: {
+    newSection: 'New',
+    hwp: 'New Hangul document',
+    word: 'New Word document',
+    ppt: 'New PowerPoint',
+    excel: 'New Excel sheet',
+    open: 'Open a file',
+    openSub: 'Hangul · Word · PowerPoint · Excel · PDF · Pages · Keynote · Numbers',
+    library: 'Document library',
+    librarySub: 'Documents in Files › AllEditor (office, PDF, Hangul)',
+  },
+} as const
+
+/**
+ * AllEditor home: one place for every document type — 한글 next to Word / PowerPoint / Excel, one "파일 열기"
+ * (한글 opens in the HWP editor, everything else in the office suite) and the document library (office home).
+ */
+export function UnifiedHomeSection({
+  hwpFormat,
+  onNewHwp,
+  onOpenAny,
+}: {
+  readonly hwpFormat: 'hwp' | 'hwpx'
+  readonly onNewHwp: () => void
+  readonly onOpenAny: () => void
+}) {
+  const { lang } = useMobileLocale()
+  const s = lang === 'ko' ? HOME_TEXT.ko : HOME_TEXT.en
+  const cards: Array<{ id: string; title: string; sub: string; label: string; color: string; run: () => void }> = [
+    { id: 'hwp', title: s.hwp, sub: '.' + hwpFormat, label: '한', color: '#1d9bd1', run: onNewHwp },
+    { id: 'docs', title: s.word, sub: '.docx', label: 'W', color: '#2b6cd4', run: () => openOffice({ action: 'new', app: 'docs' }) },
+    { id: 'slides', title: s.ppt, sub: '.pptx', label: 'P', color: '#d24726', run: () => openOffice({ action: 'new', app: 'slides' }) },
+    { id: 'sheets', title: s.excel, sub: '.xlsx', label: 'X', color: '#1e7145', run: () => openOffice({ action: 'new', app: 'sheets' }) },
   ]
   return (
-    <section className="mobile-home-cta-group" aria-label={s.section} data-testid="home-office-section">
-      <h2 className="mobile-section-heading">{s.section}</h2>
-      <div className="mobile-home-create-grid">
+    <section className="mobile-home-cta-group" aria-label={s.newSection} data-testid="home-unified">
+      <h2 className="mobile-section-heading">{s.newSection}</h2>
+      <div className="mobile-home-create-grid ae-home-grid4">
         {cards.map((c) => (
-          <button
-            key={c.app}
-            type="button"
-            className="mobile-quick-card"
-            onClick={() => openOffice({ action: 'new', app: c.app })}
-            data-testid={`home-office-new-${c.app}`}
-          >
+          <button key={c.id} type="button" className="mobile-quick-card" onClick={c.run} data-testid={`home-new-${c.id}`}>
             <Badge label={c.label} color={c.color} />
             <div className="mobile-quick-card-text">
               <span className="mobile-quick-card-title">{c.title}</span>
@@ -111,18 +143,23 @@ export function OfficeHomeSection() {
           </button>
         ))}
       </div>
-      <button
-        type="button"
-        className="mobile-open-card"
-        onClick={() => openOffice({ action: 'home' })}
-        data-testid="home-office-open"
-      >
+      <button type="button" className="mobile-open-card" onClick={onOpenAny} data-testid="home-open-any">
         <span className="mobile-quick-folder" aria-hidden="true">
           <IconFolderOpen size={19} />
         </span>
         <span className="mobile-open-card-text">
           <span className="mobile-quick-card-title">{s.open}</span>
           <span className="mobile-quick-card-sub">{s.openSub}</span>
+        </span>
+        <IconChevronRight size={18} className="mobile-chevron" />
+      </button>
+      <button type="button" className="mobile-open-card" onClick={() => openOffice({ action: 'home' })} data-testid="home-library">
+        <span className="mobile-quick-folder" aria-hidden="true">
+          <IconFolderOpen size={19} />
+        </span>
+        <span className="mobile-open-card-text">
+          <span className="mobile-quick-card-title">{s.library}</span>
+          <span className="mobile-quick-card-sub">{s.librarySub}</span>
         </span>
         <IconChevronRight size={18} className="mobile-chevron" />
       </button>
@@ -171,7 +208,7 @@ export function OfficeOverlay() {
       if (type === 'ae-office-ready') {
         setReady(true)
         for (const a of pending.current.splice(0)) send(a)
-      } else if (type === 'ae-office-close') {
+      } else if (type === 'ae-office-close' || type === 'ae-open-hwp' || type === 'ae-new-hwp') {
         setVisible(false)
       }
     }

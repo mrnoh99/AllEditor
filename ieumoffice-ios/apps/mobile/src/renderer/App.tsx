@@ -39,7 +39,7 @@ import {
 } from '@genoffice/mobile-bridge/view-edit-gate'
 import { AiSheetPanel, type ChatGptRecoveryNoticeKind } from './components/AiSheetPanel'
 import { HomeScreen } from './components/HomeScreen'
-import { OfficeOverlay } from './components/OfficeSuite'
+import { OfficeOverlay, openOffice } from './components/OfficeSuite'
 import { UnsavedModal } from './components/UnsavedModal'
 import { HwpMobileEditor, type HwpMobileEditorHandle } from './editors/HwpMobileEditor'
 import {
@@ -466,16 +466,48 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
     [client, openLoadedSession],
   )
 
+  // AllEditor: one "파일 열기" for every type — 한글 opens here, office files / PDF / iWork in the office suite
   const handlePickOpenFile = useCallback(async () => {
+    const tauri = (window as unknown as { __TAURI__?: { core?: { invoke: <T>(c: string, a?: object) => Promise<T> } } }).__TAURI__
     try {
-      const session = await client.pickOpenFile(['hwp', 'hwpx', 'md', 'markdown', 'txt'])
+      if (!tauri?.core) {
+        const session = await client.pickOpenFile(['hwp', 'hwpx'])
+        setPermissionDeniedRecentId(null)
+        await openLoadedSession(session, { isUntitled: false })
+        return
+      }
+      const picked = await tauri.core.invoke<
+        ({ kind: 'hwp' } & MobileDocSession) | { kind: 'office'; name: string; data: string }
+      >('ae_pick_open_any')
       setPermissionDeniedRecentId(null)
-      await openLoadedSession(session, { isUntitled: false })
+      if (picked.kind === 'office') openOffice({ action: 'import', name: picked.name, data: picked.data })
+      else await openLoadedSession(picked, { isUntitled: false })
     } catch (err) {
       if (isMobileCommandError(err) && err.code === 'USER_CANCELLED') return
-      setNoticeBanner(err instanceof Error ? err.message : String(err))
+      if (/USER_CANCELLED|cancel/i.test(JSON.stringify(err ?? ''))) return
+      setNoticeBanner(err instanceof Error ? err.message : typeof err === 'string' ? err : JSON.stringify(err))
     }
   }, [client, openLoadedSession])
+
+  // AllEditor: a 한글 file chosen in the office home's file list opens in the HWP editor
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      const d = e.data as { type?: string; path?: string } | null
+      if (d?.type === 'ae-new-hwp') {
+        void handleCreateNew(prefs.hwpDefaultFormat)
+        return
+      }
+      if (d?.type !== 'ae-open-hwp' || typeof d.path !== 'string') return
+      const tauri = (window as unknown as { __TAURI__?: { core?: { invoke: <T>(c: string, a?: object) => Promise<T> } } }).__TAURI__
+      if (!tauri?.core) return
+      void tauri.core
+        .invoke<MobileDocSession>('ae_open_documents_hwp', { path: d.path })
+        .then((session) => openLoadedSession(session, { isUntitled: false }))
+        .catch((err) => setNoticeBanner(err instanceof Error ? err.message : JSON.stringify(err)))
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [openLoadedSession, handleCreateNew, prefs.hwpDefaultFormat])
 
   const handleOpenRecent = useCallback(
     async (entry: RecentDocEntry) => {
