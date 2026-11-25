@@ -1,40 +1,107 @@
 name: ieumoffice-ios (Tauri) build
-# The ieumoffice mobile app (apps/mobile, Tauri 2) cannot generate its Xcode project on Linux;
-# this macOS job runs `tauri ios init`, injects the app's native config, builds, and uploads the generated project.
+# The ieumoffice mobile app (ieumoffice-ios/apps/mobile, Tauri 2) can only generate its Xcode project on macOS.
+# This job:
+#   1. generates src-tauri/gen/apple once (`tauri ios init`) and post-processes it (native config, iPhone+iPad,
+#      prebuilt-Rust wrapper — scripts/ae-xcode-setup.mjs); later runs reuse the committed project;
+#   2. builds the Rust app library (web UI embedded) for device and simulator → gen/apple/Prebuilt/<platform>/libapp.a,
+#      so the project opens and runs from Xcode with no Node/npm/Rust on the Mac;
+#   3. verifies a plain `xcodebuild` of the committed project using only the prebuilt library (no npm on PATH);
+#   4. commits gen/apple back to main (and the harness working branch) when it changed.
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     paths: ['ieumoffice-ios/**', '.github/workflows/ieum-ios.yml']
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: ieum-ios
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: macos-latest
     defaults: { run: { working-directory: ieumoffice-ios } }
+    env:
+      APPLE: apps/mobile/src-tauri/gen/apple
+      IPHONEOS_DEPLOYMENT_TARGET: '15.0'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - uses: dtolnay/rust-toolchain@stable
-        with: { targets: 'aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios' }
+        with: { targets: 'aarch64-apple-ios,aarch64-apple-ios-sim' }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: 'ieumoffice-ios/apps/mobile/src-tauri' }
       - name: Install JS deps
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Build rhwp-studio (HWP editor bundle) and the mobile web app
         run: |
           npm run studio -w @genoffice/hwp
           npm run build -w @genoffice/mobile
-      - name: Generate the Xcode project (tauri ios init) and inject native config
+      - name: Generate the Xcode project if it is not committed yet
         working-directory: ieumoffice-ios/apps/mobile
         run: |
-          npx --yes @tauri-apps/cli@2 ios init --ci
-          node scripts/apply-native-config.mjs
+          if [ ! -d src-tauri/gen/apple ] || ! ls src-tauri/gen/apple/*.xcodeproj >/dev/null 2>&1; then
+            npx --yes @tauri-apps/cli@2 ios init --ci
+            node scripts/apply-native-config.mjs ios
+          fi
+          node scripts/ae-xcode-setup.mjs
           ls src-tauri/gen/apple
+          grep -n 'TARGETED_DEVICE_FAMILY' src-tauri/gen/apple/*.xcodeproj/project.pbxproj
+      - name: Build the Rust library (release, web UI embedded) for device and simulator
+        working-directory: ieumoffice-ios/apps/mobile/src-tauri
+        run: |
+          for t in aarch64-apple-ios:iphoneos aarch64-apple-ios-sim:iphonesimulator; do
+            target=${t%%:*}; plat=${t##*:}
+            cargo build --release --lib --target "$target" --features tauri/custom-protocol
+            mkdir -p gen/apple/Prebuilt/$plat
+            cp -f target/$target/release/libieumoffice_mobile_lib.a gen/apple/Prebuilt/$plat/libapp.a
+            xcrun strip -S gen/apple/Prebuilt/$plat/libapp.a || true
+            ls -lh gen/apple/Prebuilt/$plat/libapp.a
+            size=$(stat -f%z gen/apple/Prebuilt/$plat/libapp.a)
+            if [ "$size" -gt 99000000 ]; then echo "::error::$plat libapp.a is $size bytes (> GitHub 100 MB limit)"; exit 1; fi
+          done
+      - name: Verify the committed project builds from Xcode with only the prebuilt library (no npm/node)
+        working-directory: ieumoffice-ios/apps/mobile/src-tauri/gen/apple
+        run: |
+          proj=$(ls -d *.xcodeproj | head -1)
+          xcodebuild -list -project "$proj" -json > "$RUNNER_TEMP/list.json"; cat "$RUNNER_TEMP/list.json"
+          scheme=$(python3 -c 'import json,sys; print([s for s in json.load(open(sys.argv[1]))["project"]["schemes"] if s.endswith("_iOS")][0])' "$RUNNER_TEMP/list.json")
+          dbg=$(python3 -c 'import json,sys; print([c for c in json.load(open(sys.argv[1]))["project"]["configurations"] if c.lower()=="debug"][0])' "$RUNNER_TEMP/list.json")
+          rel=$(python3 -c 'import json,sys; print([c for c in json.load(open(sys.argv[1]))["project"]["configurations"] if c.lower()=="release"][0])' "$RUNNER_TEMP/list.json")
+          echo "project=$proj scheme=$scheme configs=$dbg/$rel"
+          for cfg in $dbg $rel; do
+            env PATH=/usr/bin:/bin:/usr/sbin:/sbin xcodebuild -project "$proj" -scheme "$scheme" -configuration $cfg \
+              -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+              CODE_SIGNING_ALLOWED=NO -derivedDataPath "$RUNNER_TEMP/dd-$cfg" build | tail -25
+            test "${PIPESTATUS[0]}" -eq 0
+          done
+          env PATH=/usr/bin:/bin:/usr/sbin:/sbin xcodebuild -project "$proj" -scheme "$scheme" -configuration $rel \
+            -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO \
+            -derivedDataPath "$RUNNER_TEMP/dd-dev" build | tail -25
+          test "${PIPESTATUS[0]}" -eq 0
+          app=$(find "$RUNNER_TEMP/dd-$dbg" -name '*.app' -path '*iphonesimulator*' | head -1)
+          /usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily' "$app/Info.plist"
       - name: Upload generated Xcode project
         uses: actions/upload-artifact@v4
         with:
           name: ieumoffice-ios-xcode-project
-          path: ieumoffice-ios/apps/mobile/src-tauri/gen/apple
+          path: |
+            ieumoffice-ios/apps/mobile/src-tauri/gen/apple
+            !ieumoffice-ios/apps/mobile/src-tauri/gen/apple/Externals
+            !ieumoffice-ios/apps/mobile/src-tauri/gen/apple/build
           if-no-files-found: error
-      - name: Build for the iOS simulator (no signing)
-        working-directory: ieumoffice-ios/apps/mobile
-        run: npx --yes @tauri-apps/cli@2 ios build --debug --target aarch64-sim --ci
+      - name: Commit the Xcode project (with prebuilt library) to main
+        if: github.ref == 'refs/heads/main'
+        working-directory: .
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898283+github-actions[bot]@users.noreply.github.com'
+          git add -A ieumoffice-ios/apps/mobile/src-tauri/gen/apple
+          git status --short | head -50
+          if git diff --cached --quiet; then echo 'Xcode project unchanged'; exit 0; fi
+          git commit -m 'CI: generated Xcode project for ieumoffice-ios (iPhone+iPad) with prebuilt Rust library' \
+            -m "Built by ${GITHUB_WORKFLOW} run ${GITHUB_RUN_ID} from ${GITHUB_SHA}."
+          git pull --rebase origin main
+          git push origin HEAD:main
+          git push origin HEAD:refs/heads/claude/loving-volta-s4grp5 || echo 'could not update claude/loving-volta-s4grp5 (diverged?)'

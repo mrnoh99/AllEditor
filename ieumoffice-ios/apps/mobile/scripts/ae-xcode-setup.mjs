@@ -1,0 +1,119 @@
+#!/usr/bin/env node
+/**
+ * AllEditor: post-process Tauri's generated Xcode project (src-tauri/gen/apple) so that
+ *  1. it targets iPhone AND iPad (TARGETED_DEVICE_FAMILY "1,2", all iPad orientations, multitasking), and
+ *  2. it opens and runs straight from Xcode with no Node / npm / Rust installed: the "Build Rust Code"
+ *     phase copies the committed prebuilt static library (Prebuilt/<platform>/libapp.a) instead of running
+ *     `npm run -- tauri ios xcode-script`. Set AE_BUILD_RUST=1 (or delete Prebuilt/) to build Rust from source.
+ * Idempotent. macOS only (uses /usr/libexec/PlistBuddy). Run after `tauri ios init` + apply-native-config.mjs.
+ */
+import { execFileSync } from 'node:child_process'
+import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const APP_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const APPLE = join(APP_DIR, 'src-tauri', 'gen', 'apple')
+if (!existsSync(APPLE)) throw new Error('src-tauri/gen/apple not found — run `tauri ios init --ci` first')
+
+const proj = readdirSync(APPLE).find((n) => n.endsWith('.xcodeproj'))
+if (!proj) throw new Error('no .xcodeproj in gen/apple')
+const pbxPath = join(APPLE, proj, 'project.pbxproj')
+let pbx = readFileSync(pbxPath, 'utf8')
+
+// 1. iPhone + iPad
+const famCount = (pbx.match(/TARGETED_DEVICE_FAMILY = [^;]*;/g) || []).length
+if (famCount > 0) {
+  pbx = pbx.replace(/TARGETED_DEVICE_FAMILY = [^;]*;/g, 'TARGETED_DEVICE_FAMILY = "1,2";')
+} else {
+  // no explicit value: add it next to every IPHONEOS_DEPLOYMENT_TARGET / SDKROOT = iphoneos build setting
+  const before = pbx
+  pbx = pbx.replace(/(\n(\s*)SDKROOT = iphoneos;)/g, '$1\n$2TARGETED_DEVICE_FAMILY = "1,2";')
+  if (pbx === before) throw new Error('could not set TARGETED_DEVICE_FAMILY')
+}
+
+// 2. Prebuilt Rust library wrapper
+const re = /shellScript = "((?:\\.|[^"\\])*tauri ios xcode-script(?:\\.|[^"\\])*)";/
+const m = re.exec(pbx)
+const WRAP_CALL = 'shellScript = "/bin/sh \\"${SRCROOT}/scripts/build-rust.sh\\"\\n";'
+let original
+if (m) {
+  original = m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\').trim()
+  pbx = pbx.replace(re, WRAP_CALL)
+} else if (pbx.includes('scripts/build-rust.sh')) {
+  original = null // already wrapped
+} else {
+  throw new Error('"Build Rust Code" phase (tauri ios xcode-script) not found in project.pbxproj')
+}
+writeFileSync(pbxPath, pbx)
+
+mkdirSync(join(APPLE, 'scripts'), { recursive: true })
+mkdirSync(join(APPLE, 'Prebuilt', 'iphoneos'), { recursive: true })
+mkdirSync(join(APPLE, 'Prebuilt', 'iphonesimulator'), { recursive: true })
+const wrapperPath = join(APPLE, 'scripts', 'build-rust.sh')
+if (original) {
+  writeFileSync(
+    wrapperPath,
+    `#!/bin/sh
+# AllEditor — "Build Rust Code" phase.
+# Default: copy the committed prebuilt Rust library (Prebuilt/$PLATFORM_NAME/libapp.a, built by CI from
+# this repo's sources) so the project runs from Xcode without Node/npm/Rust.
+# AE_BUILD_RUST=1 (env or Xcode build setting), or a missing prebuilt file: build from source with the Tauri CLI
+# (needs Node >= 22, Rust + iOS targets, and \`npm ci\` + the web build in ieumoffice-ios/ — see README-IOS.md).
+set -e
+PREBUILT="$SRCROOT/Prebuilt/$PLATFORM_NAME/libapp.a"
+if [ "\${AE_BUILD_RUST:-0}" != "1" ] && [ -f "$PREBUILT" ]; then
+  for arch in $ARCHS; do
+    if [ "$arch" != "arm64" ]; then
+      echo "error: the prebuilt Rust library is arm64 only (asked for $arch). Use an Apple-silicon Mac / arm64 simulator, or set AE_BUILD_RUST=1."
+      exit 1
+    fi
+    mkdir -p "$SRCROOT/Externals/$arch/$CONFIGURATION"
+    cp -f "$PREBUILT" "$SRCROOT/Externals/$arch/$CONFIGURATION/libapp.a"
+  done
+  echo "AllEditor: using prebuilt Rust library $PREBUILT"
+  exit 0
+fi
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.cargo/bin:$PATH"
+${original}
+`,
+  )
+}
+try { chmodSync(wrapperPath, 0o755) } catch {}
+
+// Build outputs never go into git (the committed library lives in Prebuilt/, not Externals/).
+const giPath = join(APPLE, '.gitignore')
+let gi = existsSync(giPath) ? readFileSync(giPath, 'utf8') : ''
+for (const line of ['Externals/', 'build/', 'xcuserdata/', 'DerivedData/', '*.xcuserstate']) {
+  if (!gi.split(/\r?\n/).includes(line)) gi += (gi && !gi.endsWith('\n') ? '\n' : '') + line + '\n'
+}
+writeFileSync(giPath, gi)
+
+// Keep project.yml (XcodeGen source) in sync so a regeneration keeps the wrapper.
+const ymlPath = join(APPLE, 'project.yml')
+if (existsSync(ymlPath)) {
+  let yml = readFileSync(ymlPath, 'utf8')
+  yml = yml.replace(/(- script: )npm run -- tauri ios xcode-script.*$/m, '$1/bin/sh "${SRCROOT}/scripts/build-rust.sh"')
+  if (!/TARGETED_DEVICE_FAMILY/.test(yml)) {
+    yml = yml.replace(/(\n(\s+)base:\n)/, `$1$2  TARGETED_DEVICE_FAMILY: "1,2"\n`)
+  }
+  writeFileSync(ymlPath, yml)
+}
+
+// 3. Info.plist: all iPad orientations (required for iPad multitasking), no full-screen requirement
+const plistDir = readdirSync(APPLE, { withFileTypes: true }).find(
+  (d) => d.isDirectory() && existsSync(join(APPLE, d.name, 'Info.plist')),
+)
+if (!plistDir) throw new Error('Info.plist not found under gen/apple')
+const plist = join(APPLE, plistDir.name, 'Info.plist')
+const pb = (cmd) => execFileSync('/usr/libexec/PlistBuddy', ['-c', cmd, plist], { stdio: 'pipe' })
+const tryPb = (cmd) => { try { pb(cmd) } catch {} }
+tryPb('Delete :UISupportedInterfaceOrientations~ipad')
+pb('Add :UISupportedInterfaceOrientations~ipad array')
+for (const o of ['Portrait', 'PortraitUpsideDown', 'LandscapeLeft', 'LandscapeRight']) {
+  pb(`Add :UISupportedInterfaceOrientations~ipad: string UIInterfaceOrientation${o}`)
+}
+tryPb('Delete :UIRequiresFullScreen')
+pb('Add :UIRequiresFullScreen bool false')
+
+console.log(`AllEditor Xcode setup done: ${proj} (iPhone+iPad), wrapper ${original ? 'written' : 'kept'}, ${plist}`)

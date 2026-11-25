@@ -1,4 +1,5 @@
 target/
-gen/
+gen/android/
+gen/schemas/
 plugins/*/android/.tauri/
 plugins/*/android/build/

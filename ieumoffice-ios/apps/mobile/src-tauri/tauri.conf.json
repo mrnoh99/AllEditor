@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "IeumOffice",
+  "productName": "AllEditor",
   "version": "0.1.0",
-  "identifier": "com.ieumoffice.mobile",
+  "identifier": "com.mrnoh99.alleditor",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5185",

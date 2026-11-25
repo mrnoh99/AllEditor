@@ -9,7 +9,23 @@ Scope of the app: HWP/HWPX and Markdown (`.md`/`.txt`) documents, one document a
 
 (The Capacitor app in the repository root is a separate project: the full desktop suite running inside a WebView.)
 
-## Build on a Mac (needs Xcode, Node ≥ 22, Rust)
+**AllEditor changes** (Apache-2.0 §4(b)): `src-tauri/tauri.conf.json` product name `AllEditor`, bundle id
+`com.mrnoh99.alleditor`; `src-tauri/.gitignore` tracks `gen/apple`; new `scripts/ae-xcode-setup.mjs` (iPhone + iPad,
+prebuilt Rust library); CI workflow `.github/workflows/ieum-ios.yml`.
+
+## Open in Xcode (nothing to install)
+```bash
+open ieumoffice-ios/apps/mobile/src-tauri/gen/apple/*.xcodeproj
+```
+Pick your Team under *Signing & Capabilities* (bundle id `com.mrnoh99.alleditor`), choose an iPad / iPhone or
+simulator, press Run. Targets iPhone and iPad (`TARGETED_DEVICE_FAMILY = 1,2`, all iPad orientations, multitasking).
+The Rust app library with the web UI embedded is committed as `gen/apple/Prebuilt/{iphoneos,iphonesimulator}/libapp.a`
+(built by CI from this folder's sources), so the "Build Rust Code" phase just copies it — no Node / npm / Rust needed.
+arm64 only (Apple-silicon Mac for the simulator). CI regenerates the library on every push to `main` that touches
+`ieumoffice-ios/**` and commits it back. To build Rust from source in Xcode instead, set `AE_BUILD_RUST=1` (needs the
+steps below).
+
+## Build from source on a Mac (needs Xcode, Node ≥ 22, Rust)
 ```bash
 rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
 cd ieumoffice-ios
