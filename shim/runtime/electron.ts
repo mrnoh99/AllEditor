@@ -158,8 +158,14 @@ export const dialog: any = {
     const name = base(o.defaultPath || 'Untitled')
     const ext = o.filters?.[0]?.extensions?.[0]
     const full = ext && ext !== '*' && !name.includes('.') ? `${name}.${ext}` : name
-    const p0 = o.defaultPath?.startsWith(DOCS_ROOT) ? o.defaultPath : `${DOCS_ROOT}/${full}`
-    return { canceled: false, filePath: uniq(DOCS_ROOT, base(p0)) }
+    // AllEditor: ask for the name, as the desktop save panel does (the extension is kept); saved in Documents
+    const dot = full.lastIndexOf('.'), stem = dot > 0 ? full.slice(0, dot) : full, extn = dot > 0 ? full.slice(dot) : ''
+    let ko = true
+    try { ko = (JSON.parse(localStorage.getItem('alleditor.settings') || '{}').language ?? 'ko') !== 'en' } catch {}
+    const typed = prompt(ko ? `저장할 이름 (${extn || '확장자 없음'} 은 그대로 둡니다)\n파일 앱 › AllEditor 에 저장됩니다.` : `Name to save as (${extn || 'no extension'} is kept)\nSaved in Files › AllEditor.`, stem)
+    if (typed === null) return { canceled: true, filePath: undefined }
+    const clean = typed.trim().replace(/[\\/:*?"<>|]/g, '_').replace(new RegExp((extn || '$^').replace('.', '\\.') + '$', 'i'), '') || stem
+    return { canceled: false, filePath: uniq(DOCS_ROOT, clean + extn) }
   },
   async showMessageBox(a: any, b?: any) {
     const o = b ?? a ?? {}

@@ -5,6 +5,8 @@ import { applyPhoneLayer, isPhone } from './phone'
 import { installAiToggle } from './ai-toggle'
 import { installBundledFonts } from './fonts'
 import { installPdfPencil } from './pdf-pencil'
+import { setUiLang } from '@genoffice/i18n'
+import { USER_ROOT } from './fs'
 
 export function start(app: string, register: (open: string | null) => void, preload: Array<[string, string]> = []) {
   applyPhoneLayer()
@@ -13,9 +15,16 @@ export function start(app: string, register: (open: string | null) => void, prel
   addHomeButton()
   installAiToggle()
   installBundledFonts()
+  // the editors' own main-process code (dialogs, untitled names) speaks the app's language (Korean unless English is chosen)
+  try { setUiLang((JSON.parse(localStorage.getItem('alleditor.settings') || '{}').language ?? 'ko') === 'en' ? 'en' : 'ko') } catch { setUiLang('ko') }
   if (app === 'pdf') installPdfPencil()
   ;(async () => {
     try { await hydrate() } catch (e) { console.warn('[hydrate]', e) }
+    if (app === 'hwp') try {
+      const f = `${USER_ROOT}/app-settings.json`
+      const cur = fs.existsSync(f) ? JSON.parse(String(fs.readFileSync(f, 'utf8'))) : {}
+      if (!cur.hwpDefaultFormat) { cur.hwpDefaultFormat = 'hwpx'; fs.writeFileSync(f, JSON.stringify(cur, null, 2)) }
+    } catch {}
     const base = (document.currentScript as HTMLScriptElement | null)?.src || location.href
     await Promise.all(preload.map(async ([dest, url]) => {
       try {

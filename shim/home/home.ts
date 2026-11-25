@@ -139,6 +139,16 @@ async function renameTab(x: Tab) {
   retarget(x, to)
   renderBar(); saveTabs()
 }
+// a tab follows its document: once a new document is saved (or saved under another name), the tab shows the file
+setInterval(() => {
+  let changed = false
+  for (const x of tabs) {
+    if (x.kind !== 'app') continue
+    const p = tabPath(x)
+    if (p && p !== x.path) { x.path = p; x.title = p.slice(p.lastIndexOf('/') + 1); changed = true }
+  }
+  if (changed) { renderBar(); saveTabs(); if (tabs.find((x) => x.id === active)?.kind === 'home') renderHome() }
+}, 1500)
 /** rename from the home's recent list; a tab that has the file open follows it */
 async function renameListed(path: string) {
   const open = tabs.filter((x) => x.kind === 'app' && tabPath(x) === path)

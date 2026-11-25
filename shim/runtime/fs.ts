@@ -22,7 +22,7 @@ const dirty = new Set<string>()
 let timer: any = null
 const norm = (p: unknown) => (typeof p === 'string' ? (p.startsWith('/') ? p : '/' + p) : null)
 // the document this page (one tab = one document) edits: the file it opened, else the last office file it saved
-const DOC_EXT = /\.(docx|dotx|doc|odt|pptx|potx|ppt|odp|xlsx|xlsm|xls|ods|csv|tsv|pdf)$/i
+const DOC_EXT = /\.(docx|dotx|doc|odt|pptx|potx|ppt|odp|xlsx|xlsm|xls|ods|csv|tsv|pdf|hwp|hwpx)$/i
 let docPath: string | null = (() => { try { const o = new URLSearchParams(location.search).get('open'); return o && DOC_EXT.test(o) ? o : null } catch { return null } })()
 ;(globalThis as any).__aeDocPath = () => docPath
 ;(globalThis as any).__aeReadFile = (p: string) => new Uint8Array(fs.readFileSync(p))

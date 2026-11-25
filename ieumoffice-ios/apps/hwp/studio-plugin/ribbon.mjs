@@ -218,7 +218,19 @@ export function installAllEditorRibbon(bar, updateStates) {
 
   const tabs = []
   let current = 'home'
-  const refresh = () => { updateStates(panel); for (const q of bar.querySelectorAll('.ae-qa')) updateStates(q.parentElement === bar ? wrapOne(q) : q) }
+  // the app's own file menu (이음오피스: ext:ieum-save, ext:ieum-print, …) replaces the studio's file commands:
+  // a quick button runs whatever the 파일 menu runs for the same job
+  const QUICK_ALIASES = { 'file:save': /(?:^|[:-])save$/, 'file:print': /(?:^|[:-])print$/ }
+  const resolveQuick = () => {
+    const fileCmds = [...bar.querySelectorAll('.menu-item[data-menu="file"] .md-item[data-cmd]')].map((e) => e.dataset.cmd)
+    for (const q of bar.querySelectorAll('.ae-qa')) {
+      const base = q.dataset.base || (q.dataset.base = q.dataset.cmd)
+      const re = QUICK_ALIASES[base]
+      if (!re || fileCmds.includes(base)) { q.dataset.cmd = base; continue }
+      q.dataset.cmd = fileCmds.find((c) => re.test(c) && !/save-as|preview/.test(c)) ?? base
+    }
+  }
+  const refresh = () => { resolveQuick(); updateStates(panel); for (const q of bar.querySelectorAll('.ae-qa')) updateStates(q.parentElement === bar ? wrapOne(q) : q) }
   // updateStates looks for items inside an element: give it a tiny holder view of one quick button
   const wrapOne = (q) => ({ querySelectorAll: (sel) => (q.matches(sel) ? [q] : []) })
   const show = (id) => {
