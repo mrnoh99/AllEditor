@@ -1,0 +1,11 @@
+const { chromium, devices } = require('playwright'); const fsx = require('fs')
+;(async () => {
+  const b = await chromium.launch(); const ctx = await b.newContext({ ...devices['iPhone 14'], locale: 'ko-KR' }); const p = await ctx.newPage()
+  p.on('pageerror', e => console.log('PE', e.stack.slice(0,300)))
+  await p.addInitScript((s) => { window.__seedFiles = s }, { 'a.docx': fsx.readFileSync('/home/user/genspark-ai/genoffice/fixtures/generated/simple.docx').toString('base64') })
+  await p.goto('http://localhost:8765/index.html'); await p.waitForTimeout(1500)
+  await p.click('text=a.docx'); await p.waitForTimeout(6000); await p.screenshot({ path: '/tmp/claude-0/hp1.png' })
+  await p.click('.gear'); await p.waitForTimeout(500)
+  await p.selectOption('select >> nth=0', 'en'); await p.waitForTimeout(800)
+  await p.evaluate(() => window.scrollTo(0,0)); await p.screenshot({ path: '/tmp/claude-0/hp2.png' }); await b.close()
+})()

@@ -8,13 +8,14 @@ import { build } from 'esbuild'
 import { bundleRuntime } from './runtime-bundle.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const PINNED = 'c57dc1a2a20a2af38cdaeedb536d86960d7eb382' // genspark-ai/genoffice
+const REPO = 'https://github.com/pblsketch/ieumoffice' // 이음오피스 (GenOffice-based), Apache-2.0
+const PINNED = 'ad22c056a9d217f11079a4dc30df12ccf233f8d3'
 const upstream = process.env.UPSTREAM_DIR ?? join(root, '.upstream')
-const APPS = (process.env.APPS ?? 'docs,slides,sheets,pdf').split(',') // renderer apps to bundle
+const APPS = (process.env.APPS ?? 'docs,slides,sheets,pdf,hwp,markdown,html,mindmap,diagram,epub,whiteboard').split(',') // renderer apps to bundle
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: 'inherit' })
 
 if (!existsSync(join(upstream, 'package.json'))) {
-  run('git', ['clone', 'https://github.com/genspark-ai/genoffice', upstream], root)
+  run('git', ['clone', REPO, upstream], root)
   run('git', ['checkout', PINNED], upstream)
 }
 if (!existsSync(join(upstream, 'node_modules'))) {
@@ -40,22 +41,35 @@ rmSync(www, { recursive: true, force: true })
 mkdirSync(www, { recursive: true })
 const shimFile = null
 // Per app: the real main-process module + how to start it. `open` = path from ?open= (launcher)
+const AI = 'registerAiIpc, registerProjectIpc' // shell-level, from docs-main
+const docsAi = (up) => `import { ${AI} } from '${up}/apps/docs/src/main/docs-main'`
 const RUNTIMES = {
-  docs: { file: 'docs-main', imports: 'registerDocsIpc, registerAiIpc, registerProjectIpc, openExternalDocx',
-    code: 'registerDocsIpc(); registerAiIpc(); registerProjectIpc(); if (open) openExternalDocx(open)' },
+  docs: { file: 'docs-main', imports: 'registerDocsIpc, createDocsView, registerAiIpc, registerProjectIpc',
+    code: 'registerAiIpc(); registerProjectIpc(); registerDocsIpc(); createDocsView(open || undefined)' },
   slides: { file: 'slides-main', imports: 'createSlidesView, registerAiIpc, registerProjectIpc',
     code: 'registerAiIpc(); registerProjectIpc(); createSlidesView(open)' },
   sheets: { file: 'sheets-main', imports: 'createSheetsView, registerProjectIpc, queueWorkbookForView, setSheetsNewBlank',
     code: 'createSheetsView(); registerProjectIpc(); if (open) queueWorkbookForView(webContents, open); else setSheetsNewBlank()' },
-  pdf: { file: 'pdf-main', imports: 'createPdfView', code: 'createPdfView(open); registerAiIpc(); registerProjectIpc(); registerPdfTools(open)', tools: "import { registerPdfTools } from '" + join(root, 'shim/runtime/pdf-tools.ts') + "'; import { registerAiIpc, registerProjectIpc } from '" + upstream + "/apps/docs/src/main/docs-main'",
+  pdf: { file: 'pdf-main', imports: 'createPdfView', code: 'registerAiIpc(); registerProjectIpc(); createPdfView(open); registerPdfTools(open)', shared: true,
+    tools: (up) => `import { registerPdfTools } from '${root}/shim/runtime/pdf-tools.ts'`,
     preload: [['/app/wasm/pdfium.wasm', 'wasm/pdfium.wasm'], ['/app/wasm/harfbuzz-subset.wasm', 'wasm/harfbuzz-subset.wasm']] },
+  hwp: { file: 'hwp-main', imports: 'createHwpView', code: 'registerAiIpc(); registerProjectIpc(); createHwpView(open)', shared: true },
+  markdown: { file: 'markdown-main', imports: 'createMarkdownView', code: 'registerAiIpc(); registerProjectIpc(); createMarkdownView(open)', shared: true },
+  html: { file: 'html-main', imports: 'createHtmlView', code: 'registerAiIpc(); registerProjectIpc(); createHtmlView(open)', shared: true },
+  mindmap: { file: 'mindmap-main', imports: 'createMindmapView', code: 'registerAiIpc(); registerProjectIpc(); createMindmapView(open)', shared: true },
+  diagram: { file: 'diagram-main', imports: 'createDiagramView', code: 'registerAiIpc(); registerProjectIpc(); createDiagramView(open)', shared: true },
+  epub: { file: 'epub-main', imports: 'createEpubView', code: 'registerAiIpc(); registerProjectIpc(); createEpubView(open)', shared: true },
+  whiteboard: { file: 'whiteboard-main', imports: 'createWhiteboardView', code: 'registerAiIpc(); registerProjectIpc(); createWhiteboardView()', shared: true },
 }
 const bootFile = join(root, 'shim/runtime/boot.ts')
 
 // 2. renderers
+const built = []
 for (const app of APPS) {
+try {
   const appDir = join(upstream, 'apps', app)
   const out = join(www, app)
+  if (app === 'hwp') run('npm', ['run', 'studio', '-w', '@genoffice/hwp'], upstream) // rhwp-studio bundle
   run('npx', ['vite', 'build', '--config', 'vite.renderer.config.ts', '--outDir', out,
     '--emptyOutDir', '--base', `./`], appDir)
   if (app === 'pdf') {
@@ -72,7 +86,8 @@ import '${bootFile}'
 import '${upstream}/apps/${app}/src/preload/index.ts'
 import { ${rt.imports} } from '${upstream}/apps/${app}/src/main/${rt.file}'
 import { webContents } from '${root}/shim/runtime/electron'
-${rt.tools ?? ''}
+${typeof rt.tools === 'function' ? rt.tools(upstream) : (rt.tools ?? '')}
+${rt.shared ? docsAi(upstream) : ''}
 import { start } from '${root}/shim/runtime/start'
 start('${app}', (open) => { ${rt.code} }, ${JSON.stringify(rt.preload ?? [])})
 `,
@@ -80,7 +95,10 @@ start('${app}', (open) => { ${rt.code} }, ${JSON.stringify(rt.preload ?? [])})
   const idx = join(out, 'index.html')
   // runtime must run before the app bundle (module scripts are deferred, classic ones are not)
   writeFileSync(idx, readFileSync(idx, 'utf8').replace('<head>', '<head><script src="./runtime.js"></script>').replace(/script-src 'self'( 'wasm-unsafe-eval')?/, "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'").replace(/connect-src 'self'/, "connect-src 'self' https: wss: blob: data:"))
+  built.push(app)
+} catch (e) { console.error(`[build] ${app} FAILED:`, String(e?.message ?? e).slice(0, 400)); rmSync(join(www, app), { recursive: true, force: true }) }
 }
+writeFileSync(join(www, 'apps.json'), JSON.stringify(built))
 
 // 3. launcher
 cpSync(join(root, 'web/index.html'), join(www, 'index.html'))
