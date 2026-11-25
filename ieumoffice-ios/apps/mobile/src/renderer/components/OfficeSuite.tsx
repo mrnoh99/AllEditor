@@ -7,7 +7,16 @@ import { useMobileLocale } from '../i18n'
 import { IconChevronRight, IconFolderOpen } from './MobileIcons'
 
 type OfficeApp = 'docs' | 'slides' | 'sheets'
-type OfficeAction = { action: 'home' } | { action: 'new'; app: OfficeApp }
+type OfficeAction =
+  | { action: 'home' }
+  | { action: 'new'; app: OfficeApp }
+  | { action: 'import'; name: string; data: string } // file handed over by another app (base64)
+
+interface TauriGlobal {
+  core?: { invoke: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T> }
+  event?: { listen: (name: string, cb: () => void) => Promise<() => void> }
+}
+const tauri = (): TauriGlobal | undefined => (window as unknown as { __TAURI__?: TauriGlobal }).__TAURI__
 
 const OPEN_EVENT = 'ae-office-open'
 
@@ -128,10 +137,24 @@ export function OfficeOverlay() {
   const [visible, setVisible] = useState(false)
   const [ready, setReady] = useState(false)
   const frame = useRef<HTMLIFrameElement | null>(null)
-  const pending = useRef<OfficeAction | null>(null)
+  const pending = useRef<OfficeAction[]>([])
 
   const send = useCallback((a: OfficeAction) => {
     frame.current?.contentWindow?.postMessage({ type: 'ae-office', ...a }, '*')
+  }, [])
+
+  // "Open in AllEditor": office files another app handed over (queued by src-tauri/src/office.rs)
+  useEffect(() => {
+    const t = tauri()
+    if (!t?.core || !t.event) return
+    let unlisten: (() => void) | undefined
+    const take = async () => {
+      const list = await t.core!.invoke<Array<{ name: string; data: string }>>('ae_take_office_intents').catch(() => [])
+      for (const f of list) openOffice({ action: 'import', name: f.name, data: f.data })
+    }
+    void take()
+    void t.event.listen('ae-office-intent', () => void take()).then((u) => (unlisten = u))
+    return () => unlisten?.()
   }, [])
 
   useEffect(() => {
@@ -140,17 +163,14 @@ export function OfficeOverlay() {
       setMounted(true)
       setVisible(true)
       if (ready) send(a)
-      else pending.current = a
+      else pending.current.push(a)
     }
     const onMessage = (e: MessageEvent) => {
       if (!frame.current || e.source !== frame.current.contentWindow) return
       const type = (e.data as { type?: string } | null)?.type
       if (type === 'ae-office-ready') {
         setReady(true)
-        if (pending.current) {
-          send(pending.current)
-          pending.current = null
-        }
+        for (const a of pending.current.splice(0)) send(a)
       } else if (type === 'ae-office-close') {
         setVisible(false)
       }

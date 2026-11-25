@@ -33,6 +33,7 @@ pub fn run() {
             );
             let ai_service = Arc::new(MobileAiService::new(app_data_dir, auth_bridge));
             app.manage(file_service);
+            app.manage(office::OfficeIntents::default());
             app.manage(ai_service);
             Ok(())
         })
@@ -66,7 +67,15 @@ pub fn run() {
             commands::ai::mobile_chatgpt_sign_in,
             commands::ai::mobile_chatgpt_complete_callback,
             commands::ai::mobile_chatgpt_sign_out,
+            office::ae_take_office_intents,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running IeumOffice mobile application");
+        .build(tauri::generate_context!())
+        .expect("error while running IeumOffice mobile application")
+        .run(|_app, _event| {
+            // AllEditor: "Open in AllEditor" from other apps (Files, Mail, …)
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            if let tauri::RunEvent::Opened { urls } = _event {
+                office::handle_opened(_app, urls);
+            }
+        });
 }

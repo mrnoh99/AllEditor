@@ -283,6 +283,12 @@ async function boot() {
     if (e.data?.type === 'ae-office' && e.source === window.parent) {
       if (e.data.action === 'new' && APP_LABEL[e.data.app]) newBlank(e.data.app)
       if (e.data.action === 'home') activate('home')
+      // a file another app handed to AllEditor ("Open in AllEditor"): import into Documents and open it
+      if (e.data.action === 'import' && typeof e.data.name === 'string' && typeof e.data.data === 'string') {
+        const bin = atob(e.data.data); const u = new Uint8Array(bin.length)
+        for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
+        void importFile(new File([u], e.data.name))
+      }
     }
   })
   if (EMBED) toHost({ type: 'ae-office-ready' })

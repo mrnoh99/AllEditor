@@ -1,5 +1,8 @@
 import { useState } from 'react'
-import { LANGS, type Lang } from '@genoffice/i18n'
+import { type Lang } from '@genoffice/i18n'
+
+// AllEditor: Korean (default) and English only
+const APP_LANGS: readonly Lang[] = ['ko', 'en']
 import { SUBSCRIPTION_CHATGPT_USAGE_URL } from '@genoffice/ai-provider/browser'
 import type {
   HwpBackupEntry,
@@ -241,7 +244,7 @@ export function SettingsScreen({
                 onChange={(e) => onUpdatePrefs({ lang: e.target.value as Lang })}
                 data-testid="settings-lang-select"
               >
-                {LANGS.map((code) => (
+                {APP_LANGS.map((code) => (
                   <option key={code} value={code}>
                     {LANG_NATIVE_LABELS[code] ?? code}
                   </option>

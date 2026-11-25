@@ -266,3 +266,103 @@ mod tests {
         assert_eq!(percent_decode("100%"), "100%");
     }
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// "Open in AllEditor" from other apps. iOS delivers file URLs as RunEvent::Opened.
+//  * hwp / hwpx / md / txt → the 이음오피스 editor: queued natively, then `ae-open-intent` tells the page to
+//    call `mobile_consume_pending_open_intent`;
+//  * office files → read natively, kept here until the page takes them (`ae_take_office_intents`), announced
+//    with `ae-office-intent`; the office suite imports them into Documents (iWork → editable copy) and opens them.
+
+const IEUM_EXTS: &[&str] = &["hwp", "hwpx", "md", "markdown", "txt"];
+const OFFICE_EXTS: &[&str] = &[
+    "docx", "dotx", "doc", "dot", "odt", "ott", "pptx", "potx", "ppt", "odp", "otp", "xlsx", "xlsm", "xls", "ods",
+    "ots", "csv", "tsv", "pdf", "pages", "key", "numbers",
+];
+
+#[derive(Clone, serde::Serialize)]
+pub struct OfficeIntent {
+    pub name: String,
+    pub data: String,
+}
+
+#[derive(Default)]
+pub struct OfficeIntents(std::sync::Mutex<Vec<OfficeIntent>>);
+
+/// which editor takes a file name: "ieum", "office" or None
+pub fn route_for(name: &str) -> Option<&'static str> {
+    let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase())?;
+    if IEUM_EXTS.contains(&ext.as_str()) {
+        Some("ieum")
+    } else if OFFICE_EXTS.contains(&ext.as_str()) {
+        Some("office")
+    } else {
+        None
+    }
+}
+
+/// Handles URLs from RunEvent::Opened (off the main thread: the native calls block).
+pub fn handle_opened<R: Runtime>(app: &AppHandle<R>, urls: Vec<url::Url>) {
+    use tauri::Emitter;
+    for url in urls {
+        let app = app.clone();
+        std::thread::spawn(move || {
+            let name = url
+                .path_segments()
+                .and_then(|mut s| s.next_back().map(|n| percent_decode(n)))
+                .unwrap_or_default();
+            match route_for(&name) {
+                Some("ieum") => match tauri_plugin_ieum_mobile::enqueue_open_url(&app, url.as_str()) {
+                    Ok(()) => {
+                        let _ = app.emit("ae-open-intent", ());
+                    }
+                    Err(e) => eprintln!("[open-in] {name}: {e}"),
+                },
+                Some(_) => {
+                    match tauri_plugin_ieum_mobile::office_native_call(
+                        &app,
+                        "readIncomingUrl",
+                        json!({ "url": url.as_str() }),
+                    ) {
+                        Ok(v) => {
+                            let intent = OfficeIntent {
+                                name: v.get("name").and_then(Value::as_str).unwrap_or(&name).to_string(),
+                                data: v.get("data").and_then(Value::as_str).unwrap_or("").to_string(),
+                            };
+                            if let Some(q) = app.try_state::<OfficeIntents>() {
+                                q.0.lock().map(|mut g| g.push(intent)).ok();
+                            }
+                            let _ = app.emit("ae-office-intent", ());
+                        }
+                        Err(e) => eprintln!("[open-in] {name}: {e}"),
+                    }
+                }
+                None => eprintln!("[open-in] unsupported file: {name}"),
+            }
+        });
+    }
+}
+
+/// Office files handed to the app since the last call (the page imports them into the office suite).
+#[tauri::command]
+pub fn ae_take_office_intents(state: tauri::State<'_, OfficeIntents>) -> Vec<OfficeIntent> {
+    state.0.lock().map(|mut g| std::mem::take(&mut *g)).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod open_in_tests {
+    use super::route_for;
+
+    #[test]
+    fn routes() {
+        assert_eq!(route_for("보고서.HWP"), Some("ieum"));
+        assert_eq!(route_for("a.hwpx"), Some("ieum"));
+        assert_eq!(route_for("a.md"), Some("ieum"));
+        assert_eq!(route_for("a.docx"), Some("office"));
+        assert_eq!(route_for("a.key"), Some("office"));
+        assert_eq!(route_for("a.numbers"), Some("office"));
+        assert_eq!(route_for("a.pdf"), Some("office"));
+        assert_eq!(route_for("a.zip"), None);
+        assert_eq!(route_for("noext"), None);
+    }
+}

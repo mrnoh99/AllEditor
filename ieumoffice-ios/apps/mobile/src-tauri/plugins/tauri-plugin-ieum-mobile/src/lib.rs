@@ -254,6 +254,7 @@ pub fn init_file<R: Runtime>() -> TauriPlugin<R> {
             #[cfg(target_os = "ios")]
             let file_bridge: Arc<dyn NativeFileBridge> = {
                 let file_handle = api.register_ios_plugin(init_plugin_ieum_file)?;
+                app.manage(IosFilePluginHandle::<R> { handle: file_handle.clone() });
                 Arc::new(mobile_bridge::MobilePluginFileBridge::new(file_handle))
             };
             #[cfg(not(mobile))]
@@ -344,5 +345,29 @@ pub fn office_native_call<R: Runtime>(
     {
         let _ = (state, args);
         Err(format!("{method}: PDF rendering and printing need the iOS app"))
+    }
+}
+
+/// Raw handle of the iOS file plugin (AllEditor "Open in": queue an incoming URL for the HWP/Markdown editor).
+#[cfg(target_os = "ios")]
+pub struct IosFilePluginHandle<R: Runtime> {
+    handle: tauri::plugin::PluginHandle<R>,
+}
+
+/// Queues a file URL handed to the app by iOS ("Open in AllEditor") for `take_pending_open_intent`.
+pub fn enqueue_open_url<R: Runtime>(app: &AppHandle<R>, url: &str) -> Result<(), String> {
+    #[cfg(target_os = "ios")]
+    {
+        let state = app.try_state::<IosFilePluginHandle<R>>().ok_or("file plugin not registered")?;
+        state
+            .handle
+            .run_mobile_plugin::<serde_json::Value>("enqueueOpenUrl", serde_json::json!({ "url": url }))
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        let _ = (app, url);
+        Err("Open in AllEditor is iOS only".into())
     }
 }

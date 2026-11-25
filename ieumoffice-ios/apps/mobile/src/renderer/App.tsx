@@ -133,7 +133,8 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
   const hwpEditorRef = useRef<HwpMobileEditorHandle | null>(null)
   const activeRunCancelRef = useRef<(() => void) | null>(null)
 
-  const lang: Lang = normalizeLang(prefs.lang)
+  // AllEditor: Korean by default, English when chosen (other upstream languages are not offered)
+  const lang: Lang = normalizeLang(prefs.lang) === 'en' ? 'en' : 'ko'
   const tNow = useCallback(
     (key: Parameters<typeof translateMobile>[1]) => translateMobile(lang, key),
     [lang],
@@ -384,6 +385,23 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
       mounted = false
     }
   }, [client, openLoadedSession, refreshAiState, refreshHomeData])
+
+  // AllEditor: "Open in AllEditor" while the app is running (HWP / HWPX / Markdown; see src-tauri/src/office.rs)
+  useEffect(() => {
+    const ev = (window as unknown as { __TAURI__?: { event?: { listen: (n: string, cb: () => void) => Promise<() => void> } } })
+      .__TAURI__?.event
+    if (!ev) return
+    let unlisten: (() => void) | undefined
+    void ev
+      .listen('ae-open-intent', () => {
+        void (async () => {
+          const pending = await client.consumePendingOpenIntent().catch(() => null)
+          if (pending) await openLoadedSession(pending, { isUntitled: false })
+        })()
+      })
+      .then((u) => (unlisten = u))
+    return () => unlisten?.()
+  }, [client, openLoadedSession])
 
   // Write recovery copy on idle, periodic tick, and backgrounding; cancel active AI stream on hide.
   const writeRecoveryNow = useCallback(async () => {

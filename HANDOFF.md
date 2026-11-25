@@ -27,8 +27,8 @@ web suite (`ios/App/App/public`) is reused as-is; `shim/runtime/native-files.ts`
 Fixed on the way: `shim/runtime/fs.ts` flush deleted a directory natively whenever it was `mkdir`ed (data loss in existing folders).
 Verified in Chromium with the mock (open docx/pptx/xlsx/pdf, Documents listing, print → AEPdf.render + AEPrint.directPrint).
 **Not verified: Swift (`AllEditorOfficePlugin`), the office:// scheme in WKWebView, anything on a device.**
-Open: "Open in AllEditor" for docx/xlsx/pptx/pdf/iWork from other apps (Info.plist document types → office suite), office UI
-texts only ko/en, iPhone memory with several office tabs.
+"Open in AllEditor" (office files, iWork, hwp/hwpx) added the same day — see README-IOS; upstream never wired iOS open-in
+(`enqueueIncomingUrl` had no caller). Languages: ko (default) + en only (user's decision). Open: iPhone memory with several office tabs.
 
 ## 1. Goal
 An iOS/iPadOS app that runs the open-source office suite **이음오피스 (IeumOffice)** — which is itself built on

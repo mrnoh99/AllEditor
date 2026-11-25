@@ -56,3 +56,11 @@ that stays alive while you are back on the 이음오피스 home (‹ 이음 butt
   (`src-tauri/plugins/tauri-plugin-ieum-mobile/ios/Sources/AllEditorOfficePlugin.swift`).
 - Desktop check without a device: `node scripts/dev/mock-office.js <dir>` + `scripts/dev/t-office-native.js`,
   `scripts/dev/t-tauri-office.js` (Playwright).
+- **Open in AllEditor** (Files, Mail, Safari, …): Info.plist document types for docx/dotx/doc/odt, xlsx/xlsm/xls/ods/csv,
+  pptx/ppt/odp, pdf, Pages/Numbers/Keynote (+ existing hwp/hwpx/md). iOS delivers the URL as `RunEvent::Opened`
+  (`src-tauri/src/office.rs` `handle_opened`): hwp/hwpx/md → 이음오피스 editor (queued via `IeumFilePlugin.enqueueOpenUrl`,
+  event `ae-open-intent`); office files → read by `AllEditorOfficePlugin.readIncomingUrl`, imported into the office suite
+  as a copy in Documents (iWork → editable docx/pptx/xlsx copy), event `ae-office-intent` + command `ae_take_office_intents`.
+  The document types live in the committed `gen/apple/.../Info.plist` (re-add them if the Xcode project is regenerated).
+- Languages: Korean (default) and English only.
+
