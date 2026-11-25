@@ -87,7 +87,9 @@ function renderBar() {
 }
 
 // ---- files ----
-const CREDIT = 'ieum office · Developed by JaiSung NOH MD 2026'
+const credit = () => (lang() === 'ko'
+  ? '이음 오피스 (ieum office) · 오픈소스 GenOffice(Genspark AI, Apache-2.0)를 가져와 iOS용으로 기능을 추가했습니다.\nDeveloped by JaiSung NOH MD 2026'
+  : 'ieum office · Built on the open-source GenOffice (Genspark AI, Apache-2.0), extended for iOS.\nDeveloped by JaiSung NOH MD 2026')
 const busy = new Set<string>()
 async function openPath(path: string) {
   const name = path.split('/').pop()!, app = appFor(name)
@@ -144,7 +146,7 @@ function renderHome() {
   try { names = fs.readdirSync(DOCS_ROOT).map(String).filter((n: string) => !n.startsWith('.') && appFor(n)) } catch {}
   const rows = names.map((n) => { const st = fs.statSync(`${DOCS_ROOT}/${n}`); return { n, size: st.size as number, m: Number(st.mtimeMs ?? 0) } }).sort((a, b) => b.m - a.m)
   if (!rows.length) list.append(el('p', 'empty', t('empty')))
-  wrap.append(el('p', 'credit', CREDIT))
+  wrap.append(el('p', 'credit', credit()))
   for (const r of rows) {
     const row = el('div', 'row'); const b = el('button', 'file')
     const tag = el('span', 'tag ' + appFor(r.n), tagLabel(r.n)); const nm = el('span', 'nm', r.n); const sz = el('span', 'sz', fmt(r.size))
@@ -245,7 +247,7 @@ function renderSettings() {
   drawPrinters()
   wrap.append(el('p', 'hint', t('printerHint')))
 
-  wrap.append(el('h2', '', t('about')), el('p', 'hint', t('aboutText')), el('p', 'credit', CREDIT))
+  wrap.append(el('h2', '', t('about')), el('p', 'hint', t('aboutText')), el('p', 'credit', credit()))
 }
 
 function applyTheme() {
