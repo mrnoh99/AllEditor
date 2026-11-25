@@ -9,6 +9,7 @@ import {
   APP_SCHEME,
   HANCOM_KEYS_MODULE,
   MOBILE_SCHEME,
+  OFFICE_SCHEME,
   PASSWORD_FLAG,
   PC_FONTS_MODULE,
   STUDIO_PATCHES,
@@ -43,7 +44,7 @@ describe('rhwp scheme patches', () => {
   it('patch the studio origin check', () => {
     const source = "    return protocol === 'http:' || protocol === 'https:';\n"
     expect(applyPatch('studio-scheme', source)).toBe(
-      `    return protocol === 'http:' || protocol === 'https:' || protocol === '${APP_SCHEME}:' || protocol === '${MOBILE_SCHEME}:';\n`,
+      `    return protocol === 'http:' || protocol === 'https:' || protocol === '${APP_SCHEME}:' || protocol === '${MOBILE_SCHEME}:' || protocol === '${OFFICE_SCHEME}:';\n`,
     )
   })
 })
@@ -822,6 +823,7 @@ describe('the studio source the build fetched', () => {
     'src/ui/table-cell-props-dialog.ts',
     'src/ui/symbols-dialog.ts',
     'src/ui/toolbar.ts',
+    'src/ui/menu-bar.ts',
     'src/command/registry.ts',
     'src/i18n/locales/ko.ts',
     'src/i18n/locales/en.ts',

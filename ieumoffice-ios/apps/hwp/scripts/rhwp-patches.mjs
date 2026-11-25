@@ -273,6 +273,9 @@ export { TEXTBOX_EDIT_MODULE }
 /** Module specifier the studio-wheel-zoom patch imports; build-studio.mjs aliases it. */
 export const WHEEL_ZOOM_MODULE = '@ieum/wheel-zoom'
 
+/** [AllEditor] Module specifier the studio-ribbon patch imports; build-studio.mjs aliases it (studio-plugin/ribbon.mjs). */
+export const RIBBON_MODULE = '@ieum/ribbon'
+
 const PATCHES = {
   // [AllEditor] iOS typing: rhwp's iOS path (contentEditable, no composition events) replaces the text at the anchor
   // of the current input run with the whole hidden-input text on every keystroke, and only forgot that run when the
@@ -306,6 +309,20 @@ const PATCHES = {
     file: /[\\/]rhwp-studio[\\/]src[\\/]engine[\\/]input-handler-mouse\.ts$/,
     find: 'export function onClick(this: any, e: MouseEvent): void {\n  rememberHyperlinkClick(this, e);\n',
     replace: 'export function onClick(this: any, e: MouseEvent): void {\n  this.resetIosInputRun?.(); // [AllEditor] a tap moves the caret: new iOS input run\n  rememberHyperlinkClick(this, e);\n',
+  },
+  // [AllEditor] Word-style ribbon (studio-plugin/ribbon.mjs): the menu bar's items as ribbon tabs, same commands
+  'studio-ribbon': {
+    file: /[\\/]rhwp-studio[\\/]src[\\/]ui[\\/]menu-bar\.ts$/,
+    edits: [
+      {
+        find: "import { syncMenuShortcutLabels } from './menu-shortcut-labels';",
+        replace: `import { syncMenuShortcutLabels } from './menu-shortcut-labels';\nimport { installAllEditorRibbon } from '${RIBBON_MODULE}';`,
+      },
+      {
+        find: '    this.setupKeyboardClose();\n  }',
+        replace: '    this.setupKeyboardClose();\n    installAllEditorRibbon(container, (el: any) => this.updateMenuStates(el));\n  }',
+      },
+    ],
   },
   'studio-base-fonts': {
     file: /[\\/]rhwp-studio[\\/]src[\\/]ui[\\/]toolbar\.ts$/,
@@ -2325,6 +2342,7 @@ export const STUDIO_PATCHES = /** @type {const} */ ([
   'studio-ios-input-run-keys',
   'studio-ios-input-run-click',
   'studio-base-fonts',
+  'studio-ribbon',
   'studio-password-flag',
   'studio-plugin-allow',
   'studio-table-delete-at',

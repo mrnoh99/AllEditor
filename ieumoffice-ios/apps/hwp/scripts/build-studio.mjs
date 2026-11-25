@@ -34,6 +34,7 @@ import {
   HANCOM_KEYS_MODULE,
   NOTE_TEXT_MODULE,
   PC_FONTS_MODULE,
+  RIBBON_MODULE,
   STUDIO_PATCHES,
   TEXTBOX_EDIT_MODULE,
   WHEEL_ZOOM_MODULE,
@@ -98,6 +99,7 @@ const HANCOM_KEYS = join(PLUGIN_DIR, 'hancom-keys.mjs')
 const FORMAT_COPY = join(PLUGIN_DIR, 'format-copy.mjs')
 const CLIPBOARD_HTML = join(PLUGIN_DIR, 'clipboard-html.mjs')
 const PC_FONTS = join(PLUGIN_DIR, 'pc-fonts.mjs')
+const RIBBON = join(PLUGIN_DIR, 'ribbon.mjs')
 const NOTE_TEXT = join(PLUGIN_DIR, 'note-text.mjs')
 const TEXTBOX_EDIT = join(PLUGIN_DIR, 'textbox-edit.mjs')
 /** The Ctrl+wheel zoom steps every editor shares; it has no imports, so the studio takes it as is. */
@@ -263,6 +265,7 @@ async function buildStudio() {
         [NOTE_TEXT_MODULE]: NOTE_TEXT,
         [TEXTBOX_EDIT_MODULE]: TEXTBOX_EDIT,
         [WHEEL_ZOOM_MODULE]: WHEEL_ZOOM,
+        [RIBBON_MODULE]: RIBBON,
       },
     },
     // upstream registers a service worker for its website build; this build
