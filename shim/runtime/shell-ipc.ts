@@ -12,8 +12,9 @@ const set = (k: string, v: any) => { const s = load(); s[k] = v; save(s) }
 export function registerShellIpc() {
   const h = (ch: string, f: (...a: any[]) => any) => ipcMain.handle(ch, (_e: any, ...a: any[]) => f(...a))
   const lang = () => {
-    const l = (get('language', null) ?? navigator.language).slice(0, 2)
-    return ['zh', 'ja', 'ko', 'fr', 'de', 'es', 'th', 'id', 'ru', 'ar'].includes(l) ? l : 'en'
+    // Korean by default; a saved language setting wins
+    const l = String(get('language', 'ko')).slice(0, 2)
+    return ['zh', 'ja', 'ko', 'fr', 'de', 'es', 'th', 'id', 'ru', 'ar', 'en'].includes(l) ? l : 'ko'
   }
   h('app:get-language', lang)
   h('app:get-theme', () => get('theme', 'system'))
