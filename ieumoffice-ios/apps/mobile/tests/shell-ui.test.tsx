@@ -83,7 +83,7 @@ describe('responsive mobile shell layout (<768px phone vs >=768px tablet)', () =
     expect(el.querySelector('[data-testid="tablet-toolbar"]')).toBeNull()
   })
 
-  it('renders tablet toolbar and docked AI toggle on >=768px', () => {
+  it('renders the AI panel docked on the left with its fold handle on >=768px (AllEditor: 한글 uses its own toolbar)', () => {
     Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true })
     const el = renderInDom(
       <EditorShell
@@ -108,9 +108,13 @@ describe('responsive mobile shell layout (<768px phone vs >=768px tablet)', () =
     )
 
     expect(el.querySelector('[data-layout="tablet"]')).not.toBeNull()
-    expect(el.querySelector('[data-testid="tablet-toolbar"]')).not.toBeNull()
+    // 한글 shows rhwp's own menus and toolbar on a tablet, so the quick toolbar is not repeated
+    expect(el.querySelector('[data-testid="tablet-toolbar"]')).toBeNull()
     expect(el.querySelector('[data-testid="phone-quick-toolbar"]')).toBeNull()
-    expect(el.querySelector('[data-testid="tablet-ai-toggle"]')).not.toBeNull()
+    // the AI panel is open by default, with the fold handle; no AI button in the header
+    expect(el.querySelector('[data-testid="tablet-ai-dock"]')?.textContent).toContain('AI Dock')
+    expect(el.querySelector('[data-testid="tablet-ai-toggle"]')?.getAttribute('aria-expanded')).toBe('true')
+    expect(el.querySelector('[data-testid="editor-header"] .mobile-btn-ai')).toBeNull()
   })
 })
 

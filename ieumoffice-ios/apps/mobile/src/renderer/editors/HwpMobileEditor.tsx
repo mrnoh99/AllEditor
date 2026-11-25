@@ -11,6 +11,7 @@ import {
 } from '@genoffice/mobile-bridge/hwp'
 import blankHwpUrl from '../../../../hwp/src/renderer/assets/blank.hwp?url'
 import { registerMobileKoreanFonts } from '../assets/fonts'
+import { useViewportLayout } from '../shell/useViewportLayout'
 
 export type HwpQuickAction = 'undo' | 'redo' | 'bold' | 'italic' | 'underline'
 
@@ -40,6 +41,13 @@ const MOBILE_HIDDEN_CHROME = {
   menu: false,
   toolbar: false,
   statusbar: false,
+} as const
+
+/** AllEditor: on a tablet (iPad) the editor shows 한글's full menus, toolbar and status bar, like the office editors */
+const TABLET_FULL_CHROME = {
+  menu: true,
+  toolbar: true,
+  statusbar: true,
 } as const
 
 /**
@@ -86,6 +94,9 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
     const editorRef = useRef<RhwpEditor | null>(null)
     const [loading, setLoading] = useState(true)
     const [zoom, setZoom] = useState(1)
+    const { isTablet } = useViewportLayout()
+    const chromeRef = useRef(isTablet ? TABLET_FULL_CHROME : MOBILE_HIDDEN_CHROME)
+    chromeRef.current = isTablet ? TABLET_FULL_CHROME : MOBILE_HIDDEN_CHROME
 
     // Keep callback props in refs so parent re-renders never tear down and reload rhwp-studio.
     const onDirtyRef = useRef(onDirty)
@@ -129,7 +140,7 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
           const editor = await createStudio(container, {
             studioUrl,
             renderer: 'canvas2d',
-            chrome: MOBILE_HIDDEN_CHROME,
+            chrome: chromeRef.current,
           })
           if (cancelled) {
             editor.destroy()
@@ -137,8 +148,8 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
           }
           editorRef.current = editor
 
-          // Hide desktop menu/toolbar/statusbar chrome and phone centimeter rulers.
-          await editor.chrome.set(MOBILE_HIDDEN_CHROME).catch(() => {})
+          // Phone: hide desktop menu/toolbar/statusbar chrome and centimeter rulers. Tablet: show it all.
+          await editor.chrome.set(chromeRef.current).catch(() => {})
           applyMobileStudioCanvasStyle(editor)
           if (cancelled) return
 
@@ -204,6 +215,10 @@ export const HwpMobileEditor = forwardRef<HwpMobileEditorHandle, HwpMobileEditor
       window.addEventListener('orientationchange', onOrientation)
       return () => window.removeEventListener('orientationchange', onOrientation)
     }, [])
+
+    useEffect(() => {
+      void editorRef.current?.chrome.set(isTablet ? TABLET_FULL_CHROME : MOBILE_HIDDEN_CHROME).catch(() => {})
+    }, [isTablet])
 
     useImperativeHandle(
       ref,

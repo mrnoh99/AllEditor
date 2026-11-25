@@ -77,6 +77,8 @@ function renderQuickActionIcon(id: string): ReactNode {
   }
 }
 
+const AI_FOLDED_KEY = 'alleditor.hwpAiFolded'
+
 export function EditorShell({
   docTitle,
   docFormat,
@@ -100,7 +102,25 @@ export function EditorShell({
 }: EditorShellProps) {
   const { t } = useMobileLocale()
   const { isTablet, keyboardInsetPx } = useViewportLayout()
-  const [aiOpen, setAiOpen] = useState(false)
+  // AllEditor: on a tablet the AI panel is docked on the left like the office editors' and folds with the same
+  // "AI ‹ / ›" handle; the choice is remembered. On a phone it stays the bottom sheet.
+  const [aiOpen, setAiOpenState] = useState(() => {
+    try {
+      return localStorage.getItem(AI_FOLDED_KEY) !== '1'
+    } catch {
+      return true
+    }
+  })
+  const setAiOpen = (next: boolean | ((prev: boolean) => boolean)) =>
+    setAiOpenState((prev) => {
+      const value = typeof next === 'function' ? next(prev) : next
+      try {
+        localStorage.setItem(AI_FOLDED_KEY, value ? '0' : '1')
+      } catch {
+        /* storage unavailable: not remembered */
+      }
+      return value
+    })
   const [moreOpen, setMoreOpen] = useState(false)
   const isHwpFamily = docFormat === 'hwp' || docFormat === 'hwpx'
 
@@ -152,17 +172,6 @@ export function EditorShell({
             <IconSave size={14} />
             <span>{t('save')}</span>
           </button>
-          {isTablet && aiEnabled && (
-            <button
-              type="button"
-              className="mobile-pill-btn mobile-btn-ai"
-              onClick={() => setAiOpen((prev) => !prev)}
-              data-testid="tablet-ai-toggle"
-            >
-              <AiMark size={15} />
-              <span>{t('aiTitle')}</span>
-            </button>
-          )}
           <button
             type="button"
             className="mobile-icon-btn"
@@ -176,7 +185,7 @@ export function EditorShell({
         </div>
       </header>
 
-      {isTablet && mode === 'edit' && quickActions.length > 0 && (
+      {isTablet && !isHwpFamily && mode === 'edit' && quickActions.length > 0 && (
         <div className="mobile-tablet-toolbar" role="toolbar" data-testid="tablet-toolbar">
           {quickActions.map((item) => {
             const icon = renderQuickActionIcon(item.id)
@@ -231,17 +240,22 @@ export function EditorShell({
                 <AiMark size={18} />
                 <h2 className="mobile-sheet-title">{t('aiTitle')}</h2>
               </div>
-              <button
-                type="button"
-                className="mobile-icon-btn"
-                onClick={() => setAiOpen(false)}
-                aria-label={t('cancel')}
-              >
-                <IconClose size={20} />
-              </button>
             </header>
             {aiPanelContent}
           </aside>
+        )}
+        {isTablet && aiEnabled && (
+          <button
+            type="button"
+            className={aiOpen ? 'ae-ai-handle open' : 'ae-ai-handle'}
+            onClick={() => setAiOpen((prev) => !prev)}
+            aria-expanded={aiOpen}
+            aria-label={aiOpen ? `${t('aiTitle')} ‹` : `${t('aiTitle')} ›`}
+            data-testid="tablet-ai-toggle"
+          >
+            <span>AI</span>
+            <span className="ae-ai-handle-chev">{aiOpen ? '‹' : '›'}</span>
+          </button>
         )}
       </div>
 
