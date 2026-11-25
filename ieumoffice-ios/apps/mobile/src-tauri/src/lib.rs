@@ -71,6 +71,7 @@ pub fn run() {
             office::ae_take_office_intents,
             office::ae_pick_open_any,
             office::ae_open_documents_hwp,
+            office::ae_app_version,
         ])
         .build(tauri::generate_context!())
         .expect("error while running IeumOffice mobile application")

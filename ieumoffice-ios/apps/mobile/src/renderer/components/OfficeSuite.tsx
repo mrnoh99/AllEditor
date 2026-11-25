@@ -251,13 +251,28 @@ export function OfficeOverlay() {
 export const CREDIT_TEXT =
   'AllEditor (iOS / iPadOS) — Developed by JaiSung NOH MD, 2026. This app is built on the open source of 이음오피스 (IeumOffice) by 박준일 (Jun-il Park), which is itself based on GenOffice by Genspark AI / Mainfunc, Inc. (Apache License 2.0)'
 
+/** "버전 1.0.0 (빌드 123)" from the native side (version: tauri.conf.json, build: CI commit count) */
+export function useAppVersion(): string | null {
+  const { lang } = useMobileLocale()
+  const [v, setV] = useState<{ version: string; build: string } | null>(null)
+  useEffect(() => {
+    const t = tauri()
+    if (!t?.core) return
+    void t.core.invoke<{ version: string; build: string }>('ae_app_version').then(setV, () => {})
+  }, [])
+  if (!v) return null
+  return lang === 'ko' ? `버전 ${v.version} (빌드 ${v.build})` : `Version ${v.version} (build ${v.build})`
+}
+
 export function CreditFooter() {
+  const version = useAppVersion()
   return (
     <footer
       data-testid="home-credit"
       style={{ margin: '28px 4px 12px', fontSize: 11, lineHeight: 1.5, opacity: 0.6, textAlign: 'center' }}
     >
       {CREDIT_TEXT}
+      {version && <div data-testid="home-version">{version}</div>}
     </footer>
   )
 }

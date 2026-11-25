@@ -224,6 +224,7 @@ fn native_call<R: Runtime>(app: &AppHandle<R>, plugin: &str, method: &str, args:
             }
             tauri_plugin_ieum_mobile::office_native_call(app, "openUrl", json!({ "url": url }))
         }
+        "AEApp" if method == "version" => Ok(app_version(app)),
         "AEApp" if method == "ping" => Ok(json!({ "native": "tauri", "platform": std::env::consts::OS })),
         _ => Err(format!("unknown plugin {plugin}")),
     }
@@ -503,4 +504,17 @@ pub async fn ae_open_documents_hwp<R: Runtime>(
     tauri::async_runtime::spawn_blocking(move || svc.open_documents_file(&full))
         .await
         .map_err(|e| crate::error::MobileError::with_detail(crate::error::MobileErrorCode::InternalError, "mobile.open.join", e.to_string()))?
+}
+
+/// version (tauri.conf.json) and build number (baked in by CI: AE_BUILD_NUMBER = commits on main)
+fn app_version<R: Runtime>(app: &AppHandle<R>) -> Value {
+    json!({
+        "version": app.package_info().version.to_string(),
+        "build": option_env!("AE_BUILD_NUMBER").unwrap_or("dev"),
+    })
+}
+
+#[tauri::command]
+pub fn ae_app_version<R: Runtime>(app: AppHandle<R>) -> Value {
+    app_version(&app)
 }

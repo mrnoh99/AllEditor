@@ -80,6 +80,8 @@ export const nativeShare = (name: string, mime: string, bytes: Uint8Array) => sh
 interface AEApp { openUrl(o: { url: string }): Promise<unknown> }
 const appPlugin = bridge<AEApp>('AEApp')
 export const nativeOpenUrl = (url: string) => appPlugin.openUrl({ url })
+/** version (tauri.conf.json) and build number (CI) of the app */
+export const nativeAppVersion = () => (appPlugin as any).version() as Promise<{ version: string; build: string }>
 
 // ---- AEAi: the app's one AI setting (이음오피스 store in Rust, keys sealed); see src-tauri/src/office.rs ----
 export interface AiSnapshot { selectedProvider: string; modelByProvider: Record<string, string>; configuredProviders: Record<string, { hasKey: boolean; models: string[] }> }

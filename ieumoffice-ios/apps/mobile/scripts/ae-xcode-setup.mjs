@@ -156,6 +156,14 @@ tryPb('Delete :UIStatusBarHidden~ipad')
 pb('Add :UIStatusBarHidden~ipad bool true')
 tryPb('Delete :UIViewControllerBasedStatusBarAppearance')
 pb('Add :UIViewControllerBasedStatusBarAppearance bool false')
+// version (tauri.conf.json) and build number (CI: AE_BUILD_NUMBER = commits on main; unchanged when not set)
+const tauriConf = JSON.parse(readFileSync(join(APP_DIR, 'src-tauri', 'tauri.conf.json'), 'utf8'))
+tryPb('Delete :CFBundleShortVersionString')
+pb(`Add :CFBundleShortVersionString string ${tauriConf.version}`)
+if (/^\d+$/.test(process.env.AE_BUILD_NUMBER ?? '')) {
+  tryPb('Delete :CFBundleVersion')
+  pb(`Add :CFBundleVersion string ${process.env.AE_BUILD_NUMBER}`)
+}
 // office suite: documents visible in Files › AllEditor, local-network permission for direct (IPP / 9100) printing
 tryPb('Delete :UIFileSharingEnabled')
 pb('Add :UIFileSharingEnabled bool true')

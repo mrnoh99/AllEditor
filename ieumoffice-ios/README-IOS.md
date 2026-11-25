@@ -70,4 +70,7 @@ that stays alive while you are back on the 이음오피스 home (‹ 이음 butt
 - Credit (all app screens, every language): "AllEditor (iOS / iPadOS) — Developed by JaiSung NOH MD, 2026. This app is
   built on the open source of 이음오피스 (IeumOffice) by 박준일 (Jun-il Park), which is itself based on GenOffice by
   Genspark AI / Mainfunc, Inc. (Apache License 2.0)"
+- Version / build: version in `src-tauri/tauri.conf.json` (1.0.0); build number = commits on `main`, set by CI
+  (`AE_BUILD_NUMBER` → Info.plist CFBundleVersion via `ae-xcode-setup.mjs`, and baked into the Rust library).
+  Shown on the home ("버전 1.0.0 (빌드 N)") and in the office Settings › About. Raise the version in tauri.conf.json.
 

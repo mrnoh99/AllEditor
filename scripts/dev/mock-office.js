@@ -23,6 +23,7 @@ http.createServer((req, res) => {
         else if (plugin === 'AEAi' && method === 'get') out = { selectedProvider: ai.selected, modelByProvider: ai.models, configuredProviders: Object.fromEntries(Object.keys(ai.keys).map((k) => [k, { hasKey: !!ai.keys[k], models: [] }])) }
         else if (plugin === 'AEAi' && method === 'set') { ai.selected = a.provider; if (a.apiKey !== undefined) ai.keys[a.provider] = a.apiKey; if (a.model) ai.models[a.provider] = a.model; out = { selectedProvider: ai.selected, modelByProvider: ai.models, configuredProviders: Object.fromEntries(Object.keys(ai.keys).map((k) => [k, { hasKey: !!ai.keys[k], models: [] }])) } }
         else if (plugin === 'AEAi' && method === 'export') { const ids = [...new Set([...Object.keys(ai.keys), ...Object.keys(ai.models)])]; out = { provider: ['auto', 'chatgpt'].includes(ai.selected) ? (Object.keys(ai.keys)[0] ?? 'gemini') : ai.selected, providers: Object.fromEntries(ids.map((k) => [k, { apiKey: ai.keys[k] ?? '', model: ai.models[k] ?? '' }])) } }
+        else if (plugin === 'AEApp' && method === 'version') out = { version: '1.0.0', build: 'mock' }
         else if (plugin === 'AEPdf') out = { data: Buffer.from('%PDF-1.4 mock').toString('base64') }
         else if (plugin === 'AEPrint') out = { via: 'mock', completed: true }
         else if (plugin === 'AEShare') { log.push('share ' + a.name + ' ' + a.mime + ' ' + Buffer.from(a.data, 'base64').length + 'B') }

@@ -4,7 +4,7 @@ import { AI_PROVIDERS, defaultAiSettings, sanitizeAiSettings } from '@genoffice/
 import { LANGS, tr } from './i18n'
 import { convertIwork, IWORK_EXT } from '../iwork/convert'
 import { getPrinters, setPrinters, sendToPrinter, testPdf, type PrinterCfg } from '../runtime/print'
-import { nativeShare, nativeAi, isTauriOffice, type AiSnapshot } from '../runtime/native-files'
+import { nativeShare, nativeAi, isTauriOffice, nativeAppVersion, type AiSnapshot } from '../runtime/native-files'
 import { openExternalUrl } from '../runtime/electron'
 
 const APP_BY_EXT: Record<string, string> = {
@@ -274,7 +274,9 @@ function renderSettings() {
   drawPrinters()
   wrap.append(el('p', 'hint', t('printerHint')))
 
-  wrap.append(el('h2', '', t('about')), el('p', 'hint', t('aboutText')), el('p', 'credit', credit()))
+  const ver = el('p', 'hint ver')
+  wrap.append(el('h2', '', t('about')), ver, el('p', 'hint', t('aboutText')), el('p', 'credit', credit()))
+  if (isTauriOffice()) void nativeAppVersion().then((v) => { ver.textContent = lang() === 'ko' ? `AllEditor 버전 ${v.version} (빌드 ${v.build})` : `AllEditor version ${v.version} (build ${v.build})` }, () => {})
 }
 
 // ---- AI 연결 (iPad): API-key providers only — the desktop subscriptions (Claude Code, Codex, ChatGPT sign-in)
