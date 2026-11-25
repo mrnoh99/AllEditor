@@ -3,6 +3,23 @@
 Written for an agent starting cold. Read this first, then `README.md`. The user writes Korean; **reply in Korean**,
 short, results first, honest about what was and was not verified.
 
+## 0. DECISION 2026-11-25 — the base is 이음오피스's own iOS app (supersedes §1, §3–§6 where they conflict)
+The user decided: **AllEditor is built on `ieumoffice-ios/`** = 이음오피스's Tauri-2 mobile app (`apps/mobile` copied verbatim
+from `pblsketch/ieumoffice @ ad22c05`, plus the workspace packages / vendored rhwp it needs). Make it work on iOS,
+**especially iPad**, then add features there. Xcode: `open AllEditor.xcworkspace` → scheme **ieumoffice-mobile_iOS**
+(or `ieumoffice-ios/apps/mobile/src-tauri/gen/apple/ieumoffice-mobile.xcodeproj`); bundle id `com.mrnoh99.alleditor`.
+- State: Xcode project committed (`gen/apple`, iPhone+iPad, all iPad orientations, multitasking); the Rust library (web UI
+  embedded) is prebuilt by CI `.github/workflows/ieum-ios.yml` and committed gzip-split under `gen/apple/Prebuilt/` so Xcode
+  needs no Node/npm/Rust (wrapper `gen/apple/scripts/build-rust.sh`, setup script `apps/mobile/scripts/ae-xcode-setup.mjs`).
+  CI builds simulator debug/release + device release with nothing installed. **Never run on a real Mac/iPad yet.**
+- The UI is still upstream's mobile layout (phone-first, tablet layout ≥ 768 px). iPad layout work is next.
+- Every source push to `ieumoffice-ios/**` on main makes CI rebuild and commit the library (~135 MB per change in history).
+- The Capacitor app (`ios/`, scheme App, GenOffice-based, §3–§4) and the "rebase on ieumoffice" plan in §5 are the
+  **earlier approach** — keep as reference, don't extend unless the user asks. Ideas/code (PDF export, printing, iWork
+  import, multi-app) may be ported into the Tauri app later.
+- Credit: 이음오피스 = 박준일 (pblsketch/ieumoffice), based on GenOffice (Genspark AI / Mainfunc, Inc.); keep both.
+  Root `NOTICE` still needs fixing (it credits ieum to Mainfunc and lacks ieumoffice's 3rd-party notices).
+
 ## 1. Goal
 An iOS/iPadOS app that runs the open-source office suite **이음오피스 (IeumOffice)** — which is itself built on
 **GenOffice** — "the same way" as the Mac/desktop app: Docs, Slides, Sheets, PDF (+PDF tools), HWP, local file open,

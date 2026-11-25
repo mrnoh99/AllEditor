@@ -1,10 +1,12 @@
-# AllEditor (iOS)
+# AllEditor (iOS / iPadOS)
 
-*Built on the open source of 이음 오피스 (ieum office, GenOffice) by Genspark AI / Mainfunc, Inc. (Apache-2.0), extended for iOS.*
+*Built on the open source of 이음오피스 (IeumOffice) by 박준일 (Jun-il Park) — [pblsketch/ieumoffice](https://github.com/pblsketch/ieumoffice), Apache-2.0 —
+which is itself based on [GenOffice](https://github.com/genspark-ai/genoffice) by Genspark AI / Mainfunc, Inc. (Apache-2.0); extended for iOS / iPad.*
 *Developed by JaiSung NOH MD 2026*
 
-iOS build of the open-source [GenOffice](https://github.com/genspark-ai/genoffice) suite
-(Apache-2.0; pinned commit in `scripts/build-web.mjs`).
+**Base app: `ieumoffice-ios/`** — 이음오피스's own iOS app (Tauri 2, `apps/mobile`), Xcode scheme **ieumoffice-mobile_iOS**.
+All new iOS / iPad work goes there; see [`ieumoffice-ios/README-IOS.md`](ieumoffice-ios/README-IOS.md).
+The Capacitor app (`ios/`, scheme **App**, GenOffice-based, documented below) is the earlier approach, kept as reference.
 
 ## Open in Xcode (nothing to install)
 
@@ -16,8 +18,8 @@ open AllEditor.xcworkspace
 
 | Scheme | App |
 |---|---|
-| **App** | full office suite (Docs / Slides / Sheets / PDF), Capacitor — same as `open ios/App/App.xcworkspace` |
-| **ieumoffice-mobile_iOS** | 이음오피스's own mobile app (HWP / Markdown), Tauri — see `ieumoffice-ios/README-IOS.md` |
+| **ieumoffice-mobile_iOS** (base) | 이음오피스's own mobile app (HWP / Markdown), Tauri — see `ieumoffice-ios/README-IOS.md` |
+| **App** (earlier, reference) | GenOffice suite (Docs / Slides / Sheets / PDF), Capacitor — same as `open ios/App/App.xcworkspace` |
 
 No npm, CocoaPods, Node or Rust is needed: the web bundle, `Pods/` and the prebuilt Rust library are committed.
 CI (`.github/workflows/xcode-open.yml`) builds both schemes from a fresh clone with nothing installed.
@@ -26,7 +28,7 @@ Pick your Team under *Signing & Capabilities* (bundle id `com.mrnoh99.alleditor`
 choose an iPhone/iPad or simulator, press Run. The built web app is committed in
 `ios/App/App/public` and CocoaPods' `Pods/` is committed, so no `npm install` / `pod install` is needed.
 
-## What works
+## Capacitor app (`ios/`, earlier approach) — what works
 | Feature | How |
 |---|---|
 | **Docs** `.docx .dotx .doc .odt` and **HWP/HWPX** (converted to an editable `.docx` copy) | real upstream Docs app |
