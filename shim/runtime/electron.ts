@@ -1,6 +1,7 @@
 // Minimal in-page "Electron": ipcMain/ipcRenderer talk directly, dialogs are iOS pickers,
 // everything else is an inert deep Proxy so unported features no-op instead of crashing.
 import fs, { DOCS_ROOT, flush } from './fs'
+import { printCurrentDocument, htmlToPdf } from './print'
 
 const g = globalThis as any
 let readyResolve!: () => void
@@ -29,6 +30,7 @@ export const webContents: any = {
   on: () => webContents, once: () => webContents, off: () => webContents, removeListener: () => webContents,
   send: (ch: string, ...a: any[]) => { for (const l of onRenderer.get(ch) ?? []) l({ sender: webContents }, ...a) },
   isDestroyed: () => false, getURL: () => location.href, isFocused: () => true,
+  printToPDF: async (o: any = {}) => Buffer.from(await printCurrentDocument(o)),
   getOwnerBrowserWindow: () => browserWindow,
 }
 const wcProxy = new Proxy(webContents, { get: (t, k) => (k in t ? t[k] : inert(`webContents.${String(k)}`)) })
@@ -36,7 +38,25 @@ const browserWindow: any = new Proxy({ id: 1, webContents: wcProxy, isDestroyed:
   isFocused: () => true, isMinimized: () => false, isFullScreen: () => false, isMaximized: () => false }, {
   get: (t: any, k) => (k in t ? t[k] : inert(`win.${String(k)}`)),
 })
-export const BrowserWindow: any = Object.assign(function () { return browserWindow }, {
+/** hidden export windows (slides/sheets build an HTML file, load it, printToPDF it) */
+function makeFakeWindow() {
+  let html = ''
+  const wc: any = new Proxy({
+    id: 2, send() {}, isDestroyed: () => false, on: () => wc, once: () => wc, off: () => wc, removeListener: () => wc, session: inert('session'),
+    setWindowOpenHandler: () => {}, executeJavaScript: async () => true, insertCSS: async () => '',
+    printToPDF: async (o: any = {}) => Buffer.from(await htmlToPdf(html, o)),
+  }, { get: (t: any, k) => (k in t ? t[k] : inert(`fakewc.${String(k)}`)) })
+  const win: any = new Proxy({
+    webContents: wc, isDestroyed: () => false, destroy() {}, close() {}, hide() {}, show() {}, setBounds() {},
+    loadFile: async (p: string) => { html = String(fs.readFileSync(p, 'utf8')) },
+    loadURL: async (u: string) => {
+      if (u.startsWith('data:')) { const i = u.indexOf(','); html = /;base64/.test(u.slice(0, i)) ? atob(u.slice(i + 1)) : decodeURIComponent(u.slice(i + 1)) }
+      else if (u.startsWith('file://')) html = String(fs.readFileSync(decodeURIComponent(u.slice(7)), 'utf8'))
+    },
+  }, { get: (t: any, k) => (k in t ? t[k] : inert(`fakewin.${String(k)}`)) })
+  return win
+}
+export const BrowserWindow: any = Object.assign(function () { return makeFakeWindow() }, {
   fromWebContents: () => browserWindow, fromId: () => browserWindow, getAllWindows: () => [browserWindow],
   getFocusedWindow: () => browserWindow,
 })
@@ -114,8 +134,8 @@ export const dialog: any = {
     const name = base(o.defaultPath || 'Untitled')
     const ext = o.filters?.[0]?.extensions?.[0]
     const full = ext && ext !== '*' && !name.includes('.') ? `${name}.${ext}` : name
-    const p = o.defaultPath?.startsWith(DOCS_ROOT) ? o.defaultPath : `${DOCS_ROOT}/${full}`
-    return { canceled: false, filePath: p }
+    const p0 = o.defaultPath?.startsWith(DOCS_ROOT) ? o.defaultPath : `${DOCS_ROOT}/${full}`
+    return { canceled: false, filePath: uniq(DOCS_ROOT, base(p0)) }
   },
   async showMessageBox(a: any, b?: any) {
     const o = b ?? a ?? {}
@@ -136,7 +156,7 @@ export const app: any = {
   addRecentDocument: () => {}, setBadgeCount: () => {}, focus: () => {},
 }
 export const shell: any = {
-  openExternal: async (u: string) => { window.open(u, '_blank') }, openPath: async () => '',
+  openExternal: async (u: string) => { window.open(u, '_blank') }, openPath: async (p: string) => { try { await flush(); if (window.parent !== window) window.parent.postMessage({ type: 'ae-open', path: p }, '*') } catch {} return '' },
   showItemInFolder: () => {}, beep: () => {}, trashItem: async (p: string) => { fs.rmSync(p, { force: true, recursive: true }) },
 }
 export const clipboard: any = {

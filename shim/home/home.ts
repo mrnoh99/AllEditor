@@ -233,6 +233,7 @@ async function boot() {
   // single-window rule: remember which tab was focused last
   const last = (restore.tabs ?? []).length ? tabs[tabs.length - 1].id : 'home'
   activate(last)
+  window.addEventListener('message', (e) => { if (e.data?.type === 'ae-open' && typeof e.data.path === 'string') void openPath(e.data.path) })
   window.addEventListener('pagehide', () => { void flush() })
   document.addEventListener('visibilitychange', () => { if (document.hidden) void flush() })
 }

@@ -21,6 +21,7 @@ choose an iPhone/iPad or simulator, press Run. The built web app is committed in
 | **PDF** view / annotate / edit text / forms / merge / compress | real PDF app |
 | **PDF tools** PDF → Word / Excel / PowerPoint (on-device, PDFium wasm) | PDF ▸ “PDF 转换/Convert” menu |
 | **Apple Pages / Keynote / Numbers** `.pages .key .numbers` | converted once to an editable `.docx` / `.pptx` / `.xlsx` copy (original untouched), then opened in Docs / Slides / Sheets. Text, tables, images, charts and notes are kept; Numbers formulas become their saved values; Pages layout becomes flowing text; animations are dropped |
+| **PDF export** (Docs / Slides / Sheets) | the app's own “Export as PDF”; the page is snapshotted and paginated by an offscreen WKWebView with `@media print` rules (`AEPdfPlugin`), saved to Documents and opened in a PDF tab. Sheets: floating ⋯ file menu (open / save / save as / PDF / CSV) |
 | **Open local files** | launcher “Open local file…” (Files app, iCloud Drive, …); files are copied into the app's Documents folder, which is visible in *Files ▸ AllEditor* |
 
 The app opens on a **Home** tab (open local file, new document/slides/sheet, file list). Every file opens in its own
@@ -49,6 +50,7 @@ npm run ios:sync      # clones upstream @ pinned commit, builds renderers + runt
 `UPSTREAM_DIR=/path/to/genoffice` reuses an existing checkout.
 
 ## Known limitations
+- PDF export was verified only with Chromium standing in for the native renderer (`window.__aePdfHook`); the WKWebView renderer is untested.
 - Verified in desktop Chromium only (this was built on Linux with no Xcode); first on-device run is yours.
 - No system fonts on iOS: bundled fonts + web fonts only, CJK text in Slides uses heuristic metrics.
 - AI features need a provider configured in settings and network access; printing, spellcheck,

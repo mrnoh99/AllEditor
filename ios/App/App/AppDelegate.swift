@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import WebKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -124,10 +125,73 @@ public class AEFilesPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 }
 
+// MARK: - HTML -> PDF (offscreen WKWebView paginated with @media print rules)
+
+final class AEPageRenderer: UIPrintPageRenderer {
+    private let paper: CGRect
+    init(paper: CGRect) { self.paper = paper; super.init() }
+    override var paperRect: CGRect { paper }
+    override var printableRect: CGRect { paper }
+}
+
+@objc(AEPdfPlugin)
+public class AEPdfPlugin: CAPPlugin, CAPBridgedPlugin, WKNavigationDelegate {
+    public let identifier = "AEPdfPlugin"
+    public let jsName = "AEPdf"
+    public let pluginMethods: [CAPPluginMethod] = [CAPPluginMethod(name: "render", returnType: CAPPluginReturnPromise)]
+    private var jobs: [ObjectIdentifier: (call: CAPPluginCall, paper: CGRect)] = [:]
+
+    @objc func render(_ call: CAPPluginCall) {
+        guard let html = call.getString("html") else { call.reject("html missing"); return }
+        let w = CGFloat(call.getDouble("width") ?? 595.28), h = CGFloat(call.getDouble("height") ?? 841.89)
+        guard w > 10, h > 10, w < 6000, h < 6000 else { call.reject("invalid page size"); return }
+        DispatchQueue.main.async {
+            let wv = WKWebView(frame: CGRect(x: 0, y: 0, width: w, height: h))
+            wv.alpha = 0.01
+            wv.isUserInteractionEnabled = false
+            wv.navigationDelegate = self
+            self.bridge?.viewController?.view.insertSubview(wv, at: 0)
+            self.jobs[ObjectIdentifier(wv)] = (call, CGRect(x: 0, y: 0, width: w, height: h))
+            wv.loadHTMLString(html, baseURL: nil)
+        }
+    }
+
+    public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        // give images / layout a moment to settle before paginating
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.finish(webView) }
+    }
+
+    public func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { fail(webView, error) }
+    public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { fail(webView, error) }
+
+    private func fail(_ webView: WKWebView, _ error: Error) {
+        guard let job = jobs.removeValue(forKey: ObjectIdentifier(webView)) else { return }
+        webView.removeFromSuperview()
+        job.call.reject("PDF render failed", nil, error)
+    }
+
+    private func finish(_ webView: WKWebView) {
+        guard let job = jobs.removeValue(forKey: ObjectIdentifier(webView)) else { return }
+        let renderer = AEPageRenderer(paper: job.paper)
+        renderer.addPrintFormatter(webView.viewPrintFormatter(), startingAtPageAt: 0)
+        let pages = max(renderer.numberOfPages, 1)
+        renderer.prepare(forDrawingPages: NSRange(location: 0, length: pages))
+        let pdf = UIGraphicsPDFRenderer(bounds: job.paper).pdfData { ctx in
+            for i in 0..<pages {
+                ctx.beginPage()
+                renderer.drawPage(at: i, in: ctx.pdfContextBounds)
+            }
+        }
+        webView.removeFromSuperview()
+        job.call.resolve(["data": pdf.base64EncodedString()])
+    }
+}
+
 /// Main view controller: registers the file plugin and enables the edge-swipe back gesture.
 class AEViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(AEFilesPlugin())
+        bridge?.registerPluginInstance(AEPdfPlugin())
         webView?.allowsBackForwardNavigationGestures = true
     }
 }

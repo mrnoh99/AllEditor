@@ -20,3 +20,14 @@ export const Filesystem = {
   deleteFile: (o: { path: string; directory?: D }) => plugin.deleteFile({ path: o.path, dir: dir(o.directory) }),
   readdir: (o: { path: string; directory?: D }) => plugin.readdir({ path: o.path, dir: dir(o.directory) }),
 }
+
+// ---- AEPdf: HTML -> PDF through an offscreen WKWebView + UIPrintPageRenderer (AppDelegate.swift) ----
+interface AEPdf { render(o: { html: string; width: number; height: number }): Promise<{ data: string }> }
+const pdfPlugin = registerPlugin<AEPdf>('AEPdf')
+/** page size in points; returns the PDF bytes */
+export async function renderPdfNative(html: string, widthPt: number, heightPt: number): Promise<Uint8Array> {
+  const { data } = await pdfPlugin.render({ html, width: widthPt, height: heightPt })
+  const bin = atob(data); const u = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
+  return u
+}
