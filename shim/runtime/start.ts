@@ -4,6 +4,7 @@ import { registerShellIpc, syncAiFromNative } from './shell-ipc'
 import { applyPhoneLayer, isPhone } from './phone'
 import { installAiToggle } from './ai-toggle'
 import { installBundledFonts } from './fonts'
+import { installPdfPencil } from './pdf-pencil'
 
 export function start(app: string, register: (open: string | null) => void, preload: Array<[string, string]> = []) {
   applyPhoneLayer()
@@ -12,6 +13,7 @@ export function start(app: string, register: (open: string | null) => void, prel
   addHomeButton()
   installAiToggle()
   installBundledFonts()
+  if (app === 'pdf') installPdfPencil()
   ;(async () => {
     try { await hydrate() } catch (e) { console.warn('[hydrate]', e) }
     const base = (document.currentScript as HTMLScriptElement | null)?.src || location.href
