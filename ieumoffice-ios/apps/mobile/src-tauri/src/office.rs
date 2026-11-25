@@ -43,7 +43,17 @@ fn office_root() -> Option<PathBuf> {
 fn storage_root<R: Runtime>(app: &AppHandle<R>, dir: &str) -> PathBuf {
     let base = if cfg!(target_os = "ios") {
         let home = std::env::var("HOME").map(PathBuf::from).unwrap_or_else(|_| std::env::temp_dir());
-        if dir == "support" { home.join("Library/Application Support/AllEditorOffice") } else { home.join("Documents") }
+        let support = home.join("Library/Application Support/AllEditorOffice");
+        if dir == "support" {
+            support
+        } else {
+            // iCloud Drive › AllEditor when the Swift side found the iCloud container (AllEditorICloud.swift)
+            fs::read_to_string(support.join(".icloud-documents"))
+                .ok()
+                .map(|p| PathBuf::from(p.trim()))
+                .filter(|p| p.is_dir())
+                .unwrap_or_else(|| home.join("Documents"))
+        }
     } else {
         let data = app.path().app_data_dir().unwrap_or_else(|_| std::env::temp_dir().join("alleditor"));
         data.join(if dir == "support" { "office-support" } else { "office-documents" })

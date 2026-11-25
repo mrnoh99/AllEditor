@@ -185,4 +185,36 @@ tryPb('Delete :NSBonjourServices')
 pb('Add :NSBonjourServices array')
 for (const svc of ['_ipp._tcp', '_ipps._tcp', '_pdl-datastream._tcp']) pb(`Add :NSBonjourServices: string ${svc}`)
 
+// iCloud Drive › AllEditor: the app's public iCloud container holds the documents (plugin AllEditorICloud.swift).
+// Needs iCloud (iCloud Documents) enabled for the App ID; Xcode's automatic signing registers the container.
+const ICLOUD = `iCloud.${tauriConf.identifier}`
+tryPb('Delete :NSUbiquitousContainers')
+pb('Add :NSUbiquitousContainers dict')
+pb(`Add :NSUbiquitousContainers:${ICLOUD} dict`)
+pb(`Add :NSUbiquitousContainers:${ICLOUD}:NSUbiquitousContainerIsDocumentScopePublic bool true`)
+pb(`Add :NSUbiquitousContainers:${ICLOUD}:NSUbiquitousContainerName string AllEditor`)
+pb(`Add :NSUbiquitousContainers:${ICLOUD}:NSUbiquitousContainerSupportedFolderLevels string Any`)
+{
+  const entPath = join(dirname(plist), 'ieumoffice-mobile_iOS.entitlements')
+  writeFileSync(entPath, `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>com.apple.developer.icloud-container-identifiers</key>
+  <array>
+    <string>${ICLOUD}</string>
+  </array>
+  <key>com.apple.developer.icloud-services</key>
+  <array>
+    <string>CloudDocuments</string>
+  </array>
+  <key>com.apple.developer.ubiquity-container-identifiers</key>
+  <array>
+    <string>${ICLOUD}</string>
+  </array>
+</dict>
+</plist>
+`)
+}
+
 console.log(`AllEditor Xcode setup done: ${proj} (iPhone+iPad), wrapper ${original ? 'written' : 'kept'}, ${plist}`)

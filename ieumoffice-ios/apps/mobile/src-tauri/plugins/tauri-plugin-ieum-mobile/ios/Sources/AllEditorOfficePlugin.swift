@@ -40,6 +40,11 @@ final class AEPageRenderer: UIPrintPageRenderer {
 public final class AllEditorOfficePlugin: Plugin, WKNavigationDelegate {
     private var jobs: [ObjectIdentifier: (invoke: Invoke, paper: CGRect, view: WKWebView)] = [:]
 
+    // documents in iCloud Drive › AllEditor (AllEditorICloud.swift)
+    public override func load(webview: WKWebView) {
+        aeSetupICloudDocuments()
+    }
+
     // MARK: HTML -> PDF
 
     @objc public func renderPdf(_ invoke: Invoke) throws {
