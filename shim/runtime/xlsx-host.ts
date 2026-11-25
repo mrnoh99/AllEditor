@@ -1,7 +1,7 @@
 // Runs the upstream Rust xlsx engine (native/xlsx-wasm, wasm32-wasip1) inside the WebView.
 // The engine addresses files by path; this host mirrors those files between the app's
 // memfs and the engine's private in-memory WASI tree around every request.
-import { WASI, File as WFile, Directory as WDir, PreopenDirectory } from '@bjorn3/browser_wasi_shim'
+import { WASI, File as WFile, Directory as WDir, PreopenDirectory, OpenFile, ConsoleStdout } from '@bjorn3/browser_wasi_shim'
 import { debug } from '../../node_modules/@bjorn3/browser_wasi_shim/dist/debug.js'
 debug.enable(false)
 import fs from './fs'
@@ -15,7 +15,9 @@ function load() {
     const root = new Map<string, any>()
     const wasi = new WASI([], ['TMPDIR=/tmp'], [], )
     const pre = new PreopenDirectory('/', root)
-    ;(wasi as any).fds = [(wasi as any).fds[0], (wasi as any).fds[1], (wasi as any).fds[2], pre]
+    // stdin empty; stdout / stderr (engine diagnostics, panic messages) go to the console
+    ;(wasi as any).fds = [new OpenFile(new WFile([])), ConsoleStdout.lineBuffered((m: string) => console.log('[xlsx]', m)),
+      ConsoleStdout.lineBuffered((m: string) => console.warn('[xlsx]', m)), pre]
     const { instance } = await WebAssembly.instantiate(bytes, { wasi_snapshot_preview1: (wasi as any).wasiImport })
     ;(wasi as any).inst = instance
     const x: any = instance.exports
@@ -90,6 +92,7 @@ export function xlsxRequest(line: string): Promise<string | null> {
       if (n instanceof WFile) pullOut(root, parts.slice(0, -1), '/' + parts.slice(0, -1).join('/'))
       else if (n instanceof WDir) pullOut(root, parts, p)
     }
+    if ((globalThis as any).__aeIpcTrace) console.log('[xlsx req]', line.slice(0, 1500), '\n[xlsx resp]', (resp ?? '').slice(0, 600))
     return resp
   }
   const p = chain.then(run, run)

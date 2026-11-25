@@ -10,3 +10,4 @@ ieumoffice-ios/apps/mobile/dist/
 ieumoffice-ios/apps/hwp/public/studio/
 xcuserdata/
 *.xcuserstate
+.upstream-ieum/

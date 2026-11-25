@@ -30,6 +30,20 @@ Verified in Chromium with the mock (open docx/pptx/xlsx/pdf, Documents listing, 
 "Open in AllEditor" (office files, iWork, hwp/hwpx) added the same day — see README-IOS; upstream never wired iOS open-in
 (`enqueueIncomingUrl` had no caller). Languages: ko (default) + en only (user's decision). Open: iPhone memory with several office tabs.
 
+## 0c. 2026-11-25 — office engine = 이음오피스 (user: "엔진 update")
+`scripts/build-web.mjs` builds Docs/Slides/Sheets/PDF from `pblsketch/ieumoffice @ ad22c05` (clone in `.upstream-ieum/`), no longer
+GenOffice c57dc1a. What it took (all in the build, nothing edited in the upstream checkout):
+- xlsx engine → wasm: 이음오피스's request loop lives in the sidecar's `main.rs`; `patchSidecarMain` turns it into a module of
+  `native/xlsx-wasm` (buffer output, inline recalc), `wasiEngineCopy` adds the WASI-only branches GenOffice later added upstream
+  (no `std::env::temp_dir`, worksheet indexing inline). Every edit throws if upstream changed the text.
+- shims: `os.constants/setPriority`, `crypto.createPublicKey` (throws), `fs/promises.link…`, `?modulePath` workers (stub path),
+  Node timer `.unref()` (boot.ts), shell-level IPC answered as off/none (`shell-ipc.ts`: editor choice, split role, MCP, skills,
+  Drive — we use iCloud via Files, not Drive —, project folders, connectors).
+- UI font Pretendard from `packages/ui/ui-fonts` (CSS `genoffice-app://ui-fonts/` → `../../ui-fonts/`).
+Verified in Chromium + mock: open docx/pptx/xlsx/pdf without errors, Sheets formula + Save writes the file, print path,
+Open-in import, send to Pages/Keynote. **Open: the AI panel's connect cards (Claude subscription / ChatGPT / free AI) are the
+desktop flow; on iOS only API keys (and maybe Gemini key) can work — needs an iOS-specific connect screen.**
+
 ## 1. Goal
 An iOS/iPadOS app that runs the open-source office suite **이음오피스 (IeumOffice)** — which is itself built on
 **GenOffice** — "the same way" as the Mac/desktop app: Docs, Slides, Sheets, PDF (+PDF tools), HWP, local file open,

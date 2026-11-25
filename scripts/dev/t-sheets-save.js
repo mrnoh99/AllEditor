@@ -1,0 +1,16 @@
+const { chromium } = require('playwright')
+;(async () => { const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1194, height: 834 } })
+  const errs = []; let saving = false; p.on('console', (m) => { if (saving) console.log('  >', m.type(), m.text().slice(0, 2500)) }); p.on('pageerror', (e) => errs.push(e.message.slice(0, 150))); p.on('console', (m) => { if (m.type() === 'error' && !/font|ERR_FAILED/.test(m.text())) errs.push(m.text().slice(0, 150)) })
+  await p.goto('http://localhost:8766/sheets/index.html?open=/Documents/calc.xlsx'); await p.waitForTimeout(8000)
+  // name box -> A4, type a formula
+  await p.screenshot({ path: process.argv[2] + '/sheets-before.png' })
+  await p.mouse.click(440, 237); await p.waitForTimeout(300)
+  await p.keyboard.type('=SUM(A1:A3)'); await p.keyboard.press('Enter'); await p.waitForTimeout(1500)
+  console.log('dirty?', await p.evaluate(() => document.title))
+  saving = true; await p.evaluate(() => { window.__aeIpcTrace = true }); await p.click('#ae-file'); await p.waitForTimeout(300); await p.locator('button', { hasText: /^저장$/ }).click(); await p.waitForTimeout(5000)
+  await p.screenshot({ path: process.argv[2] + '/sheets-edit.png' })
+  const b64 = await p.evaluate(() => { const u = window.__aeReadFile('/Documents/calc.xlsx'); let s = ''; for (const c of u) s += String.fromCharCode(c); return btoa(s) }) // memfs-dump
+  require('fs').writeFileSync(process.argv[2] + '/memfs-calc.xlsx', Buffer.from(b64, 'base64'))
+  console.log('status:', await p.evaluate(() => document.body.innerText.split('\n').filter((l) => /저장|오류|실패|save/i.test(l)).slice(0, 8)))
+  console.log('errors', errs)
+  await b.close() })()

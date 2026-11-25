@@ -1,0 +1,1 @@
+import{m as e}from"./index-C83BaM5_.js";const t={"sheets-note-ui":{note:{placeholder:"Nhập tại đây"},rightClick:{addNote:"Thêm ghi chú",deleteNote:"Xóa ghi chú",toggleNote:"Hiện/Ẩn ghi chú"}}},h=e(t);export{h as default};

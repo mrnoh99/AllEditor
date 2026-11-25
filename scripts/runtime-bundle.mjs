@@ -65,6 +65,10 @@ export async function bundleRuntime({ upstream, entry, outfile, appendExports = 
             const name = a.path.split('/').pop()
             return { contents: `import { putAsset } from ${JSON.stringify(rt('assets.ts'))}; export default putAsset(${JSON.stringify('/app/assets/' + name)}, ${JSON.stringify(fsn.readFileSync(a.path).toString('base64'))})`, loader: 'js', resolveDir: dirname(a.path) }
           })
+          // electron-vite `?modulePath` (a worker_threads script path): no Node workers in a WebView; callers fall
+          // back or fail with a clear error when they try to start the worker
+          b.onResolve({ filter: /\?modulePath$/ }, (a) => ({ path: a.path, namespace: 'modulepath' }))
+          b.onLoad({ filter: /.*/, namespace: 'modulepath' }, (a) => ({ contents: 'export default ' + JSON.stringify('/app/workers/' + a.path.replace(/\?modulePath$/, '').split('/').pop() + '.js'), loader: 'js' }))
           b.onResolve({ filter: /\?raw$/ }, (a) => ({ path: resolve(a.resolveDir, a.path.replace(/\?raw$/, '')), namespace: 'raw' }))
           b.onLoad({ filter: /.*/, namespace: 'raw' }, async (a) => ({ contents: 'export default ' + JSON.stringify((await import('node:fs')).readFileSync(a.path, 'utf8')), loader: 'js' }))
           b.onResolve({ filter: /^undici$/ }, () => ({ path: rt('undici.ts') }))

@@ -100,6 +100,7 @@ export const ipcMain: any = {
 export const ipcRenderer: any = {
   async invoke(ch: string, ...a: any[]) {
     await runtimeReady
+    if ((globalThis as any).__aeIpcTrace) console.log('[ipc>]', ch, JSON.stringify(a).slice(0, 300))
     const h = handlers.get(ch)
     if (!h) { console.warn('[ipc] no handler for', ch); return undefined }
     try { return await h({ sender: wcProxy, senderFrame: inert('frame') }, ...a) }

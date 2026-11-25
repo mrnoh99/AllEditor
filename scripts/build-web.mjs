@@ -1,5 +1,6 @@
-// Builds the upstream GenOffice renderers as plain web apps and assembles www/ for Capacitor.
-//   UPSTREAM_DIR=/path/to/genoffice node scripts/build-web.mjs   (skip cloning)
+// Builds the upstream office renderers (이음오피스 / IeumOffice, itself based on GenOffice) as plain web apps and
+// assembles www/ (the office suite of the iOS apps).
+//   UPSTREAM_DIR=/path/to/ieumoffice node scripts/build-web.mjs   (skip cloning)
 import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -8,17 +9,84 @@ import { build } from 'esbuild'
 import { bundleRuntime } from './runtime-bundle.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const PINNED = 'c57dc1a2a20a2af38cdaeedb536d86960d7eb382' // genspark-ai/genoffice
-const upstream = process.env.UPSTREAM_DIR ?? join(root, '.upstream')
+const REPO = 'https://github.com/pblsketch/ieumoffice' // 이음오피스 (박준일), Apache-2.0 — same pin as ieumoffice-ios/
+const PINNED = 'ad22c056a9d217f11079a4dc30df12ccf233f8d3'
+const upstream = process.env.UPSTREAM_DIR ?? join(root, '.upstream-ieum')
 const APPS = (process.env.APPS ?? 'docs,slides,sheets,pdf').split(',') // renderer apps to bundle
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: 'inherit' })
 
 if (!existsSync(join(upstream, 'package.json'))) {
-  run('git', ['clone', 'https://github.com/genspark-ai/genoffice', upstream], root)
+  run('git', ['clone', REPO, upstream], root)
   run('git', ['checkout', PINNED], upstream)
 }
 if (!existsSync(join(upstream, 'node_modules'))) {
   run('npm', ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], upstream)
+}
+
+/**
+ * A copy of the 이음오피스 xlsx engine with the WASI-only branches GenOffice later added upstream (its engine runs
+ * in a browser too): no `std::env::temp_dir` (panics on WASI), worksheet indexing inline instead of on a thread.
+ * Native builds of the same source behave exactly as before; every edit must apply.
+ */
+function wasiEngineCopy(crate) {
+  const src = join(upstream, 'apps/sheets/native/xlsx-engine'), dst = join(crate, 'xlsx-engine')
+  rmSync(dst, { recursive: true, force: true })
+  cpSync(src, dst, { recursive: true, filter: (p) => !p.includes('/target') })
+  const lib = join(dst, 'src/lib.rs')
+  let code = readFileSync(lib, 'utf8')
+  const edits = [
+    ['let path = std::env::temp_dir().join(format!("genspark-ai-excel-{session_id}"));',
+     'let path = wasi_safe_temp_dir().join(format!("genspark-ai-excel-{session_id}"));'],
+    ['    fn ensure_parser(&mut self, sheet_index: usize) -> Result<(), SidecarError> {\n        let runtime = &mut self.runtimes[sheet_index];\n        if runtime.handle.is_some() {',
+     '    fn ensure_parser(&mut self, sheet_index: usize) -> Result<(), SidecarError> {\n        let runtime = &mut self.runtimes[sheet_index];\n        // WASI: indexed inline once; complete (or failed) means done\n        let indexed_inline = cfg!(target_os = "wasi")\n            && runtime.state.0.lock().map(|i| i.complete || i.error.is_some()).unwrap_or(false);\n        if runtime.handle.is_some() || indexed_inline {'],
+    ['        let handle = thread::Builder::new()\n            .name(format!("xlsx-index-{sheet_index}"))\n            .spawn(move || {',
+     '        let index_job = move || {'],
+    ['                    condition.notify_all();\n                }\n            })?;\n        runtime.handle = Some(handle);',
+     '                    condition.notify_all();\n                }\n            };\n        if cfg!(target_os = "wasi") {\n            index_job(); // wasm32-wasip1 has no threads\n        } else {\n            runtime.handle = Some(\n                thread::Builder::new().name(format!("xlsx-index-{sheet_index}")).spawn(index_job)?,\n            );\n        }'],
+  ]
+  for (const [from, to] of edits) {
+    if (!code.includes(from)) throw new Error('xlsx engine lib.rs changed upstream; cannot apply: ' + from.slice(0, 70))
+    code = code.replace(from, to)
+  }
+  code += `
+/// \`std::env::temp_dir\` panics on WASI: there the host maps a directory named in \`TMPDIR\` (\`/tmp\` when unset).
+fn wasi_safe_temp_dir() -> PathBuf {
+    if cfg!(target_os = "wasi") {
+        std::env::var_os("TMPDIR").map_or_else(|| PathBuf::from("/tmp"), PathBuf::from)
+    } else {
+        std::env::temp_dir()
+    }
+}
+`
+  writeFileSync(lib, code)
+  return dst
+}
+
+/** The sidecar's main.rs as a module of the wasm wrapper (native/xlsx-wasm/src/lib.rs); every edit must apply. */
+function patchSidecarMain(src) {
+  const edits = [
+    // responses go to an in-memory buffer the wrapper drains after each request
+    ['type SharedOutput = Arc<Mutex<BufWriter<io::Stdout>>>;', 'pub(crate) type SharedOutput = Arc<Mutex<Vec<u8>>>;'],
+    ['fn write_response(', 'pub(crate) fn write_response('],
+    // wasm32-wasip1 has no threads: run the recalc worker inline (its reply lands in the buffer)
+    ['        let spawned = thread::Builder::new()\n            .name("xlsx-recalc".into())\n            .spawn(move || {',
+     '        let spawned: Result<(), std::io::Error> = Ok((move || {'],
+    ['                let _ = write_response(&output, &response);\n            });\n        match spawned {',
+     '                let _ = write_response(&output, &response);\n            })());\n        match spawned {'],
+    ['fn main() {', 'fn _stdio_main() {'],
+    ['#[cfg(test)]\nfn handle_line(', 'pub(crate) fn handle_line('],
+    ['struct RecalcWorker {', 'pub(crate) struct RecalcWorker {'],
+    ['\nstruct Response {', '\npub(crate) struct Response {'],
+    ['struct CancelledRequests(', 'pub(crate) struct CancelledRequests('],
+    ['struct InFlightRequest(', 'pub(crate) struct InFlightRequest('],
+  ]
+  for (const [from, to] of edits) {
+    if (!src.includes(from)) throw new Error('xlsx sidecar main.rs changed upstream; cannot apply: ' + from.slice(0, 60))
+    src = src.replace(from, to)
+  }
+  // the stdio entry point still writes to stdout; keep it compiling against the new buffer type
+  src = src.replace('let output: SharedOutput = Arc::new(Mutex::new(BufWriter::new(io::stdout())));', 'let output: SharedOutput = Arc::new(Mutex::new(Vec::new()));')
+  return src.replace(/\n    fn new\(\) -> Self \{/g, '\n    pub(crate) fn new() -> Self {')
 }
 
 // 0. xlsx engine -> wasm (only needed for sheets)
@@ -27,8 +95,9 @@ if (APPS.includes('sheets') && !existsSync(join(root, 'dist/xlsx.wasm'))) {
   const crate = join(root, '.build/xlsx-wasm')
   mkdirSync(join(crate, 'src'), { recursive: true })
   cpSync(join(root, 'native/xlsx-wasm/src/lib.rs'), join(crate, 'src/lib.rs'))
+  writeFileSync(join(crate, 'src/sidecar_main.rs'), patchSidecarMain(readFileSync(join(upstream, 'apps/sheets/native/xlsx-engine/src/main.rs'), 'utf8')))
   writeFileSync(join(crate, 'Cargo.toml'), readFileSync(join(root, 'native/xlsx-wasm/Cargo.toml.tmpl'), 'utf8')
-    .replace('@ENGINE@', join(upstream, 'apps/sheets/native/xlsx-engine')))
+    .replace('@ENGINE@', wasiEngineCopy(crate)))
   run('rustup', ['target', 'add', 'wasm32-wasip1'], crate)
   run('cargo', ['build', '--release', '--target', 'wasm32-wasip1'], crate)
   cpSync(join(crate, 'target/wasm32-wasip1/release/xlsx_wasm.wasm'), join(root, 'dist/xlsx.wasm'))
@@ -87,13 +156,17 @@ start('${app}', (open) => { ${rt.code} }, ${JSON.stringify(rt.preload ?? [])})
 const BRAND = [
   [/\b(ribbonAiAssistant|aiPanelTitle):"Genspark"/g, '$1:"AI"'],
   [/children:"Genspark AI"/g, 'children:"AI"'],
+  // UI font served by the desktop shell's genoffice-app:// scheme -> bundled copy (www/ui-fonts, see below)
+  [/genoffice-app:\/\/ui-fonts\//g, '../../ui-fonts/'],
   // panel header: [icon, "Genspark"] (Sheets, PDF)
   [/(className:"ai-panel-title",children:\[[^\]]{0,60}?),"Genspark"\]/g, '$1,"AI"]'],
 ]
+const uiFonts = join(upstream, 'packages/ui/ui-fonts')
+if (existsSync(uiFonts)) cpSync(uiFonts, join(www, 'ui-fonts'), { recursive: true, filter: (p) => !/README|\.md$/i.test(p) || p === uiFonts })
 for (const app of APPS) {
   const dir = join(www, app, 'assets')
   if (!existsSync(dir)) continue
-  for (const f of readdirSync(dir).filter((n) => n.endsWith('.js'))) {
+  for (const f of readdirSync(dir).filter((n) => n.endsWith('.js') || n.endsWith('.css'))) {
     const p = join(dir, f); const src = readFileSync(p, 'utf8')
     let out = src
     for (const [re, to] of BRAND) out = out.replace(re, to)

@@ -9,6 +9,9 @@ crate-type = ["cdylib"]
 
 [dependencies]
 xlsx-sidecar = { path = "@ENGINE@" }
+# used by the engine's request loop (sidecar_main.rs)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [profile.release]
 opt-level = "s"

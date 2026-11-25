@@ -7,6 +7,9 @@ which is itself based on GenOffice (https://github.com/genspark-ai/genoffice) by
 licensed under the Apache License 2.0. The notices of both projects are kept below and in ieumoffice-ios/NOTICE,
 and are extended here for iOS / iPad.
 
+The office suite (Word / PowerPoint / Excel / PDF editors) is built from 이음오피스 @ ad22c056 (scripts/build-web.mjs).
+Bundled UI font: Pretendard (SIL Open Font License 1.1, ui-fonts/Pretendard-OFL.txt in the app's office folder).
+
 GenOffice
 Copyright 2026 Mainfunc, Inc.
 
