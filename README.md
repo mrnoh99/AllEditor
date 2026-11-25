@@ -24,6 +24,12 @@ choose an iPhone/iPad or simulator, press Run. The built web app is committed in
 
 Tap the round ⌂ button (bottom-left) inside any editor to return to the launcher; edge-swipe also goes back.
 
+## iPad vs iPhone
+- **iPad** (shorter screen side ≥ 600 pt): the unchanged Mac UI.
+- **iPhone**: same apps with a phone layer (`shim/runtime/phone.ts`): the AI panel starts closed and opens
+  as a full-screen sheet, the ribbon tab row scrolls horizontally instead of wrapping, and the slide/PDF
+  thumbnail rails are narrowed.
+
 ## How it works
 The upstream apps are Electron apps. Instead of rewriting them, their **real preload and main-process
 code is bundled into the page** (`shim/runtime/`): `electron` is replaced by an in-page IPC bus,

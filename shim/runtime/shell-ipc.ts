@@ -1,6 +1,7 @@
 // Handlers the Electron *shell* app normally provides (settings, theme, locale …).
 import { ipcMain } from './electron'
 import { DEFAULT_AI_PANEL_PREFS } from '@genoffice/ui'
+import { isPhone } from './phone'
 
 const KEY = 'alleditor.settings'
 const load = (): Record<string, any> => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') } catch { return {} } }
@@ -22,8 +23,9 @@ export function registerShellIpc() {
   h('app:get-auto-save-default', () => get('autoSave', { on: true, updatedAt: 0 }))
   h('app:get-author-name', () => get('authorName', ''))
   h('app:get-csv-import-limit', () => 200)
-  h('app:get-ai-panel-prefs', () => ({ ...DEFAULT_AI_PANEL_PREFS, ...get('aiPanelPrefs', {}) }))
-  h('app:set-ai-panel-prefs', (p: any) => { const n = { ...get('aiPanelPrefs', {}), ...p }; set('aiPanelPrefs', n); return { ...DEFAULT_AI_PANEL_PREFS, ...n } })
+  const phonePrefs = () => (isPhone() ? { openInNewDocs: false } : {})
+  h('app:get-ai-panel-prefs', () => ({ ...DEFAULT_AI_PANEL_PREFS, ...get('aiPanelPrefs', {}), ...phonePrefs() }))
+  h('app:set-ai-panel-prefs', (p: any) => { const n = { ...get('aiPanelPrefs', {}), ...p }; set('aiPanelPrefs', n); return { ...DEFAULT_AI_PANEL_PREFS, ...n, ...phonePrefs() } })
   h('kb:list', () => [])
   h('ai:gsk-status', () => ({ available: false }))
 }
