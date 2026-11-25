@@ -10,7 +10,7 @@ on:
     workflows: ['ieumoffice-ios (Tauri) build']
     types: [completed]
 concurrency:
-  group: xcode-open
+  group: xcode-open-${{ github.event_name == 'workflow_run' && 'main' || github.ref }}
   cancel-in-progress: true
 jobs:
   build:
