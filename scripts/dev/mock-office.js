@@ -27,6 +27,8 @@ http.createServer((req, res) => {
         else if (plugin === 'AEApp' && method === 'version') out = { version: '1.0.0', build: 'mock' }
         else if (plugin === 'AEPdf') out = { data: Buffer.from('%PDF-1.4 mock').toString('base64') }
         else if (plugin === 'AEPrint') out = { via: 'mock', completed: true }
+        // stand-in for the picker: "picks" a file from outside the AllEditor folder (env AE_MOCK_PICK=<path>), copied in
+        else if (plugin === 'AEPick' && method === 'open') { const src = process.env.AE_MOCK_PICK; if (!src) out = { canceled: true }; else { const name = require('path').basename(src); require('fs').copyFileSync(src, require('path').join(DOCS, name)); out = { name, copied: true } } }
         else if (plugin === 'AEShare') { log.push('share ' + a.name + ' ' + a.mime + ' ' + Buffer.from(a.data, 'base64').length + 'B') }
         res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(out))
       } catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: String(e.message) })) }

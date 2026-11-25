@@ -2,6 +2,7 @@ import Foundation
 import Network
 import Tauri
 import UIKit
+import UniformTypeIdentifiers
 import WebKit
 
 // AllEditor office suite — native side of `AEPdf` / `AEPrint` (ported from the Capacitor app, ios/App/App/AppDelegate.swift).
@@ -91,6 +92,52 @@ public final class AllEditorOfficePlugin: Plugin, WKNavigationDelegate {
         }
         webView.removeFromSuperview()
         job.invoke.resolve(["data": pdf.base64EncodedString()])
+    }
+
+    // MARK: 파일 열기 — the system picker, opening at the AllEditor folder (iCloud Drive › AllEditor)
+
+    private var openPicker: AEPickerDelegate?
+
+    /// Picks a document. One inside the AllEditor folder is answered by name; one elsewhere (another iCloud folder,
+    /// On My iPad, a provider app) is copied into the AllEditor folder first and answered by the copy's name.
+    @objc public func pickDocument(_ invoke: Invoke) throws {
+        DispatchQueue.main.async {
+            guard let presenter = self.manager.viewController else { invoke.reject("missing presenter"); return }
+            var top: UIViewController = presenter
+            while let next = top.presentedViewController { top = next }
+            let docs = aeDocumentsDir()
+            let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.item], asCopy: false)
+            picker.allowsMultipleSelection = false
+            picker.directoryURL = docs
+            let delegate = AEPickerDelegate { url in
+                self.openPicker = nil
+                guard let url else { invoke.resolve(["canceled": true]); return }
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let fm = FileManager.default
+                    let inside = url.standardizedFileURL.deletingLastPathComponent().resolvingSymlinksInPath().path
+                        == docs.standardizedFileURL.resolvingSymlinksInPath().path
+                    if inside { invoke.resolve(["name": url.lastPathComponent, "copied": false]); return }
+                    let scoped = url.startAccessingSecurityScopedResource()
+                    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                    let stem = url.deletingPathExtension().lastPathComponent, ext = url.pathExtension
+                    var target = docs.appendingPathComponent(url.lastPathComponent)
+                    var n = 1
+                    while fm.fileExists(atPath: target.path) {
+                        target = docs.appendingPathComponent(ext.isEmpty ? "\(stem) \(n)" : "\(stem) \(n).\(ext)")
+                        n += 1
+                    }
+                    var failure: Error?
+                    NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: nil) { readable in
+                        do { try fm.copyItem(at: readable, to: target) } catch { failure = error }
+                    }
+                    if let failure { invoke.reject("could not copy the file: \(failure.localizedDescription)"); return }
+                    invoke.resolve(["name": target.lastPathComponent, "copied": true])
+                }
+            }
+            self.openPicker = delegate
+            picker.delegate = delegate
+            top.present(picker, animated: true)
+        }
     }
 
     // MARK: iOS print dialog

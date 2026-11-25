@@ -63,3 +63,14 @@ func aeSetupICloudDocuments() {
         try? cloudDocs.path.write(to: marker, atomically: true, encoding: .utf8)
     }
 }
+
+/// where the documents live now: iCloud Drive › AllEditor once set up, else On My iPad › AllEditor
+func aeDocumentsDir() -> URL {
+    let marker = aeSupportDir().appendingPathComponent(aeICloudMarkerName)
+    if let p = try? String(contentsOf: marker, encoding: .utf8) {
+        let url = URL(fileURLWithPath: p.trimmingCharacters(in: .whitespacesAndNewlines), isDirectory: true)
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue { return url }
+    }
+    return FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+}

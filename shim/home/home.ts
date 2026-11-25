@@ -4,7 +4,7 @@ import { AI_PROVIDERS, defaultAiSettings, sanitizeAiSettings } from '@genoffice/
 import { LANGS, tr } from './i18n'
 import { convertIwork, IWORK_EXT } from '../iwork/convert'
 import { getPrinters, setPrinters, sendToPrinter, testPdf, type PrinterCfg } from '../runtime/print'
-import { nativeShare, nativeAi, isTauriOffice, nativeAppVersion, nativeRename, type AiSnapshot } from '../runtime/native-files'
+import { nativeShare, nativeAi, isTauriOffice, nativeAppVersion, nativeRename, nativePickDocument, Filesystem, Directory, type AiSnapshot } from '../runtime/native-files'
 import { openExternalUrl } from '../runtime/electron'
 
 const APP_BY_EXT: Record<string, string> = {
@@ -258,6 +258,30 @@ const ago = (ms: number) => {
   const same = d.toDateString() === now.toDateString()
   return same ? d.toLocaleTimeString(lang() === 'ko' ? 'ko-KR' : 'en-US', { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString(lang() === 'ko' ? 'ko-KR' : 'en-US')
 }
+/** 파일 열기: in the app, the system picker opens at the AllEditor folder (iCloud Drive › AllEditor); a file from
+ * elsewhere is copied into it. In a browser, the page's own file input. */
+async function openPicked() {
+  if (!isTauriOffice()) { $<HTMLInputElement>('picker').click(); return }
+  try {
+    const r = await nativePickDocument()
+    if (r.canceled || !r.name) return
+    const path = `${DOCS_ROOT}/${r.name}`
+    if (!appFor(r.name)) { alert(`${t('unsupported')}: ${r.name}`); return }
+    if (!fs.existsSync(path)) {
+      // this page's file list was loaded at start: bring the picked (or copied) file in
+      const { data } = await Filesystem.readFile({ path: r.name, directory: Directory.Documents })
+      const bin = atob(data as string); const u = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
+      fs.writeFileSync(path, u)
+    }
+    void openPath(path)
+    if (tabs.find((x) => x.id === active)?.kind === 'home') renderHome()
+  } catch (e: any) {
+    // an older app build without the picker: fall back to the page's file input
+    if (/unknown plugin|not available/i.test(String(e?.message ?? e))) $<HTMLInputElement>('picker').click()
+    else alert((lang() === 'ko' ? '파일을 열지 못했습니다: ' : 'Could not open the file: ') + (e?.message ?? e))
+  }
+}
 function renderHome() {
   const ko = lang() === 'ko'
   const root = $('homePane'); root.textContent = ''
@@ -284,7 +308,7 @@ function renderHome() {
   ic.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>'
   const txt = el('span', 'oc-text'); txt.append(el('span', 'oc-title', ko ? '파일 열기' : 'Open a file'), el('span', 'oc-sub', ko ? '한글 · Word · PowerPoint · Excel · PDF · Pages · Keynote · Numbers' : 'Hangul · Word · PowerPoint · Excel · PDF · Pages · Keynote · Numbers'))
   open.append(ic, txt, el('span', 'oc-chev', '›'))
-  open.onclick = () => $<HTMLInputElement>('picker').click()
+  open.onclick = () => void openPicked()
   wrap.append(open)
 
   wrap.append(el('h2', '', ko ? '최근 문서' : 'Recent documents'))

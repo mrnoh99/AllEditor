@@ -78,6 +78,11 @@ interface AEShare { share(o: { name: string; mime: string; data: string }): Prom
 const sharePlugin = bridge<AEShare>('AEShare')
 export const nativeShare = (name: string, mime: string, bytes: Uint8Array) => sharePlugin.share({ name, mime, data: toB64(bytes) })
 
+// ---- AEPick.open: 파일 열기 with the system picker, opening at the AllEditor folder (iCloud Drive › AllEditor) ----
+interface AEPick { open(o: Record<string, never>): Promise<{ canceled?: boolean; name?: string; copied?: boolean }> }
+const pickPlugin = bridge<AEPick>('AEPick')
+export const nativePickDocument = () => pickPlugin.open({})
+
 // ---- AEApp.openUrl: open a link in Safari (key pages of the AI providers, help links) ----
 interface AEApp { openUrl(o: { url: string }): Promise<unknown> }
 const appPlugin = bridge<AEApp>('AEApp')
