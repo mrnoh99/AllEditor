@@ -168,8 +168,16 @@ async function sendDoc(x: Tab) {
 
 // ---- files ----
 // credit line (same text in every language, user-mandated)
-export const CREDIT = 'AllEditor (iOS / iPadOS) — Developed by JaiSung NOH MD, 2026. This app is built on the open source of 이음오피스 (IeumOffice) by 박준일 (Jun-il Park), which is itself based on GenOffice by Genspark AI / Mainfunc, Inc. (Apache License 2.0)'
-const credit = () => CREDIT
+const CREDIT_LINE1 = 'AllEditor (iOS / iPadOS) — Developed by JaiSung NOH MD 2026'
+export const CREDIT = CREDIT_LINE1 + '\nThis app is built on the open source of 이음오피스 (IeumOffice) by 박준일 (Jun-il Park), which is itself based on GenOffice by Genspark AI / Mainfunc, Inc. (Apache License 2.0)'
+let creditVersion = ''
+const credit = () => creditVersion ? CREDIT.replace(CREDIT_LINE1, `${CREDIT_LINE1}, ${creditVersion}`) : CREDIT
+/** credit paragraph; the version is filled in once the native side answers */
+const creditEl = () => {
+  const p = el('p', 'credit', credit())
+  if (!creditVersion && isTauriOffice()) void nativeAppVersion().then((v) => { creditVersion = `Version ${v.version}, Build ${v.build}`; p.textContent = credit() }, () => {})
+  return p
+}
 const busy = new Set<string>()
 async function openPath(path: string) {
   const name = path.split('/').pop()!, app = appFor(name)
@@ -230,7 +238,7 @@ function renderHome() {
   try { names = fs.readdirSync(DOCS_ROOT).map(String).filter((n: string) => !n.startsWith('.') && appFor(n)) } catch {}
   const rows = names.map((n) => { const st = fs.statSync(`${DOCS_ROOT}/${n}`); return { n, size: st.size as number, m: Number(st.mtimeMs ?? 0) } }).sort((a, b) => b.m - a.m)
   if (!rows.length) list.append(el('p', 'empty', t('empty')))
-  wrap.append(el('p', 'credit', credit()))
+  wrap.append(creditEl())
   for (const r of rows) {
     const row = el('div', 'row'); const b = el('button', 'file')
     const tag = el('span', 'tag ' + appFor(r.n), tagLabel(r.n)); const nm = el('span', 'nm', r.n); const sz = el('span', 'sz', fmt(r.size))
@@ -303,7 +311,7 @@ function renderSettings() {
   wrap.append(el('p', 'hint', t('printerHint')))
 
   const ver = el('p', 'hint ver')
-  wrap.append(el('h2', '', t('about')), ver, el('p', 'hint', t('aboutText')), el('p', 'credit', credit()))
+  wrap.append(el('h2', '', t('about')), ver, el('p', 'hint', t('aboutText')), creditEl())
   if (isTauriOffice()) void nativeAppVersion().then((v) => { ver.textContent = lang() === 'ko' ? `AllEditor 버전 ${v.version} (빌드 ${v.build})` : `AllEditor version ${v.version} (build ${v.build})` }, () => {})
 }
 

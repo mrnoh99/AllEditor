@@ -273,12 +273,12 @@ export function OfficeOverlay() {
 }
 
 /** Credit line (user-mandated, small text, Korean first). Apache-2.0 attribution of 이음오피스 and GenOffice. */
+export const CREDIT_LINE1 = 'AllEditor (iOS / iPadOS) — Developed by JaiSung NOH MD 2026'
 export const CREDIT_TEXT =
-  'AllEditor (iOS / iPadOS) — Developed by JaiSung NOH MD, 2026. This app is built on the open source of 이음오피스 (IeumOffice) by 박준일 (Jun-il Park), which is itself based on GenOffice by Genspark AI / Mainfunc, Inc. (Apache License 2.0)'
+  'This app is built on the open source of 이음오피스 (IeumOffice) by 박준일 (Jun-il Park), which is itself based on GenOffice by Genspark AI / Mainfunc, Inc. (Apache License 2.0)'
 
-/** "버전 1.0.0 (빌드 123)" from the native side (version: tauri.conf.json, build: CI commit count) */
+/** "Version 1.0.0, Build 123" from the native side (version: tauri.conf.json, build: CI commit count) */
 export function useAppVersion(): string | null {
-  const { lang } = useMobileLocale()
   const [v, setV] = useState<{ version: string; build: string } | null>(null)
   useEffect(() => {
     const t = tauri()
@@ -289,7 +289,7 @@ export function useAppVersion(): string | null {
   const env = (import.meta as { env?: Record<string, string | undefined> }).env ?? {}
   const shown = v ?? (env.VITE_AE_VERSION ? { version: env.VITE_AE_VERSION, build: env.VITE_AE_BUILD ?? 'dev' } : null)
   if (!shown) return null
-  return lang === 'ko' ? `버전 ${shown.version} (빌드 ${shown.build})` : `Version ${shown.version} (build ${shown.build})`
+  return `Version ${shown.version}, Build ${shown.build}`
 }
 
 export function CreditFooter() {
@@ -297,10 +297,10 @@ export function CreditFooter() {
   return (
     <footer
       data-testid="home-credit"
-      style={{ margin: '28px 4px 12px', fontSize: 11, lineHeight: 1.5, opacity: 0.6, textAlign: 'center' }}
+      style={{ margin: '28px 4px 12px', fontSize: 11, lineHeight: 1.5, opacity: 0.6, textAlign: 'center', whiteSpace: 'pre-line' }}
     >
+      <div data-testid="home-version">{version ? `${CREDIT_LINE1}, ${version}` : CREDIT_LINE1}</div>
       {CREDIT_TEXT}
-      {version && <div data-testid="home-version">{version}</div>}
     </footer>
   )
 }
