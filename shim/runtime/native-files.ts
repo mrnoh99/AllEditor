@@ -84,3 +84,9 @@ export const nativeShare = (name: string, mime: string, bytes: Uint8Array) => sh
 interface AEApp { openUrl(o: { url: string }): Promise<unknown> }
 const appPlugin = bridge<AEApp>('AEApp')
 export const nativeOpenUrl = (url: string) => appPlugin.openUrl({ url })
+
+// ---- AEAi: the app's one AI setting (이음오피스 store in Rust, keys sealed); see src-tauri/src/office.rs ----
+export interface AiSnapshot { selectedProvider: string; modelByProvider: Record<string, string>; configuredProviders: Record<string, { hasKey: boolean; models: string[] }> }
+interface AEAi { get(): Promise<AiSnapshot>; set(o: { provider: string; apiKey?: string; model?: string }): Promise<AiSnapshot>; export(): Promise<{ provider: string; providers: Record<string, { apiKey: string; model: string }> }> }
+const aiPlugin = bridge<AEAi>('AEAi')
+export const nativeAi = { get: () => aiPlugin.get(), set: (o: { provider: string; apiKey?: string; model?: string }) => aiPlugin.set(o), export: () => aiPlugin.export() }

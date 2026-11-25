@@ -215,6 +215,7 @@ fn native_call<R: Runtime>(app: &AppHandle<R>, plugin: &str, method: &str, args:
             tauri_plugin_ieum_mobile::share_file_base64(app, name, mime, data)?;
             Ok(json!({}))
         }
+        "AEAi" => ai_call(app, method, &args),
         "AEApp" if method == "openUrl" => {
             let url = args.get("url").and_then(Value::as_str).ok_or("url missing")?;
             if !(url.starts_with("https://") || url.starts_with("http://") || url.starts_with("mailto:")) {
@@ -224,6 +225,76 @@ fn native_call<R: Runtime>(app: &AppHandle<R>, plugin: &str, method: &str, args:
         }
         "AEApp" if method == "ping" => Ok(json!({ "native": "tauri", "platform": std::env::consts::OS })),
         _ => Err(format!("unknown plugin {plugin}")),
+    }
+}
+
+// ---- one AI setting for the whole app --------------------------------------------------------------------------
+// The 이음오피스 AI store (keys sealed in the vault, `crate::ai::settings`) is the only place AI settings live. The
+// office suite reads it through these calls: `get` (no keys) for its AI 연결 page, `set` to change it, and `export`
+// (with keys) to build the office editors' in-memory `ai-settings.json` — the office editors call the AI providers
+// from the WebView, so they need the key; it is never written to disk in plain text.
+
+/// providers both sides support (the office suite's ids are the same)
+const AI_KEY_PROVIDERS: &[&str] = &[
+    "gemini", "openai", "anthropic", "openrouter", "deepseek", "xai", "mistral", "kimi", "glm", "qwen", "upstage", "exaone",
+];
+
+fn ai_call<R: Runtime>(app: &AppHandle<R>, method: &str, args: &Value) -> Result<Value, String> {
+    use crate::ai::{MobileAiService, MobileAiSettingsPatch, ModelPatch, ProviderKeyPatch};
+    let service = app.try_state::<std::sync::Arc<MobileAiService>>().ok_or("AI service not ready")?;
+    let store = &service.settings;
+    let chatgpt_visible = service.chatgpt.is_visible();
+    let snapshot = |store: &crate::ai::MobileAiSettingsStore| store.get_snapshot(chatgpt_visible).map_err(|e| e.to_string());
+    match method {
+        "get" => serde_json::to_value(snapshot(store)?).map_err(|e| e.to_string()),
+        "set" => {
+            let provider = args.get("provider").and_then(Value::as_str).ok_or("provider missing")?.to_string();
+            if !AI_KEY_PROVIDERS.contains(&provider.as_str()) {
+                return Err(format!("{provider} is not available here"));
+            }
+            let api_key = args.get("apiKey").and_then(Value::as_str).map(|k| k.trim().to_string());
+            let model = args.get("model").and_then(Value::as_str).map(str::trim).filter(|m| !m.is_empty());
+            let patch = MobileAiSettingsPatch {
+                selected_provider: Some(provider.clone()),
+                model_patch: model.map(|m| ModelPatch { provider: provider.clone(), model: m.to_string() }),
+                // absent apiKey = keep the stored key; an empty string removes it
+                provider_key_patch: api_key.map(|k| ProviderKeyPatch {
+                    provider: provider.clone(),
+                    api_key: Some(k),
+                    free_only: args.get("freeOnly").and_then(Value::as_bool),
+                }),
+                subscription_notice_version: None,
+            };
+            let snap = store.set_settings(patch, chatgpt_visible).map_err(|e| e.to_string())?;
+            use tauri::Emitter;
+            let _ = app.emit("ae-ai-settings-changed", ()); // the 이음오피스 screens re-read their settings
+            serde_json::to_value(snap).map_err(|e| e.to_string())
+        }
+        "export" => {
+            let snap = snapshot(store)?;
+            let mut providers = serde_json::Map::new();
+            for id in AI_KEY_PROVIDERS {
+                let key = store.get_api_key(id).map_err(|e| e.to_string())?.unwrap_or_default();
+                let model = snap.model_by_provider.get(*id).cloned().unwrap_or_default();
+                if !key.is_empty() || !model.is_empty() {
+                    providers.insert((*id).to_string(), json!({ "apiKey": key, "model": model }));
+                }
+            }
+            // the office suite has no "auto" over subscriptions on iPad: an unsupported selection becomes the first
+            // provider with a key, else Gemini (its panel then asks for that key)
+            let selected = snap.selected_provider.clone();
+            let provider = if AI_KEY_PROVIDERS.contains(&selected.as_str()) {
+                selected
+            } else {
+                AI_KEY_PROVIDERS
+                    .iter()
+                    .find(|id| providers.get(**id).and_then(|p| p.get("apiKey")).and_then(Value::as_str).is_some_and(|k| !k.is_empty()))
+                    .map(|id| (*id).to_string())
+                    .unwrap_or_else(|| "gemini".to_string())
+            };
+            Ok(json!({ "provider": provider, "providers": providers }))
+        }
+        _ => Err(format!("unknown AEAi method {method}")),
     }
 }
 

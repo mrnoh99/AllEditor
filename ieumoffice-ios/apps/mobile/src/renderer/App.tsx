@@ -386,6 +386,16 @@ export function MobileApp({ client: injectedClient }: MobileAppProps) {
     }
   }, [client, openLoadedSession, refreshAiState, refreshHomeData])
 
+  // AllEditor: the office suite's AI 연결 page changed the app's one AI setting
+  useEffect(() => {
+    const ev = (window as unknown as { __TAURI__?: { event?: { listen: (n: string, cb: () => void) => Promise<() => void> } } })
+      .__TAURI__?.event
+    if (!ev) return
+    let unlisten: (() => void) | undefined
+    void ev.listen('ae-ai-settings-changed', () => void refreshAiState()).then((u) => (unlisten = u))
+    return () => unlisten?.()
+  }, [refreshAiState])
+
   // AllEditor: "Open in AllEditor" while the app is running (HWP / HWPX / Markdown; see src-tauri/src/office.rs)
   useEffect(() => {
     const ev = (window as unknown as { __TAURI__?: { event?: { listen: (n: string, cb: () => void) => Promise<() => void> } } })

@@ -1,0 +1,21 @@
+const { chromium } = require('playwright'); const fs = require('fs')
+const S = process.env.DOCS_SUPPORT_PARENT ?? '/tmp'
+;(async () => { const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1194, height: 834 }, locale: 'ko-KR' })
+  const errs = []; p.on('pageerror', (e) => errs.push(e.message.slice(0, 150)))
+  await p.goto('http://localhost:8766/index.html'); await p.waitForTimeout(2000)
+  await p.locator('#homePane button.card.docs').click(); await p.waitForTimeout(7000)
+  const f = p.frameLocator('iframe.pane:not([hidden])')
+  console.log('1 store after migration:', await (await fetch('http://localhost:8766/__ae/AEAi/export', { method: 'POST' })).text())
+  console.log('  plain file on device:', fs.existsSync(S + '/mockdocs-support/ai-settings.json'))
+  const panel = async () => (await f.locator('.ai-dock').innerText()).includes('연결을 지금 쓸 수 없습니다') ? 'asks to connect' : 'connected'
+  console.log('  docs panel:', await panel())
+  // change the AI in the office AI 연결 page: OpenAI key -> the open docs tab follows without reload
+  await p.click('#tabs .gear'); await p.waitForTimeout(800)
+  console.log('2 page status:', await p.locator('.ai-status').innerText())
+  await p.locator('.ai-card', { hasText: 'ChatGPT' }).click(); await p.locator('.ai-form input[type=password]').fill('sk-test-openai'); await p.locator('.ai-form button.primary').click(); await p.waitForTimeout(1500)
+  console.log('  page status:', await p.locator('.ai-status').innerText())
+  console.log('  store:', await (await fetch('http://localhost:8766/__ae/AEAi/export', { method: 'POST' })).text())
+  const tabProvider = await p.evaluate(() => { const fr = [...document.querySelectorAll('iframe.pane')][0]; return JSON.parse(String(fr.contentWindow.__aeReadFile('/userData/ai-settings.json').reduce((s, c) => s + String.fromCharCode(c), ''))).provider })
+  console.log('  open docs tab now uses:', tabProvider, '| plain file on device:', fs.existsSync(S + '/mockdocs-support/ai-settings.json'))
+  console.log('  saved key shown again?', await p.locator('.ai-form input[type=password]').inputValue() !== '' ? 'yes' : 'no (placeholder: ' + await p.locator('.ai-form input[type=password]').getAttribute('placeholder') + ')')
+  console.log('errors', errs); await b.close() })()

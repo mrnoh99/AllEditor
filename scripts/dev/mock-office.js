@@ -4,6 +4,7 @@ const http = require('http'), fs = require('fs'), path = require('path')
 const ROOT = '/home/user/AllEditor/ios/App/App/public', DOCS = process.argv[2], SUP = DOCS + '-support'
 fs.mkdirSync(DOCS, { recursive: true }); fs.mkdirSync(SUP, { recursive: true })
 const log = []
+const ai = { selected: 'auto', keys: {}, models: {} } // stand-in for the sealed 이음오피스 AI store
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2', '.ttf': 'font/ttf' }
 http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x'); const p = decodeURIComponent(u.pathname)
@@ -19,6 +20,9 @@ http.createServer((req, res) => {
         else if (method === 'writeFile') { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, Buffer.from(a.data, 'base64')) }
         else if (method === 'deleteFile') fs.rmSync(f, { recursive: true })
         else if (method === 'readdir') out = { files: fs.existsSync(f) ? fs.readdirSync(f).map((n) => { const st = fs.statSync(path.join(f, n)); return { name: n, type: st.isDirectory() ? 'directory' : 'file', size: st.size, mtime: st.mtimeMs } }) : [] }
+        else if (plugin === 'AEAi' && method === 'get') out = { selectedProvider: ai.selected, modelByProvider: ai.models, configuredProviders: Object.fromEntries(Object.keys(ai.keys).map((k) => [k, { hasKey: !!ai.keys[k], models: [] }])) }
+        else if (plugin === 'AEAi' && method === 'set') { ai.selected = a.provider; if (a.apiKey !== undefined) ai.keys[a.provider] = a.apiKey; if (a.model) ai.models[a.provider] = a.model; out = { selectedProvider: ai.selected, modelByProvider: ai.models, configuredProviders: Object.fromEntries(Object.keys(ai.keys).map((k) => [k, { hasKey: !!ai.keys[k], models: [] }])) } }
+        else if (plugin === 'AEAi' && method === 'export') { const ids = [...new Set([...Object.keys(ai.keys), ...Object.keys(ai.models)])]; out = { provider: ['auto', 'chatgpt'].includes(ai.selected) ? (Object.keys(ai.keys)[0] ?? 'gemini') : ai.selected, providers: Object.fromEntries(ids.map((k) => [k, { apiKey: ai.keys[k] ?? '', model: ai.models[k] ?? '' }])) } }
         else if (plugin === 'AEPdf') out = { data: Buffer.from('%PDF-1.4 mock').toString('base64') }
         else if (plugin === 'AEPrint') out = { via: 'mock', completed: true }
         else if (plugin === 'AEShare') { log.push('share ' + a.name + ' ' + a.mime + ' ' + Buffer.from(a.data, 'base64').length + 'B') }

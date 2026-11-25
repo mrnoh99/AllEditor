@@ -26,9 +26,13 @@ const DOC_EXT = /\.(docx|dotx|doc|odt|pptx|potx|ppt|odp|xlsx|xlsm|xls|ods|csv|ts
 let docPath: string | null = (() => { try { const o = new URLSearchParams(location.search).get('open'); return o && DOC_EXT.test(o) ? o : null } catch { return null } })()
 ;(globalThis as any).__aeDocPath = () => docPath
 ;(globalThis as any).__aeReadFile = (p: string) => new Uint8Array(fs.readFileSync(p))
+/** paths that live only in this page's memory (never mirrored to the device), e.g. the AI settings with keys */
+const memoryOnly = new Set<string>()
+export const keepInMemory = (p: string) => { memoryOnly.add(p) }
 function mark(...ps: unknown[]) {
   for (const p of ps) {
     const n = norm(p)
+    if (n && memoryOnly.has(n)) continue
     if (n && lazy.has(n) && inVol(n)) lazy.delete(n)
     if (n && n.startsWith(DOC_EXT_ROOT()) && DOC_EXT.test(n) && !n.split('/').pop()!.startsWith('.')) docPath = n
     if (n && (n.startsWith(DOCS_ROOT + '/') && !n.includes('/.') || n.startsWith(USER_ROOT + '/'))) dirty.add(n)

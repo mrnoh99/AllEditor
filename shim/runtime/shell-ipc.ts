@@ -2,7 +2,9 @@
 import { ipcMain } from './electron'
 import { DEFAULT_AI_PANEL_PREFS } from '@genoffice/ui'
 import { isPhone } from './phone'
-import fs, { USER_ROOT, flush } from './fs'
+import fs, { USER_ROOT, flush, keepInMemory } from './fs'
+import { isTauriOffice, nativeAi, Filesystem, Directory } from './native-files'
+import { webContents } from './electron'
 import { defaultAiSettings } from '@genoffice/ai-provider'
 
 const KEY = 'alleditor.settings'
@@ -63,7 +65,8 @@ export function registerShellIpc() {
   }
   h('ai:open-model-settings', openAiSettings)
   h('ai:open-settings', openAiSettings)
-  ensureIosAiProvider()
+  if (!isTauriOffice()) ensureIosAiProvider()
+  ;(globalThis as any).__aeAiRefresh = async () => { await syncAiFromNative(); webContents.send('ai:settings-changed') }
 }
 
 /**
@@ -83,4 +86,29 @@ function ensureIosAiProvider() {
     fs.writeFileSync(file, JSON.stringify({ ...base, ...cur, providers: { ...base.providers, ...(cur.providers ?? {}) }, provider: 'gemini' }, null, 2))
     void flush()
   } catch (e) { console.warn('[ai] default provider', e) }
+}
+
+const AI_FILE = `${USER_ROOT}/ai-settings.json`
+/**
+ * The app's one AI setting lives in the 이음오피스 store (Rust, keys sealed). The office editors read
+ * /userData/ai-settings.json, so it is built here from that store, in this page's memory only.
+ * A plain file an earlier build wrote is moved into the store once and removed from the device.
+ */
+export async function syncAiFromNative() {
+  if (!isTauriOffice()) return
+  keepInMemory(AI_FILE)
+  let old: any = null
+  try { old = JSON.parse(String(fs.readFileSync(AI_FILE, 'utf8'))) } catch {}
+  let ex = await nativeAi.export().catch((e) => { console.warn('[ai] export', e); return null })
+  if (!ex) return
+  const oldCfg = old?.provider && old.providers?.[old.provider]
+  if (oldCfg?.apiKey && !ex.providers[old.provider]?.apiKey && !String(oldCfg.apiKey).startsWith('sealed:')) {
+    try { await nativeAi.set({ provider: old.provider, apiKey: oldCfg.apiKey, model: oldCfg.model }); ex = await nativeAi.export() } catch (e) { console.warn('[ai] migrate', e) }
+  }
+  if (old) void Filesystem.deleteFile({ path: 'ai-settings.json', directory: Directory.Support }).catch(() => {})
+  const base: any = defaultAiSettings()
+  const providers: any = { ...base.providers }
+  for (const [id, cfg] of Object.entries(ex.providers)) providers[id] = { ...(providers[id] ?? {}), ...(cfg.apiKey ? { apiKey: cfg.apiKey } : {}), ...(cfg.model ? { model: cfg.model } : {}) }
+  fs.mkdirSync(USER_ROOT, { recursive: true })
+  fs.writeFileSync(AI_FILE, JSON.stringify({ ...base, ...(old && typeof old === 'object' ? { search: old.search, media: old.media } : {}), provider: ex.provider, providers }, null, 2))
 }

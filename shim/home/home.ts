@@ -4,7 +4,7 @@ import { AI_PROVIDERS, defaultAiSettings, sanitizeAiSettings } from '@genoffice/
 import { LANGS, tr } from './i18n'
 import { convertIwork, IWORK_EXT } from '../iwork/convert'
 import { getPrinters, setPrinters, sendToPrinter, testPdf, type PrinterCfg } from '../runtime/print'
-import { nativeShare } from '../runtime/native-files'
+import { nativeShare, nativeAi, isTauriOffice, type AiSnapshot } from '../runtime/native-files'
 import { openExternalUrl } from '../runtime/electron'
 
 const APP_BY_EXT: Record<string, string> = {
@@ -301,83 +301,111 @@ async function checkKey(id: string, key: string, baseUrl?: string): Promise<stri
   return `HTTP ${r.status}`
 }
 
-function renderAiConnect(wrap: HTMLElement, toast: (m: string) => void) {
-  const h = el('h2', '', ko2('AI 연결', 'AI connection')); h.id = 'ai'; wrap.append(h)
-  const box = el('div', 'group'); wrap.append(box)
+/** where the AI setting lives: the app's one store (Rust, keys sealed) on the device, the settings file elsewhere */
+interface AiStore {
+  provider: string
+  cfg(id: string): { hasKey: boolean; key: string; model: string; models: string[] }
+  save(provider: string, key: string | undefined, model: string, baseUrl?: string): Promise<void>
+}
+async function loadAiStore(): Promise<AiStore> {
+  if (isTauriOffice()) {
+    let snap: AiSnapshot = await nativeAi.get()
+    const st: AiStore = {
+      provider: snap.selectedProvider,
+      cfg: (id) => ({ hasKey: !!snap.configuredProviders[id]?.hasKey, key: '', model: snap.modelByProvider[id] ?? '', models: snap.configuredProviders[id]?.models ?? [] }),
+      async save(provider, key, model) {
+        snap = await nativeAi.set({ provider, ...(key ? { apiKey: key } : {}), ...(model ? { model } : {}) })
+        st.provider = snap.selectedProvider
+        // every open office tab rebuilds its in-memory settings from the store
+        for (const f of frames.values()) { try { await (f.contentWindow as any)?.__aeAiRefresh?.() } catch {} }
+      },
+    }
+    return st
+  }
   const stored = readAi()
   const def = defaultAiSettings()
   const cur = { ...def, ...stored, providers: { ...def.providers, ...(stored.providers ?? {}) } } as any
-  const metas = (AI_PROVIDERS as any[]).filter((m) => !m.needsCliPath && !NOT_ON_IOS.has(m.id))
-  let selected: string = NOT_ON_IOS.has(cur.provider) ? 'gemini' : cur.provider
-  const save = async (provider: string, patch: Record<string, string>) => {
-    const next: any = { ...cur, provider, providers: { ...cur.providers, [provider]: { ...(cur.providers[provider] ?? {}), ...patch } } }
-    const clean = sanitizeAiSettings(next) ?? next
-    fs.mkdirSync(USER_ROOT, { recursive: true }); fs.writeFileSync(AI_FILE, JSON.stringify(clean, null, 2)); await flush()
-    Object.assign(cur, clean); reloadFrames(); toast(t('saved'))
+  const st: AiStore = {
+    provider: cur.provider,
+    cfg: (id) => { const c = cur.providers[id] ?? {}; return { hasKey: !!c.apiKey, key: c.apiKey ?? '', model: c.model ?? '', models: c.models ?? [] } },
+    async save(provider, key, model, baseUrl) {
+      const prev = cur.providers[provider] ?? {}
+      const next: any = { ...cur, provider, providers: { ...cur.providers, [provider]: { ...prev, ...(key ? { apiKey: key } : {}), model, ...(baseUrl !== undefined ? { baseUrl } : {}) } } }
+      const clean = sanitizeAiSettings(next) ?? next
+      fs.mkdirSync(USER_ROOT, { recursive: true }); fs.writeFileSync(AI_FILE, JSON.stringify(clean, null, 2)); await flush()
+      Object.assign(cur, clean); st.provider = provider; reloadFrames()
+    },
   }
-  const status = el('p', 'hint')
-  const draw = () => {
-    box.textContent = ''
-    const cfg = cur.providers[cur.provider] ?? {}
-    const on = !NOT_ON_IOS.has(cur.provider) && !!cfg.apiKey
-    const meta = metas.find((m) => m.id === cur.provider)
-    status.textContent = on ? `● ${ko2('연결됨', 'Connected')}: ${meta?.label ?? cur.provider} · ${cfg.model || meta?.defaultModel || ''}` : `○ ${ko2('아직 연결되지 않았습니다. 아래에서 하나를 골라 키를 넣으세요.', 'Not connected yet. Pick one below and enter its key.')}`
-    status.className = 'hint ai-status' + (on ? ' on' : '')
-    box.append(status)
-    const cards = el('div', 'ai-cards'); box.append(cards)
-    const ids = CONNECT_CARDS.map((c) => c.id)
-    const extra = metas.filter((m) => !ids.includes(m.id))
-    for (const c of CONNECT_CARDS) {
-      const b = el('button', 'ai-card' + (selected === c.id ? ' sel' : '') + (cur.provider === c.id && on ? ' cur' : ''))
-      b.append(el('b', '', c.name), el('span', '', c.sub[lang() === 'ko' ? 0 : 1]))
-      b.onclick = () => { selected = c.id; draw() }
-      cards.append(b)
-    }
-    const more = el('button', 'ai-card' + (!ids.includes(selected) ? ' sel' : ''))
-    more.append(el('b', '', ko2('다른 제공자', 'Other providers')), el('span', '', ko2('DeepSeek, Mistral, xAI, 직접 입력한 주소 …', 'DeepSeek, Mistral, xAI, custom endpoint …')))
-    more.onclick = () => { selected = ids.includes(selected) ? (extra[0]?.id ?? 'gemini') : selected; draw() }
-    cards.append(more)
+  return st
+}
 
-    // the selected provider's form
-    const form = el('div', 'ai-form'); box.append(form)
-    if (!ids.includes(selected)) {
-      form.append(field(t('provider'), select(extra.map((m) => [m.id, m.label]), selected, (v) => { selected = v; draw() })))
+function renderAiConnect(wrap: HTMLElement, toast: (m: string) => void) {
+  const h = el('h2', '', ko2('AI 연결', 'AI connection')); h.id = 'ai'; wrap.append(h)
+  const box = el('div', 'group'); wrap.append(box)
+  box.append(el('p', 'hint', ko2('불러오는 중…', 'Loading…')))
+  const metas = (AI_PROVIDERS as any[]).filter((m) => !m.needsCliPath && !NOT_ON_IOS.has(m.id))
+  void loadAiStore().then((store) => {
+    let selected: string = NOT_ON_IOS.has(store.provider) || !metas.some((m) => m.id === store.provider) ? 'gemini' : store.provider
+    const status = el('p', 'hint')
+    const draw = () => {
+      box.textContent = ''
+      const curCfg = store.cfg(store.provider)
+      const on = !NOT_ON_IOS.has(store.provider) && curCfg.hasKey
+      const meta = metas.find((m) => m.id === store.provider)
+      status.textContent = on ? `● ${ko2('연결됨', 'Connected')}: ${meta?.label ?? store.provider} · ${curCfg.model || meta?.defaultModel || ''}` : `○ ${ko2('아직 연결되지 않았습니다. 아래에서 하나를 골라 키를 넣으세요.', 'Not connected yet. Pick one below and enter its key.')}`
+      status.className = 'hint ai-status' + (on ? ' on' : '')
+      box.append(status)
+      const cards = el('div', 'ai-cards'); box.append(cards)
+      const ids = CONNECT_CARDS.map((c) => c.id)
+      const extra = metas.filter((m) => !ids.includes(m.id))
+      for (const c of CONNECT_CARDS) {
+        const b = el('button', 'ai-card' + (selected === c.id ? ' sel' : '') + (store.provider === c.id && on ? ' cur' : ''))
+        b.append(el('b', '', c.name), el('span', '', c.sub[lang() === 'ko' ? 0 : 1]))
+        b.onclick = () => { selected = c.id; draw() }
+        cards.append(b)
+      }
+      const more = el('button', 'ai-card' + (!ids.includes(selected) ? ' sel' : ''))
+      more.append(el('b', '', ko2('다른 제공자', 'Other providers')), el('span', '', ko2('DeepSeek, Mistral, xAI …', 'DeepSeek, Mistral, xAI …')))
+      more.onclick = () => { selected = ids.includes(selected) ? (extra[0]?.id ?? 'gemini') : selected; draw() }
+      cards.append(more)
+
+      const form = el('div', 'ai-form'); box.append(form)
+      if (!ids.includes(selected)) form.append(field(t('provider'), select(extra.map((m) => [m.id, m.label]), selected, (v) => { selected = v; draw() })))
+      const meta2: any = metas.find((m) => m.id === selected) ?? {}
+      const card = CONNECT_CARDS.find((c) => c.id === selected)
+      const pcfg = store.cfg(selected)
+      const key = el('input'); key.type = 'password'; key.autocomplete = 'off'; key.spellcheck = false; key.value = pcfg.key
+      key.placeholder = pcfg.hasKey && !pcfg.key ? ko2('저장된 키가 있습니다 — 바꾸려면 새 키 입력', 'A key is saved — type a new one to replace it') : (meta2.keyPlaceholder ?? '')
+      const dl = el('datalist'); dl.id = 'ai-models'; for (const m of [...pcfg.models, ...(meta2.models ?? [])]) { const o = el('option'); o.value = typeof m === 'string' ? m : (m as any).id; dl.append(o) }
+      const model = el('input'); model.type = 'text'; model.setAttribute('list', 'ai-models'); model.value = pcfg.model || meta2.defaultModel || ''
+      form.append(field(t('apiKey'), key), field(t('model'), model), dl)
+      let base: HTMLInputElement | null = null
+      if (meta2.needsBaseUrl && !isTauriOffice()) { base = el('input'); base.type = 'url'; base.placeholder = 'https://…/v1'; form.append(field(t('baseUrl'), base)) }
+      const row = el('div', 'ai-actions')
+      if (card) { const get = el('button', 'ai-link', ko2('키 만들기 ↗', 'Get a key ↗')); get.onclick = () => { void openExternalUrl(card.keyUrl) }; row.append(get) }
+      const msg = el('p', 'hint')
+      const test = el('button', 'ai-link', ko2('연결 확인', 'Check'))
+      test.onclick = async () => {
+        const k = key.value.trim()
+        if (!k) { msg.textContent = pcfg.hasKey ? ko2('저장된 키는 화면에 다시 보이지 않습니다. 확인하려면 키를 다시 넣으세요.', 'Saved keys are not shown again; type the key to check it.') : ko2('키를 먼저 넣으세요.', 'Enter a key first.'); return }
+        msg.textContent = ko2('확인하는 중…', 'Checking…')
+        const err = await checkKey(selected, k, base?.value.trim())
+        msg.textContent = err ? `✕ ${err}` : `✓ ${ko2('키가 맞습니다.', 'The key works.')}`
+      }
+      const ok = el('button', 'primary', ko2('이 AI로 연결', 'Use this AI'))
+      ok.onclick = async () => {
+        const k = key.value.trim()
+        if (!k && !pcfg.hasKey) { msg.textContent = ko2('키를 먼저 넣으세요.', 'Enter a key first.'); return }
+        try { await store.save(selected, k || undefined, model.value.trim(), base?.value.trim()); toast(t('saved')); draw() }
+        catch (e: any) { msg.textContent = '✕ ' + (e?.message ?? e) }
+      }
+      row.append(test)
+      form.append(row, ok, msg)
+      if (card?.free) form.append(el('p', 'hint', ko2('무료로 쓰는 동안 보낸 내용은 그 회사의 AI 개선에 쓰일 수 있습니다. 개인정보가 담긴 문서는 주의하세요.', 'While free, what you send may be used to improve that company\'s AI. Take care with personal data.')))
+      form.append(el('p', 'hint', ko2('이 설정은 앱 전체에 하나입니다. 이음 홈(한글·마크다운)의 AI 설정과 같습니다. 키는 기기 안에 암호화되어 저장되고, AI 요청은 이 기기에서 그 회사로 바로 갑니다. Claude·ChatGPT 구독(데스크톱의 Claude Code·Codex)은 iPad에서는 쓸 수 없습니다.', 'One AI setting for the whole app — the same as the 이음 home (HWP / Markdown). Keys are stored encrypted on this device; AI requests go from this device straight to that company. Claude / ChatGPT desktop subscriptions (Claude Code, Codex) do not work on iPad.')))
     }
-    const meta2: any = metas.find((m) => m.id === selected) ?? {}
-    const card = CONNECT_CARDS.find((c) => c.id === selected)
-    const pcfg = cur.providers[selected] ?? {}
-    const key = el('input'); key.type = 'password'; key.placeholder = meta2.keyPlaceholder ?? ''; key.value = pcfg.apiKey ?? ''; key.autocomplete = 'off'; key.spellcheck = false
-    const dl = el('datalist'); dl.id = 'ai-models'; for (const m of [...(pcfg.models ?? []), ...(meta2.models ?? [])]) { const o = el('option'); o.value = typeof m === 'string' ? m : m.id; dl.append(o) }
-    const model = el('input'); model.type = 'text'; model.setAttribute('list', 'ai-models'); model.value = pcfg.model || meta2.defaultModel || ''
-    form.append(field(t('apiKey'), key), field(t('model'), model), dl)
-    let base: HTMLInputElement | null = null
-    if (meta2.needsBaseUrl) { base = el('input'); base.type = 'url'; base.value = pcfg.baseUrl ?? ''; base.placeholder = 'https://…/v1'; form.append(field(t('baseUrl'), base)) }
-    const row = el('div', 'ai-actions')
-    if (card) {
-      const get = el('button', 'ai-link', ko2('키 만들기 ↗', 'Get a key ↗'))
-      get.onclick = () => { void openExternalUrl(card.keyUrl) }
-      row.append(get)
-    }
-    const msg = el('p', 'hint')
-    const test = el('button', 'ai-link', ko2('연결 확인', 'Check'))
-    test.onclick = async () => {
-      if (!key.value.trim()) { msg.textContent = ko2('키를 먼저 넣으세요.', 'Enter a key first.'); return }
-      msg.textContent = ko2('확인하는 중…', 'Checking…')
-      const err = await checkKey(selected, key.value.trim(), base?.value.trim())
-      msg.textContent = err ? `✕ ${err}` : `✓ ${ko2('키가 맞습니다.', 'The key works.')}`
-    }
-    const ok = el('button', 'primary', ko2('이 AI로 연결', 'Use this AI'))
-    ok.onclick = async () => {
-      if (!key.value.trim()) { msg.textContent = ko2('키를 먼저 넣으세요.', 'Enter a key first.'); return }
-      await save(selected, { apiKey: key.value.trim(), model: model.value.trim(), ...(base ? { baseUrl: base.value.trim() } : {}) })
-      draw()
-    }
-    row.append(test)
-    form.append(row, ok, msg)
-    if (card?.free) form.append(el('p', 'hint', ko2('무료로 쓰는 동안 보낸 내용은 그 회사의 AI 개선에 쓰일 수 있습니다. 개인정보가 담긴 문서는 주의하세요.', 'While free, what you send may be used to improve that company\'s AI. Take care with personal data.')))
-    form.append(el('p', 'hint', ko2('키는 이 기기의 앱 안에만 저장되고, AI 요청은 이 기기에서 그 회사로 바로 갑니다. Claude·ChatGPT 구독(데스크톱의 Claude Code·Codex·ChatGPT 로그인)은 iPad에서는 쓸 수 없습니다.', 'The key stays inside this app on this device; AI requests go from this device straight to that company. Claude / ChatGPT subscriptions (Claude Code, Codex, ChatGPT sign-in on the desktop) do not work on iPad.')))
-  }
-  draw()
+    draw()
+  }, (e) => { box.textContent = ''; box.append(el('p', 'hint', '✕ ' + (e?.message ?? e))) })
 }
 
 function applyTheme() {

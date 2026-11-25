@@ -1,6 +1,6 @@
 import fs, { hydrate, flush } from './fs'
 import { markReady, webContents } from './electron'
-import { registerShellIpc } from './shell-ipc'
+import { registerShellIpc, syncAiFromNative } from './shell-ipc'
 import { applyPhoneLayer, isPhone } from './phone'
 import { installAiToggle } from './ai-toggle'
 
@@ -20,6 +20,7 @@ export function start(app: string, register: (open: string | null) => void, prel
         fs.writeFileSync(dest, new Uint8Array(await r.arrayBuffer()))
       } catch (e) { console.warn('[preload]', url, e) }
     }))
+    try { await syncAiFromNative() } catch (e) { console.warn('[ai sync]', e) }
     try { register(new URLSearchParams(location.search).get('open')); registerShellIpc() /* after the apps: shell-level settings (language…) must win */ } catch (e) { console.error(`[${app}] register failed`, e) }
     markReady()
   })()
