@@ -1,7 +1,7 @@
 // Usage: node scripts/dev/mock-office.js <docs-dir>  (port 8766). Stand-in for office:// of the Tauri app (src-tauri/src/office.rs).
-// Mimics src-tauri/src/office.rs: static files from ios/App/App/public + POST /__ae/<plugin>/<method>.
+// Mimics src-tauri/src/office.rs: static files from office/ + POST /__ae/<plugin>/<method>.
 const http = require('http'), fs = require('fs'), path = require('path')
-const ROOT = '/home/user/AllEditor/ios/App/App/public', DOCS = process.argv[2], SUP = DOCS + '-support'
+const ROOT = require('path').join(__dirname, '../../office'), DOCS = process.argv[2], SUP = DOCS + '-support'
 fs.mkdirSync(DOCS, { recursive: true }); fs.mkdirSync(SUP, { recursive: true })
 const log = []
 const ai = { selected: 'auto', keys: {}, models: {} } // stand-in for the sealed 이음오피스 AI store

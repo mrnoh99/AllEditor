@@ -1,7 +1,8 @@
 //! AllEditor office suite inside the Tauri app.
 //!
 //! The Word / PowerPoint / Excel / PDF editors (plus Pages/Keynote/Numbers import, PDF tools and printing) are the
-//! AllEditor web suite (`ios/App/App/public` in the repository, GenOffice renderers + in-page Electron runtime).
+//! AllEditor web suite (`office/` in the repository: 이음오피스 renderers + in-page Electron runtime, built by
+//! `scripts/build-web.mjs`).
 //! Xcode copies that folder into the app bundle as `office/`; this module serves it on the `office://` scheme and
 //! answers the suite's native calls (`POST office://localhost/__ae/<plugin>/<method>`, JSON in / JSON out):
 //!
@@ -34,7 +35,7 @@ fn office_root() -> Option<PathBuf> {
         }
     }
     // desktop development: repository checkout
-    let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../ios/App/App/public");
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../office");
     repo.join("index.html").is_file().then_some(repo)
 }
 

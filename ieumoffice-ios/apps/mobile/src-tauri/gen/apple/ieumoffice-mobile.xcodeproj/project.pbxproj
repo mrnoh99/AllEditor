@@ -23,7 +23,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		AE0FF1CE0000000000000001 /* office */ = {isa = PBXFileReference; lastKnownFileType = folder; name = office; path = "../../../../../../ios/App/App/public"; sourceTree = SOURCE_ROOT; };
+		AE0FF1CE0000000000000001 /* office */ = {isa = PBXFileReference; lastKnownFileType = folder; name = office; path = "../../../../../../office"; sourceTree = SOURCE_ROOT; };
 		0D961AF281EA0A48B714DFE4 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		17B9614A9BAB88EC60068053 /* settings.rs */ = {isa = PBXFileReference; path = settings.rs; sourceTree = "<group>"; };
 		291571CC581A0D9C26DB23C2 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };

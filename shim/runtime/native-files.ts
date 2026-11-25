@@ -1,9 +1,7 @@
-// Native bridge of the office suite. Two hosts:
-//  * Capacitor app (ios/): plugins AEFiles / AEPdf / AEPrint in ios/App/App/AppDelegate.swift;
-//  * Tauri app (ieumoffice-ios/): the suite is served on office://, and the same calls go to
-//    POST office://localhost/__ae/<plugin>/<method> (src-tauri/src/office.rs + AllEditorOfficePlugin.swift).
+// Native bridge of the office suite: the Tauri app (ieumoffice-ios/) serves the suite on office:// and answers
+// POST office://localhost/__ae/<plugin>/<method> (src-tauri/src/office.rs + AllEditorOfficePlugin.swift).
+// In a desktop browser (development) there is no native host: files live in IndexedDB, PDF/print are unavailable.
 // Directory.Documents = app Documents (visible in Files.app); Directory.Support = private app data.
-import { registerPlugin } from '@capacitor/core'
 
 /** true inside the Tauri app (pages loaded from the office:// scheme, or forced for tests) */
 export const isTauriOffice = () => {
@@ -11,8 +9,8 @@ export const isTauriOffice = () => {
   if (g.__AE_NATIVE__ === 'tauri') return true
   try { return location.protocol === 'office:' || location.hostname === 'office.localhost' } catch { return false }
 }
-/** a native host (Capacitor or Tauri) is present */
-export const isNative = () => isTauriOffice() || (globalThis as any).Capacitor?.isNativePlatform?.() === true
+/** a native host is present */
+export const isNative = () => isTauriOffice()
 
 const tauriBase = () => ((globalThis as any).__AE_NATIVE_BASE__ as string | undefined) ?? '/__ae/'
 async function tauriCall(plugin: string, method: string, args: object): Promise<any> {
@@ -22,14 +20,12 @@ async function tauriCall(plugin: string, method: string, args: object): Promise<
   if (!r.ok || body?.error) throw new Error(body?.error ?? `${plugin}.${method} failed (${r.status})`)
   return body ?? {}
 }
-/** plugin proxy: Capacitor plugin on the Capacitor app, office:// fetch on the Tauri app */
+/** plugin proxy: office:// fetch on the Tauri app */
 function bridge<T extends object>(name: string): T {
-  let cap: any = null
   return new Proxy({} as T, {
     get: (_t, method: string) => (args: object = {}) => {
       if (isTauriOffice()) return tauriCall(name, method, args)
-      cap ??= registerPlugin<any>(name)
-      return cap[method](args)
+      return Promise.reject(new Error(`${name}.${method}: needs the iOS app`))
     },
   })
 }

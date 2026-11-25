@@ -1,8 +1,6 @@
 import './process'
 import { Buffer } from 'buffer'
 const g = globalThis as any
-// inside a tab (iframe) the native bridge only exists on the parent window
-try { if (window.parent !== window && (window.parent as any).Capacitor && !g.Capacitor) g.Capacitor = (window.parent as any).Capacitor } catch {}
 g.Buffer = g.Buffer ?? Buffer
 // Node timers: setInterval(...).unref() / .ref() / .hasRef() (main-process code); browsers return a number
 for (const name of ['setTimeout', 'setInterval'] as const) {

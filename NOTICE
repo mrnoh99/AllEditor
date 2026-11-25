@@ -82,4 +82,4 @@ and development tooling and are not shipped in the application.
 
 This iOS port additionally bundles (Apache-2.0 / MIT):
   - iwork-viewer (flyfish-dev), Apple iWork parser — Apache-2.0
-  - pptxgenjs, jszip, memfs, Capacitor, and other npm packages under their own licenses
+  - pptxgenjs, jszip, memfs and other npm packages under their own licenses

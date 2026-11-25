@@ -52,6 +52,15 @@ Now files > 512 KB are only listed (name/size/date) and load when a page opens t
 `scripts/dev/t-lazy-docs.js` checks 8 × 20 MB files: listed, only the opened one read. Limitation: an app's own
 "open recent" of a big file it did not open at start cannot read it synchronously (open it from the office home instead).
 
+## 0e. 2026-11-25 — Capacitor app removed; one AI setting
+- The Capacitor app (`ios/`, scheme App) is gone. The office suite now lives in **`office/`** (built by
+  `npm run office:sync` = `scripts/build-web.mjs`, which writes `www/` and copies it to `office/`); the Xcode folder
+  reference `office` points there. §1–§7 below describe the old Capacitor layout where they mention `ios/…`,
+  `cap copy`, AppDelegate.swift plugins — read them as history (the plugins now live in `AllEditorOfficePlugin.swift`).
+- AI: the 이음오피스 store in Rust (keys sealed) is the only AI setting; the office suite reads it via `AEAi`
+  (office.rs) and keeps its `ai-settings.json` in memory only. The office "AI 연결" page and the 이음 settings edit
+  the same store.
+
 ## 1. Goal
 An iOS/iPadOS app that runs the open-source office suite **이음오피스 (IeumOffice)** — which is itself built on
 **GenOffice** — "the same way" as the Mac/desktop app: Docs, Slides, Sheets, PDF (+PDF tools), HWP, local file open,

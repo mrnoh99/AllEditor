@@ -7,7 +7,6 @@ plus the workspace packages and vendored rhwp engine it needs. Nothing in the ap
 IeumOffice itself is built on GenOffice (Genspark AI / Mainfunc, Inc., Apache-2.0) — see `NOTICE`.
 Scope of the app: HWP/HWPX and Markdown (`.md`/`.txt`) documents, one document at a time, AI helper, 22 languages.
 
-(The Capacitor app in the repository root is a separate project: the full desktop suite running inside a WebView.)
 
 **AllEditor changes** (Apache-2.0 §4(b)): `src-tauri/tauri.conf.json` product name `AllEditor`, bundle id
 `com.mrnoh99.alleditor`; `src-tauri/.gitignore` tracks `gen/apple`; new `scripts/ae-xcode-setup.mjs` (iPhone + iPad,
@@ -49,7 +48,7 @@ The home screen has an **오피스 문서** section (new Word / PowerPoint / Exc
 AllEditor office suite — the GenOffice Docs / Slides / Sheets / PDF web apps with PDF tools, Pages·Keynote·Numbers
 import, PDF export and printing (Settings › Printers: IPP 631 / raw 9100 / iOS print dialog) — in a full-screen layer
 that stays alive while you are back on the 이음오피스 home (‹ 이음 button).
-- Web suite: repository folder `ios/App/App/public` (built by `npm run build:web && npx cap copy ios` at the repo root),
+- Web suite: repository folder `office/` (built by `npm run office:sync` at the repo root),
   copied into the app as a folder reference `office` (added by `scripts/ae-xcode-setup.mjs`).
 - Served by Rust on `office://localhost/…` (`src-tauri/src/office.rs`); native calls `POST office://localhost/__ae/<plugin>/<method>`:
   files (Documents, visible in Files › AllEditor), and `AEPdf` / `AEPrint` → Swift `AllEditorOfficePlugin`

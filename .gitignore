@@ -1,8 +1,6 @@
 node_modules/
 www/
 .upstream/
-ios/App/build/
-ios/DerivedData/
 .DS_Store
 dist/*
 .build/

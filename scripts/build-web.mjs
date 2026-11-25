@@ -103,7 +103,7 @@ if (APPS.includes('sheets') && !existsSync(join(root, 'dist/xlsx.wasm'))) {
   cpSync(join(crate, 'target/wasm32-wasip1/release/xlsx_wasm.wasm'), join(root, 'dist/xlsx.wasm'))
 }
 
-// 1. shim: replaces Electron preload (window.desktop) with Capacitor-backed implementation
+// 1. shim: replaces Electron preload (window.desktop) with the in-page runtime (native bridge: office:// on the Tauri app)
 const www = join(root, 'www')
 rmSync(www, { recursive: true, force: true })
 mkdirSync(www, { recursive: true })
@@ -180,4 +180,8 @@ await bundleRuntime({
   upstream, outfile: join(www, 'home.js'),
   entry: `import '${bootFile}'\nimport '${root}/shim/home/home'\n`,
 })
-console.log('www/ ready:', APPS.join(', '))
+// 4. the office suite the iOS app bundles (Xcode folder reference `office`, served on office://)
+const office = join(root, 'office')
+rmSync(office, { recursive: true, force: true })
+cpSync(www, office, { recursive: true })
+console.log('www/ and office/ ready:', APPS.join(', '))

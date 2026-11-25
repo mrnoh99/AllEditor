@@ -52,10 +52,11 @@ if (m) {
 }
 writeFileSync(pbxPath, pbx)
 
-// 2b. AllEditor office suite (Word / PowerPoint / Excel / PDF web apps, repository folder ios/App/App/public):
+// 2b. AllEditor office suite (Word / PowerPoint / Excel / PDF web apps, repository folder office/):
 // a folder reference copied into the app bundle as `public/`, served on office:// by src-tauri/src/office.rs.
 const OFFICE_REF = 'AE0FF1CE0000000000000001', OFFICE_BUILD = 'AE0FF1CE0000000000000002'
-const OFFICE_PATH = '../../../../../../ios/App/App/public'
+const OFFICE_PATH = '../../../../../../office'
+pbx = pbx.replace(/(AE0FF1CE0000000000000001 \/\* office \*\/ = \{[^}]*path = )"[^"]*"/, `$1"${OFFICE_PATH}"`)
 if (!pbx.includes(OFFICE_REF)) {
   const add = (re, text, what) => {
     const before = pbx

@@ -2,20 +2,16 @@
   "name": "alleditor-ios",
   "version": "0.1.0",
   "private": true,
-  "description": "iOS (Capacitor) build of the GenOffice office suite renderers",
+  "description": "Office suite (이음오피스 Docs / Slides / Sheets / PDF) for the AllEditor iOS app",
   "license": "Apache-2.0",
   "scripts": {
     "build:web": "node scripts/build-web.mjs",
-    "ios:sync": "npm run build:web && cap copy ios",
-    "ios:open": "cap open ios"
+    "office:sync": "node scripts/build-web.mjs"
   },
   "dependencies": {
-    "@capacitor/core": "^7.0.0",
-    "@capacitor/ios": "^7.0.0"
   },
   "devDependencies": {
     "@bjorn3/browser_wasi_shim": "^0.4.2",
-    "@capacitor/cli": "^7.0.0",
     "@xmldom/xmldom": "^0.9.12",
     "assert": "^2.1.0",
     "brotli": "^2.1.0",
