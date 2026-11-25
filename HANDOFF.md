@@ -44,6 +44,14 @@ Verified in Chromium + mock: open docx/pptx/xlsx/pdf without errors, Sheets form
 Open-in import, send to Pages/Keynote. **Open: the AI panel's connect cards (Claude subscription / ChatGPT / free AI) are the
 desktop flow; on iOS only API keys (and maybe Gemini key) can work — needs an iOS-specific connect screen.**
 
+## 0d. Memory (user's iPad: iPad Pro M1, 2 TB, 16 GB RAM)
+All office tabs live in ONE WebView process (iframes). Chromium measurement (`scripts/dev/t-memory.js`, renderer RSS):
+office home ~160 MB, + pptx/xlsx/pdf/docx tabs ~810 MB, 7 tabs ~890 MB, all closed ~410 MB. Fine for 16 GB; WebKit untested.
+Fixed: every page used to load the WHOLE Documents folder (files ≤ 30 MB) into its own memfs — (library size) × (tabs).
+Now files > 512 KB are only listed (name/size/date) and load when a page opens them (`fs.ts` lazy map, `ensureLoaded`);
+`scripts/dev/t-lazy-docs.js` checks 8 × 20 MB files: listed, only the opened one read. Limitation: an app's own
+"open recent" of a big file it did not open at start cannot read it synchronously (open it from the office home instead).
+
 ## 1. Goal
 An iOS/iPadOS app that runs the open-source office suite **이음오피스 (IeumOffice)** — which is itself built on
 **GenOffice** — "the same way" as the Mac/desktop app: Docs, Slides, Sheets, PDF (+PDF tools), HWP, local file open,

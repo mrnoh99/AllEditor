@@ -29,6 +29,7 @@ let docPath: string | null = (() => { try { const o = new URLSearchParams(locati
 function mark(...ps: unknown[]) {
   for (const p of ps) {
     const n = norm(p)
+    if (n && lazy.has(n) && inVol(n)) lazy.delete(n)
     if (n && n.startsWith(DOC_EXT_ROOT()) && DOC_EXT.test(n) && !n.split('/').pop()!.startsWith('.')) docPath = n
     if (n && (n.startsWith(DOCS_ROOT + '/') && !n.includes('/.') || n.startsWith(USER_ROOT + '/'))) dirty.add(n)
   }
@@ -85,7 +86,9 @@ export async function hydrate() {
   const openedDoc = docPath // loading the stored files below is not "saving a document"
   try { await hydrateInner() } finally { docPath = openedDoc }
 }
+let openedDoc: string | null = null
 async function hydrateInner() {
+  openedDoc = docPath
   // dev/test hook: files injected by the page before boot
   const seed = (globalThis as any).__seedFiles
   if (seed) for (const [n, d] of Object.entries<string>(seed)) { const bin = atob(d); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); fs.writeFileSync(`${DOCS_ROOT}/${n}`, u) }
@@ -105,7 +108,10 @@ async function hydrateInner() {
       const p = dir ? `${dir}/${f.name}` : f.name
       if (f.name.startsWith('.') || (f.size ?? 0) > 30e6) continue
       if (f.type === 'directory') { vol.mkdirSync(`${base}/${p}`, { recursive: true }); await walk(base, directory, p) }
-      else {
+      else if (base === DOCS_ROOT && (f.size ?? 0) > EAGER_MAX && `${base}/${p}` !== openedDoc) {
+        // memory: a big document is only listed; its bytes load when this page opens it (ensureLoaded)
+        lazy.set(`${base}/${p}`, { size: f.size ?? 0, mtime: f.mtime ?? 0 })
+      } else {
         const { data } = await Filesystem.readFile({ path: p, directory })
         const bin = atob(data as string); const u = new Uint8Array(bin.length)
         for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
@@ -116,6 +122,51 @@ async function hydrateInner() {
   const saved = new Set(dirty); await walk(DOCS_ROOT, Directory.Documents, ''); await walk(USER_ROOT, Directory.Support, '')
   for (const p of saved) dirty.add(p)
   dirty.clear()
+}
+
+// ---- lazily loaded documents --------------------------------------------------------------------------------
+// Every page (the office home and each tab) has its own in-memory file system. Loading the whole Documents folder
+// into each of them costs (size of all documents) × (open tabs) of memory, which a large iPad library cannot afford.
+// Files up to EAGER_MAX load at start; bigger ones are only listed (name, size, date) until a page needs them.
+const EAGER_MAX = 512 * 1024
+const lazy = new Map<string, { size: number; mtime: number }>()
+const npath = (p: unknown) => (typeof p === 'string' ? p.replace(/\/+$/, '') : '')
+const inVol = (p: string) => { try { vol.statSync(p); return true } catch { return false } }
+const lazyStat = (p: string) => {
+  const m = lazy.get(p)!; const t = new Date(m.mtime)
+  return { size: m.size, mtimeMs: m.mtime, mtime: t, ctimeMs: m.mtime, ctime: t, birthtimeMs: m.mtime, birthtime: t, atimeMs: m.mtime, atime: t,
+    mode: 0o100644, isFile: () => true, isDirectory: () => false, isSymbolicLink: () => false, isFIFO: () => false, isSocket: () => false, isBlockDevice: () => false, isCharacterDevice: () => false }
+}
+/** loads a listed-only document's bytes from the device (call before reading it) */
+export async function ensureLoaded(path: string) {
+  const p = npath(path)
+  if (!lazy.has(p) || inVol(p)) { lazy.delete(p); return }
+  const { data } = await Filesystem.readFile({ path: rel(p), directory: dirOfRoot(rootOf(p)) })
+  const bin = atob(data as string); const u = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
+  vol.mkdirSync(p.slice(0, p.lastIndexOf('/')), { recursive: true }); vol.writeFileSync(p, u) // not a change: no mirror write
+  lazy.delete(p)
+}
+{
+  const f: any = fs
+  const ex = f.existsSync, st = f.statSync, ls = f.lstatSync, rd = f.readdirSync, ul = f.unlinkSync
+  f.existsSync = (p: any) => ex.call(f, p) || lazy.has(npath(p))
+  f.statSync = (p: any, o?: any) => { const n = npath(p); return lazy.has(n) && !inVol(n) ? lazyStat(n) : st.call(f, p, o) }
+  f.lstatSync = (p: any, o?: any) => { const n = npath(p); return lazy.has(n) && !inVol(n) ? lazyStat(n) : ls.call(f, p, o) }
+  f.readdirSync = (p: any, o?: any) => {
+    const out = rd.call(f, p, o); const dir = npath(p)
+    if (o && typeof o === 'object' && o.withFileTypes) return out
+    const have = new Set(out.map(String))
+    for (const k of lazy.keys()) if (k.slice(0, k.lastIndexOf('/')) === dir) { const n = k.slice(dir.length + 1); if (!have.has(n)) out.push(n) }
+    return out
+  }
+  f.unlinkSync = (p: any) => { const n = npath(p); if (lazy.has(n) && !inVol(n)) { lazy.delete(n); mark(n); return } return ul.call(f, p) }
+  const pst = f.promises.stat
+  f.promises.stat = async (p: any, o?: any) => { const n = npath(p); return lazy.has(n) && !inVol(n) ? lazyStat(n) : pst.call(f.promises, p, o) }
+  const prf = f.promises.readFile, rf = f.readFile
+  // async readers can wait for the bytes
+  f.promises.readFile = async (p: any, o?: any) => { if (lazy.has(npath(p))) await ensureLoaded(npath(p)); return prf.call(f.promises, p, o) }
+  f.readFile = (p: any, ...a: any[]) => { if (lazy.has(npath(p))) { ensureLoaded(npath(p)).then(() => rf.call(f, p, ...a), (e) => a[a.length - 1]?.(e)); return } return rf.call(f, p, ...a) }
 }
 
 export default fs

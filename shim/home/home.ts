@@ -1,5 +1,5 @@
 // AllEditor shell: Home (files), Settings, and multi-tab hosting of the editor apps (one iframe per tab).
-import fs, { DOCS_ROOT, USER_ROOT, hydrate, flush } from '../runtime/fs'
+import fs, { DOCS_ROOT, USER_ROOT, hydrate, flush, ensureLoaded } from '../runtime/fs'
 import { AI_PROVIDERS, defaultAiSettings, sanitizeAiSettings } from '@genoffice/ai-provider'
 import { LANGS, tr } from './i18n'
 import { convertIwork, IWORK_EXT } from '../iwork/convert'
@@ -156,6 +156,7 @@ async function openPath(path: string) {
   busy.add(path)
   const wait = el('div', 'toast', t('converting')); document.body.append(wait)
   try {
+    await ensureLoaded(path) // big files are only listed until needed
     const b = fs.readFileSync(path) as Uint8Array
     const r = await convertIwork(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer, kind)
     fs.writeFileSync(copy, r.bytes); await flush()
