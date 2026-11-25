@@ -8,6 +8,10 @@ export const vol = new Volume()
 const fs: any = createFsFromVolume(vol)
 for (const d of [DOCS_ROOT, '/tmp', '/userData', '/home']) vol.mkdirSync(d, { recursive: true })
 
+// Browser preview (no native bridge): IndexedDB plays the role of the app's file storage,
+// so tabs (iframes) still share files like they do on device.
+const idbOpen = () => new Promise<IDBDatabase>((res, rej) => { const r = indexedDB.open('alleditor-fs', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error) })
+const idbTx = async <T,>(mode: IDBTransactionMode, f: (s: IDBObjectStore) => IDBRequest<T>) => { const db = await idbOpen(); return new Promise<T>((res, rej) => { const r = f(db.transaction('f', mode).objectStore('f')); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error) }) }
 const native = () => (window as any).Capacitor?.isNativePlatform?.() === true
 export const USER_ROOT = '/userData'
 const rootOf = (p: string) => (p.startsWith(USER_ROOT + '/') ? USER_ROOT : DOCS_ROOT)
@@ -31,7 +35,15 @@ const b64 = (u: Uint8Array) => {
 export async function flush() {
   timer = null
   const paths = [...dirty]; dirty.clear()
-  if (!native()) return
+  if (!native()) {
+    for (const p of paths) {
+      try {
+        if (fs.existsSync(p) && fs.statSync(p).isFile()) await idbTx('readwrite', (st) => st.put(new Uint8Array(fs.readFileSync(p)), p))
+        else await idbTx('readwrite', (st) => st.delete(p))
+      } catch (e) { console.warn('[idb mirror]', p, e) }
+    }
+    return
+  }
   for (const p of paths) {
     try {
       if (fs.existsSync(p) && fs.statSync(p).isFile())
@@ -64,7 +76,16 @@ export async function hydrate() {
   // dev/test hook: files injected by the page before boot
   const seed = (globalThis as any).__seedFiles
   if (seed) for (const [n, d] of Object.entries<string>(seed)) { const bin = atob(d); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); fs.writeFileSync(`${DOCS_ROOT}/${n}`, u) }
-  if (!native()) return
+  if (!native()) {
+    try {
+      const keys = (await idbTx('readonly', (st) => st.getAllKeys())) as string[]
+      for (const k of keys) {
+        const v = (await idbTx('readonly', (st) => st.get(k))) as Uint8Array
+        fs.mkdirSync(String(k).slice(0, String(k).lastIndexOf('/')), { recursive: true }); fs.writeFileSync(String(k), v)
+      }
+    } catch (e) { console.warn('[idb hydrate]', e) }
+    dirty.clear(); return
+  }
   const walk = async (base: string, directory: typeof Directory[keyof typeof Directory], dir: string) => {
     const { files } = await Filesystem.readdir({ path: dir, directory }).catch(() => ({ files: [] as any[] }))
     for (const f of files) {

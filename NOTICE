@@ -66,3 +66,8 @@ Part 4, Transitional) XML Schema files for PresentationML and DrawingML, as
 distributed in the python-docx repository (ref/xsd), with one marked local
 amendment (see tools/ooxml-validate/README.md). They are used only by tests
 and development tooling and are not shipped in the application.
+
+
+This iOS port additionally bundles (Apache-2.0 / MIT):
+  - iwork-viewer (flyfish-dev), Apple iWork parser — Apache-2.0
+  - pptxgenjs, jszip, memfs, Capacitor, and other npm packages under their own licenses

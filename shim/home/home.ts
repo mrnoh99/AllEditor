@@ -2,12 +2,17 @@
 import fs, { DOCS_ROOT, USER_ROOT, hydrate, flush } from '../runtime/fs'
 import { AI_PROVIDERS, defaultAiSettings, sanitizeAiSettings } from '@genoffice/ai-provider'
 import { LANGS, tr } from './i18n'
+import { convertIwork, IWORK_EXT } from '../iwork/convert'
 
 const APP_BY_EXT: Record<string, string> = {
   docx: 'docs', dotx: 'docs', doc: 'docs', dot: 'docs', odt: 'docs', ott: 'docs', hwp: 'docs', hwpx: 'docs',
   pptx: 'slides', potx: 'slides', ppt: 'slides', odp: 'slides', otp: 'slides',
   xlsx: 'sheets', xlsm: 'sheets', xls: 'sheets', ods: 'sheets', ots: 'sheets', csv: 'sheets', tsv: 'sheets', pdf: 'pdf',
+  // Apple iWork: converted to an editable copy first (see openPath)
+  pages: 'docs', key: 'slides', numbers: 'sheets',
 }
+const IWORK_LABEL: Record<string, string> = { pages: 'Pages', key: 'Keynote', numbers: 'Numbers' }
+const tagLabel = (n: string) => IWORK_LABEL[ext(n)] ?? APP_LABEL[appFor(n)][lang() === 'ko' ? 0 : 1]
 const APP_LABEL: Record<string, [string, string]> = { docs: ['문서', 'Docs'], slides: ['슬라이드', 'Slides'], sheets: ['스프레드시트', 'Sheets'], pdf: ['PDF', 'PDF'] }
 const ext = (n: string) => n.split('.').pop()!.toLowerCase()
 const appFor = (n: string) => APP_BY_EXT[ext(n)]
@@ -81,10 +86,28 @@ function renderBar() {
 }
 
 // ---- files ----
-function openPath(path: string) {
+const busy = new Set<string>()
+async function openPath(path: string) {
   const name = path.split('/').pop()!, app = appFor(name)
   if (!app) { alert(`${t('unsupported')}: ${name}`); return }
-  addTab({ kind: 'app', app, path, title: name })
+  const kind = IWORK_EXT[ext(name)]
+  if (!kind) { addTab({ kind: 'app', app, path, title: name }); return }
+  // iWork file: open its editable copy (made once, then independent of the original)
+  const stem = path.replace(/\.[^.]+$/, '')
+  const outExt = kind === 'pages' ? 'docx' : kind === 'keynote' ? 'pptx' : 'xlsx'
+  const copy = `${stem}.${outExt}`
+  if (fs.existsSync(copy)) { openPath(copy); return }
+  if (busy.has(path)) return
+  if (!confirm(`${name}\n\n${t('iworkConfirm')}`)) return
+  busy.add(path)
+  const wait = el('div', 'toast', t('converting')); document.body.append(wait)
+  try {
+    const b = fs.readFileSync(path) as Uint8Array
+    const r = await convertIwork(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer, kind)
+    fs.writeFileSync(copy, r.bytes); await flush()
+    wait.remove(); openPath(copy)
+  } catch (e: any) { wait.remove(); alert(`${t('convertFailed')}: ${e?.message ?? e}`) }
+  finally { busy.delete(path) }
 }
 function newBlank(app: string) { addTab({ kind: 'app', app, title: APP_LABEL[app][lang() === 'ko' ? 0 : 1] + ' ' + (tabs.filter((x) => x.app === app).length + 1) }) }
 const uniq = (name: string) => {
@@ -99,7 +122,7 @@ async function importFile(f: File) {
   const p = uniq(name)
   fs.writeFileSync(p, new Uint8Array(await f.arrayBuffer()))
   await flush()
-  openPath(p)
+  void openPath(p)
 }
 const fmt = (n: number) => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB')
 
@@ -121,7 +144,7 @@ function renderHome() {
   if (!rows.length) list.append(el('p', 'empty', t('empty')))
   for (const r of rows) {
     const row = el('div', 'row'); const b = el('button', 'file')
-    const tag = el('span', 'tag ' + appFor(r.n), APP_LABEL[appFor(r.n)][lang() === 'ko' ? 0 : 1]); const nm = el('span', 'nm', r.n); const sz = el('span', 'sz', fmt(r.size))
+    const tag = el('span', 'tag ' + appFor(r.n), tagLabel(r.n)); const nm = el('span', 'nm', r.n); const sz = el('span', 'sz', fmt(r.size))
     b.append(tag, nm, sz); b.onclick = () => openPath(`${DOCS_ROOT}/${r.n}`)
     const d = el('button', 'del', '✕'); d.setAttribute('aria-label', t('del'))
     d.onclick = async () => { if (!confirm(`${r.n}\n${t('confirmDel')}`)) return; fs.rmSync(`${DOCS_ROOT}/${r.n}`, { force: true }); await flush(); renderHome() }

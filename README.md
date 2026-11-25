@@ -20,6 +20,7 @@ choose an iPhone/iPad or simulator, press Run. The built web app is committed in
 | **Sheets** `.xlsx .xlsm .csv .tsv …` | real Sheets app; the Rust xlsx engine runs as WebAssembly |
 | **PDF** view / annotate / edit text / forms / merge / compress | real PDF app |
 | **PDF tools** PDF → Word / Excel / PowerPoint (on-device, PDFium wasm) | PDF ▸ “PDF 转换/Convert” menu |
+| **Apple Pages / Keynote / Numbers** `.pages .key .numbers` | converted once to an editable `.docx` / `.pptx` / `.xlsx` copy (original untouched), then opened in Docs / Slides / Sheets. Text, tables, images, charts and notes are kept; Numbers formulas become their saved values; Pages layout becomes flowing text; animations are dropped |
 | **Open local files** | launcher “Open local file…” (Files app, iCloud Drive, …); files are copied into the app's Documents folder, which is visible in *Files ▸ AllEditor* |
 
 The app opens on a **Home** tab (open local file, new document/slides/sheet, file list). Every file opens in its own

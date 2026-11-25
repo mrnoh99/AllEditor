@@ -12,6 +12,8 @@ const D: Record<Lang, Record<string, string>> = {
     reloadHint: '언어·테마 변경은 열려 있는 탭을 다시 불러와 적용합니다.', applied: '적용됨', about: '정보',
     aboutText: 'AllEditor — GenOffice(Apache-2.0)의 iOS 포트. 파일은 앱의 Documents 폴더(파일 앱 › AllEditor)에 저장됩니다.',
     save2: '저장 중…', tabs: '탭',
+    iworkConfirm: 'Apple iWork 파일을 편집 가능한 사본(docx/pptx/xlsx)으로 변환해 엽니다. 텍스트·표·이미지·차트는 유지되고, 수식은 계산 결과 값으로, 페이지 레이아웃과 애니메이션은 단순화됩니다. 원본은 그대로 보존됩니다.',
+    converting: '변환 중…', convertFailed: '변환 실패',
   },
   en: {
     home: 'Home', settings: 'Settings', openFile: 'Open local file…', newDoc: 'New document', newSlides: 'New slides', newSheet: 'New spreadsheet',
@@ -25,6 +27,8 @@ const D: Record<Lang, Record<string, string>> = {
     reloadHint: 'Language and theme changes reload the open tabs.', applied: 'Applied', about: 'About',
     aboutText: 'AllEditor — iOS port of GenOffice (Apache-2.0). Files live in the app’s Documents folder (Files › AllEditor).',
     save2: 'Saving…', tabs: 'Tabs',
+    iworkConfirm: 'This Apple iWork file will be converted to an editable copy (docx/pptx/xlsx). Text, tables, images and charts are kept; formulas become their calculated values; page layout and animations are simplified. The original is left untouched.',
+    converting: 'Converting…', convertFailed: 'Conversion failed',
   },
 }
 export const LANGS: Array<[string, string]> = [['ko', '한국어'], ['en', 'English'], ['zh', '中文'], ['ja', '日本語'], ['fr', 'Français'], ['de', 'Deutsch'], ['es', 'Español'], ['th', 'ไทย'], ['id', 'Bahasa Indonesia'], ['ru', 'Русский'], ['ar', 'العربية']]
