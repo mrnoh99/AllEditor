@@ -30,4 +30,7 @@ jobs:
           b ieumoffice-mobile_iOS debug iphonesimulator 'generic/platform=iOS Simulator'
           b ieumoffice-mobile_iOS release iphoneos 'generic/platform=iOS'
       - name: Working tree is still clean (the build wrote nothing tracked)
-        run: git status --porcelain | tee /dev/stderr | (! grep -q .)
+        run: |
+          out=$(git status --porcelain --untracked-files=all)
+          if [ -n "$out" ]; then echo "::error::the build changed tracked/untracked files:"; echo "$out"; git diff --stat; exit 1; fi
+          echo 'clean'
