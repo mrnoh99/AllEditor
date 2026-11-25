@@ -1,22 +1,47 @@
 # AllEditor (iOS)
 
 iOS build of the open-source [GenOffice](https://github.com/genspark-ai/genoffice) suite
-(Apache-2.0, pinned commit in `scripts/build-web.mjs`). It runs the upstream web renderers
-inside a Capacitor WKWebView and replaces the Electron preload bridge with
-`shim/desktop-shim.ts`.
+(Apache-2.0; pinned commit in `scripts/build-web.mjs`).
 
-## Status
-- **Docs (.docx)** boots and edits; open via the iOS Files picker, save writes to the app's
-  Documents folder (visible in Files › AllEditor).
-- Not yet wired: Sheets, Slides, PDF, Markdown, HTML (build with `APPS=docs,sheets,...`, but
-  their file APIs are no-ops until implemented in the shim), AI provider calls, the
-  Electron shell/home screen, printing, spellcheck.
-- `ee/` (Enterprise License) is intentionally **not** included.
-- Not yet compiled on a Mac — `.github/workflows/ios.yml` runs the first simulator build.
+## Open in Xcode (nothing to install)
 
-## Build (macOS + Xcode)
+```bash
+open ios/App/App.xcworkspace
+```
+Pick your Team under *Signing & Capabilities* (bundle id `com.mrnoh99.alleditor`, change if taken),
+choose an iPhone/iPad or simulator, press Run. The built web app is committed in
+`ios/App/App/public` and CocoaPods' `Pods/` is committed, so no `npm install` / `pod install` is needed.
+
+## What works
+| Feature | How |
+|---|---|
+| **Docs** `.docx .dotx .doc .odt` and **HWP/HWPX** (converted to an editable `.docx` copy) | real upstream Docs app |
+| **Slides** `.pptx` | real upstream Slides app |
+| **Sheets** `.xlsx .xlsm .csv .tsv …` | real Sheets app; the Rust xlsx engine runs as WebAssembly |
+| **PDF** view / annotate / edit text / forms / merge / compress | real PDF app |
+| **PDF tools** PDF → Word / Excel / PowerPoint (on-device, PDFium wasm) | PDF ▸ “PDF 转换/Convert” menu |
+| **Open local files** | launcher “Open local file…” (Files app, iCloud Drive, …); files are copied into the app's Documents folder, which is visible in *Files ▸ AllEditor* |
+
+Tap the round ⌂ button (bottom-left) inside any editor to return to the launcher; edge-swipe also goes back.
+
+## How it works
+The upstream apps are Electron apps. Instead of rewriting them, their **real preload and main-process
+code is bundled into the page** (`shim/runtime/`): `electron` is replaced by an in-page IPC bus,
+`fs` by an in-memory filesystem mirrored to the iOS Documents folder (native plugin `AEFilesPlugin` in
+`ios/App/App/AppDelegate.swift`), Node built-ins by browser polyfills, and the `xlsx-sidecar` process by
+`native/xlsx-wasm` (the upstream Rust engine compiled to `wasm32-wasip1`).
+
+## Rebuilding the web bundle (macOS/Linux, Node ≥ 22, Rust + `wasm32-wasip1` target)
 ```bash
 npm install
-npm run ios:sync     # clones/builds upstream renderers into www/, cap sync
-npm run ios:open     # opens Xcode; set your signing team, run
+npm run ios:sync      # clones upstream @ pinned commit, builds renderers + runtimes + wasm, `cap copy`
 ```
+`UPSTREAM_DIR=/path/to/genoffice` reuses an existing checkout.
+
+## Known limitations
+- Verified in desktop Chromium only (this was built on Linux with no Xcode); first on-device run is yours.
+- No system fonts on iOS: bundled fonts + web fonts only, CJK text in Slides uses heuristic metrics.
+- AI features need a provider configured in settings and network access; printing, spellcheck,
+  system share sheet, "Open in AllEditor" from other apps, Markdown/HTML apps and the multi-tab shell are not included.
+- Documents folder files > 30 MB are not loaded into memory.
+- `ee/` (GenOffice Enterprise License) is intentionally not included.

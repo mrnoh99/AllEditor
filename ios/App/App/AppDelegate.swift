@@ -47,3 +47,82 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
 }
+
+// MARK: - Native file access (replaces @capacitor/filesystem; app Documents folder, visible in Files.app)
+
+@objc(AEFilesPlugin)
+public class AEFilesPlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "AEFilesPlugin"
+    public let jsName = "AEFiles"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "readFile", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "writeFile", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "deleteFile", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "readdir", returnType: CAPPluginReturnPromise),
+    ]
+
+    private var root: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].standardizedFileURL
+    }
+
+    /// Resolves a Documents-relative path; refuses anything that escapes the folder.
+    private func resolve(_ call: CAPPluginCall) -> URL? {
+        let rel = call.getString("path") ?? ""
+        let url = root.appendingPathComponent(rel).standardizedFileURL
+        guard url.path == root.path || url.path.hasPrefix(root.path + "/") else {
+            call.reject("Path escapes Documents")
+            return nil
+        }
+        return url
+    }
+
+    @objc func readFile(_ call: CAPPluginCall) {
+        guard let url = resolve(call) else { return }
+        do { call.resolve(["data": try Data(contentsOf: url).base64EncodedString()]) }
+        catch { call.reject("Cannot read file", nil, error) }
+    }
+
+    @objc func writeFile(_ call: CAPPluginCall) {
+        guard let url = resolve(call) else { return }
+        guard let b64 = call.getString("data"), let data = Data(base64Encoded: b64) else {
+            call.reject("Invalid data"); return
+        }
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: url, options: .atomic)
+            call.resolve()
+        } catch { call.reject("Cannot write file", nil, error) }
+    }
+
+    @objc func deleteFile(_ call: CAPPluginCall) {
+        guard let url = resolve(call) else { return }
+        do { try FileManager.default.removeItem(at: url); call.resolve() }
+        catch { call.reject("Cannot delete file", nil, error) }
+    }
+
+    @objc func readdir(_ call: CAPPluginCall) {
+        guard let url = resolve(call) else { return }
+        do {
+            let keys: [URLResourceKey] = [.isDirectoryKey, .fileSizeKey, .contentModificationDateKey]
+            let items = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: keys)
+            let files: [[String: Any]] = items.map { item in
+                let v = try? item.resourceValues(forKeys: Set(keys))
+                return [
+                    "name": item.lastPathComponent,
+                    "type": (v?.isDirectory ?? false) ? "directory" : "file",
+                    "size": v?.fileSize ?? 0,
+                    "mtime": Int((v?.contentModificationDate?.timeIntervalSince1970 ?? 0) * 1000),
+                ]
+            }
+            call.resolve(["files": files])
+        } catch { call.resolve(["files": []]) }
+    }
+}
+
+/// Main view controller: registers the file plugin and enables the edge-swipe back gesture.
+class AEViewController: CAPBridgeViewController {
+    override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(AEFilesPlugin())
+        webView?.allowsBackForwardNavigationGestures = true
+    }
+}

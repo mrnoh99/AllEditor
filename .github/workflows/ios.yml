@@ -5,12 +5,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22 }
-      - run: npm install
-      - run: npm run ios:sync
-      - name: Build for simulator (no signing)
+      - name: Build for simulator (no signing) — opens the committed workspace as-is
         run: |
-          xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator \
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -sdk iphonesimulator \
             -configuration Debug -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO build

@@ -1,13 +1,34 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
 <title>AllEditor</title>
 <style>
-:root{color-scheme:light dark;--bg:#fff;--fg:#1c1c1e;--card:#f2f2f7}
-@media(prefers-color-scheme:dark){:root{--bg:#000;--fg:#fff;--card:#1c1c1e}}
-body{margin:0;padding:env(safe-area-inset-top) 16px env(safe-area-inset-bottom);background:var(--bg);color:var(--fg);font:17px -apple-system,system-ui,sans-serif}
-h1{margin:24px 0 16px}a{display:block;margin:10px 0;padding:18px;border-radius:14px;background:var(--card);color:inherit;text-decoration:none;font-weight:600}
+:root{--bg:#f2f2f7;--fg:#1c1c1e;--card:#fff;--mut:#8e8e93;--sep:#e5e5ea;--acc:#0a84ff}
+@media(prefers-color-scheme:dark){:root{--bg:#000;--fg:#fff;--card:#1c1c1e;--mut:#8e8e93;--sep:#38383a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:17px -apple-system,system-ui,sans-serif;padding:env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 16px)}
+main{max-width:720px;margin:0 auto}
+h1{font-size:34px;margin:20px 0 16px}h2{font-size:13px;text-transform:uppercase;color:var(--mut);margin:24px 4px 8px;letter-spacing:.04em}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+.primary{width:100%;padding:16px;border-radius:14px;background:var(--acc);color:#fff;font-weight:600}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.grid button{padding:16px 8px;border-radius:14px;background:var(--card);font-weight:600}
+#files{background:var(--card);border-radius:14px;overflow:hidden}
+.row{display:flex;border-top:1px solid var(--sep)}.row:first-child{border-top:0}
+.file{flex:1;display:flex;align-items:center;gap:10px;padding:14px;text-align:left;min-width:0}
+.nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sz{color:var(--mut);font-size:13px}
+.del{padding:0 16px;color:var(--mut)}
+.tag{font-size:11px;font-weight:700;color:#fff;border-radius:6px;padding:3px 6px;min-width:52px;text-align:center}
+.tag.docs{background:#2b6cd4}.tag.slides{background:#d24726}.tag.sheets{background:#1e7145}.tag.pdf{background:#e03a3e}
+.empty{margin:0;padding:18px;color:var(--mut)}
 </style></head>
-<body><h1>AllEditor</h1>
-<a href="./docs/index.html">Docs (.docx)</a>
-</body></html>
+<body><main>
+<h1>AllEditor</h1>
+<button id="openFile" class="primary">Open local file…</button>
+<input id="picker" type="file" hidden accept=".docx,.dotx,.doc,.odt,.hwp,.hwpx,.pptx,.potx,.ppt,.odp,.xlsx,.xlsm,.xls,.ods,.csv,.tsv,.pdf">
+<h2>New</h2>
+<div class="grid"><button data-new="docs">Docs</button><button data-new="slides">Slides</button><button data-new="sheets">Sheets</button></div>
+<h2>Documents</h2>
+<div id="files"></div>
+</main><script src="./launcher.js"></script></body></html>
