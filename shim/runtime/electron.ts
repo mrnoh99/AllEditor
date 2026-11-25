@@ -1,3 +1,4 @@
+import { isNative, nativeOpenUrl } from './native-files'
 // Minimal in-page "Electron": ipcMain/ipcRenderer talk directly, dialogs are iOS pickers,
 // everything else is an inert deep Proxy so unported features no-op instead of crashing.
 import fs, { DOCS_ROOT, flush } from './fs'
@@ -179,7 +180,7 @@ export const app: any = {
   addRecentDocument: () => {}, setBadgeCount: () => {}, focus: () => {},
 }
 export const shell: any = {
-  openExternal: async (u: string) => { window.open(u, '_blank') }, openPath: async (p: string) => { try { await flush(); if (window.parent !== window) window.parent.postMessage({ type: 'ae-open', path: p }, '*') } catch {} return '' },
+  openExternal: async (u: string) => { await openExternalUrl(u) }, openPath: async (p: string) => { try { await flush(); if (window.parent !== window) window.parent.postMessage({ type: 'ae-open', path: p }, '*') } catch {} return '' },
   showItemInFolder: () => {}, beep: () => {}, trashItem: async (p: string) => { fs.rmSync(p, { force: true, recursive: true }) },
 }
 export const clipboard: any = {
@@ -200,6 +201,12 @@ export const protocol: any = {
   isProtocolHandled: (s: string) => protoHandlers.has(s),
   registerSchemesAsPrivileged: () => {}, registerFileProtocol: () => {}, registerStreamProtocol: () => {}, interceptFileProtocol: () => {},
 }
+/** Safari (or the app registered for the link) via the native host; a plain window.open in a desktop browser */
+export async function openExternalUrl(u: string) {
+  if (!/^(https?|mailto):/i.test(u)) return
+  if (isNative()) { try { await nativeOpenUrl(u); return } catch {} }
+  window.open(u, '_blank')
+}
 const realFetch = g.fetch?.bind(g)
 g.__realFetch = realFetch
 g.fetch = async (input: any, init?: any) => {
@@ -207,6 +214,12 @@ g.fetch = async (input: any, init?: any) => {
   const m = /^([a-z][a-z0-9+.-]*):/i.exec(url)
   const h = m && protoHandlers.get(m[1])
   if (h) { await runtimeReady; return h(input instanceof Request ? input : new Request(url, init)) }
+  // the desktop app calls Claude's API from its main process; from a WebView Anthropic asks for this opt-in header
+  if (/^https:\/\/api\.anthropic\.com\//.test(url)) {
+    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
+    headers.set('anthropic-dangerous-direct-browser-access', 'true')
+    return realFetch(input, { ...init, headers })
+  }
   return realFetch(input, init)
 }
 export const session: any = inert('session')

@@ -2,6 +2,8 @@
 import { ipcMain } from './electron'
 import { DEFAULT_AI_PANEL_PREFS } from '@genoffice/ui'
 import { isPhone } from './phone'
+import fs, { USER_ROOT, flush } from './fs'
+import { defaultAiSettings } from '@genoffice/ai-provider'
 
 const KEY = 'alleditor.settings'
 const load = (): Record<string, any> => { try { return JSON.parse(localStorage.getItem(KEY) || '{}') } catch { return {} } }
@@ -53,4 +55,32 @@ export function registerShellIpc() {
   h('projectFolder:setSelection', () => ({ projectId: null, initialChatId: null }))
   h('projectFolder:getDefaultParentFolder', () => '/Documents')
   h('pdf:store-doc-hash', () => null)
+
+  // AI: the panel's "settings" button opens AllEditor's AI 연결 page (home settings tab, #ai)
+  const openAiSettings = () => {
+    try { if (window.parent !== window) { window.parent.postMessage({ type: 'ae-open-settings', section: 'ai' }, '*'); return } } catch {}
+    location.href = '../index.html#ai'
+  }
+  h('ai:open-model-settings', openAiSettings)
+  h('ai:open-settings', openAiSettings)
+  ensureIosAiProvider()
+}
+
+/**
+ * On iPad the desktop's "auto" (Claude / ChatGPT subscriptions first) cannot run: with no selection the AI panel
+ * offers subscription cards that cannot connect here. Default the selection to Gemini (a key provider with a free
+ * key), so the panel asks for that key and its "settings" button leads to the AI 연결 page.
+ */
+function ensureIosAiProvider() {
+  const file = `${USER_ROOT}/ai-settings.json`
+  let cur: any = {}
+  try { cur = JSON.parse(String(fs.readFileSync(file, 'utf8'))) } catch {}
+  if (cur.provider && cur.providers && !['auto', 'claude-code', 'codex', 'chatgpt'].includes(cur.provider)) return
+  try {
+    fs.mkdirSync(USER_ROOT, { recursive: true })
+    // a file without `providers` reads as a legacy file and falls back to "auto": write the full shape
+    const base: any = defaultAiSettings()
+    fs.writeFileSync(file, JSON.stringify({ ...base, ...cur, providers: { ...base.providers, ...(cur.providers ?? {}) }, provider: 'gemini' }, null, 2))
+    void flush()
+  } catch (e) { console.warn('[ai] default provider', e) }
 }

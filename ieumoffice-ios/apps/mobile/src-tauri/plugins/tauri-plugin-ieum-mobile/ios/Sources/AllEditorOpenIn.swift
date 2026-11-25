@@ -1,5 +1,6 @@
 import Foundation
 import Tauri
+import UIKit
 
 // AllEditor: "Open in AllEditor" from other apps (Files, Mail, Safari, …).
 // iOS hands the app a file URL (RunEvent::Opened on the Rust side). HWP / HWPX / Markdown go to the
@@ -41,5 +42,18 @@ extension AllEditorOfficePlugin {
         }
         if url.path.contains("/Documents/Inbox/") { try? FileManager.default.removeItem(at: url) }
         invoke.resolve(["name": url.lastPathComponent, "data": bytes.base64EncodedString()])
+    }
+}
+
+extension AllEditorOfficePlugin {
+    /// open a link outside the app (Safari, Mail): the AI providers' key pages, help links
+    @objc public func openUrl(_ invoke: Invoke) throws {
+        let args = try invoke.parseArgs(AEOpenUrlArgs.self)
+        guard let url = URL(string: args.url), ["https", "http", "mailto"].contains(url.scheme?.lowercased() ?? "") else {
+            invoke.reject("INVALID_ARGUMENT: bad url"); return
+        }
+        DispatchQueue.main.async {
+            UIApplication.shared.open(url, options: [:]) { ok in invoke.resolve(["opened": ok]) }
+        }
     }
 }

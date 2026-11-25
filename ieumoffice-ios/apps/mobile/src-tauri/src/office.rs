@@ -215,6 +215,13 @@ fn native_call<R: Runtime>(app: &AppHandle<R>, plugin: &str, method: &str, args:
             tauri_plugin_ieum_mobile::share_file_base64(app, name, mime, data)?;
             Ok(json!({}))
         }
+        "AEApp" if method == "openUrl" => {
+            let url = args.get("url").and_then(Value::as_str).ok_or("url missing")?;
+            if !(url.starts_with("https://") || url.starts_with("http://") || url.starts_with("mailto:")) {
+                return Err("only http(s) and mailto links open outside the app".into());
+            }
+            tauri_plugin_ieum_mobile::office_native_call(app, "openUrl", json!({ "url": url }))
+        }
         "AEApp" if method == "ping" => Ok(json!({ "native": "tauri", "platform": std::env::consts::OS })),
         _ => Err(format!("unknown plugin {plugin}")),
     }
