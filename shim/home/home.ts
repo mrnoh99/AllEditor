@@ -102,30 +102,51 @@ function renderBar() {
 // ---- rename: tap the active tab's name ----
 // The tab's document is renamed in Documents and the tab reopens it under the new name (unsaved changes must be
 // saved first: the editors keep their own copy of the path).
-async function renameTab(x: Tab) {
+/** ask for a new name and rename the file (extension kept); the new path, or null when nothing changed */
+async function renamePath(path: string, before?: () => Promise<void>): Promise<string | null> {
   const ko = lang() === 'ko'
-  const w = frames.get(x.id)?.contentWindow as any
-  const path: string | null = w?.__aeDocPath?.() ?? x.path ?? null
-  if (!path) { alert(ko ? '새 문서는 먼저 저장하세요 (파일 › 저장). 저장할 때 이름을 정할 수 있습니다.' : 'Save the new document first (File › Save); you can name it there.'); return }
   const dir = path.slice(0, path.lastIndexOf('/')), file = path.slice(path.lastIndexOf('/') + 1)
   const dot = file.lastIndexOf('.'), stem = dot > 0 ? file.slice(0, dot) : file, extn = dot > 0 ? file.slice(dot) : ''
   const input = prompt(ko ? `새 이름 (${extn} 은 그대로 둡니다)\n저장하지 않은 변경이 있으면 취소하고 먼저 저장하세요.` : `New name (${extn} is kept)\nCancel and save first if there are unsaved changes.`, stem)
-  if (input === null) return
+  if (input === null) return null
   const name = input.trim().replace(/[\\/:*?"<>|]/g, '_').replace(new RegExp(extn.replace('.', '\\.') + '$', 'i'), '')
-  if (!name || name === stem) return
+  if (!name || name === stem) return null
   const to = `${dir}/${name}${extn}`
-  if (fs.existsSync(to)) { alert(ko ? '같은 이름의 파일이 이미 있습니다.' : 'A file with that name already exists.'); return }
+  if (fs.existsSync(to)) { alert(ko ? '같은 이름의 파일이 이미 있습니다.' : 'A file with that name already exists.'); return null }
   try {
-    try { await w?.__aeFlush?.() } catch {}
+    try { await before?.() } catch {}
     await flush()
     if (isTauriOffice()) await nativeRename(path, to)
     else { await ensureLoaded(path); fs.renameSync(path, to); await flush() }
-  } catch (e: any) { alert((ko ? '이름을 바꾸지 못했습니다: ' : 'Could not rename: ') + (e?.message ?? e)); return }
+  } catch (e: any) { alert((ko ? '이름을 바꾸지 못했습니다: ' : 'Could not rename: ') + (e?.message ?? e)); return null }
   try { if (fs.existsSync(path)) fs.renameSync(path, to) } catch {} // keep this page's listing in step
-  x.path = to; x.title = `${name}${extn}`
+  return to
+}
+/** an open tab follows its file to the new name */
+function retarget(x: Tab, to: string) {
+  x.path = to; x.title = to.slice(to.lastIndexOf('/') + 1)
   const f = frames.get(x.id)
   if (f) f.src = `./${x.app}/index.html?open=${encodeURIComponent(to)}`
+}
+const tabPath = (x: Tab): string | null => { const w = frames.get(x.id)?.contentWindow as any; try { return w?.__aeDocPath?.() ?? x.path ?? null } catch { return x.path ?? null } }
+async function renameTab(x: Tab) {
+  const ko = lang() === 'ko'
+  const w = frames.get(x.id)?.contentWindow as any
+  const path = tabPath(x)
+  if (!path) { alert(ko ? '새 문서는 먼저 저장하세요 (파일 › 저장). 저장할 때 이름을 정할 수 있습니다.' : 'Save the new document first (File › Save); you can name it there.'); return }
+  const to = await renamePath(path, async () => { await w?.__aeFlush?.() })
+  if (!to) return
+  retarget(x, to)
   renderBar(); saveTabs()
+}
+/** rename from the home's recent list; a tab that has the file open follows it */
+async function renameListed(path: string) {
+  const open = tabs.filter((x) => x.kind === 'app' && tabPath(x) === path)
+  const to = await renamePath(path, async () => { for (const x of open) await (frames.get(x.id)?.contentWindow as any)?.__aeFlush?.() })
+  if (!to) return
+  for (const x of open) retarget(x, to)
+  if (open.length) { renderBar(); saveTabs() }
+  renderHome()
 }
 
 // ---- send to Pages / Keynote / Numbers (iOS share sheet) ----
@@ -266,9 +287,12 @@ function renderHome() {
     const row = el('div', 'row'); const b = el('button', 'file')
     const meta = el('span', 'meta'); meta.append(el('span', 'nm', r.n), el('span', 'sz', [typeName(r.n), fmt(r.size), ago(r.m)].filter(Boolean).join(' · ')))
     b.append(badge(badgeFor(r.n)), meta); b.onclick = () => openPath(`${DOCS_ROOT}/${r.n}`)
+    const rn = el('button', 'ren'); rn.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
+    rn.setAttribute('aria-label', ko ? '이름 바꾸기' : 'Rename'); rn.title = rn.getAttribute('aria-label')!
+    rn.onclick = () => void renameListed(`${DOCS_ROOT}/${r.n}`)
     const d = el('button', 'del', '✕'); d.setAttribute('aria-label', t('del'))
     d.onclick = async () => { if (!confirm(`${r.n}\n${t('confirmDel')}`)) return; fs.rmSync(`${DOCS_ROOT}/${r.n}`, { force: true }); await flush(); renderHome() }
-    row.append(b, d); list.append(row)
+    row.append(b, rn, d); list.append(row)
   }
   wrap.append(creditEl())
 }
