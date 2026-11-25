@@ -2,12 +2,14 @@ import fs, { hydrate, flush } from './fs'
 import { markReady, webContents } from './electron'
 import { registerShellIpc } from './shell-ipc'
 import { applyPhoneLayer, isPhone } from './phone'
+import { installAiToggle } from './ai-toggle'
 
 export function start(app: string, register: (open: string | null) => void, preload: Array<[string, string]> = []) {
   applyPhoneLayer()
   if (app === 'sheets') addSheetsMenu()
   ;(window as any).__aeFlush = flush
   addHomeButton()
+  installAiToggle()
   ;(async () => {
     try { await hydrate() } catch (e) { console.warn('[hydrate]', e) }
     const base = (document.currentScript as HTMLScriptElement | null)?.src || location.href
@@ -49,9 +51,9 @@ function addSheetsMenu() {
     const btn = document.createElement('button')
     btn.id = 'ae-file'; btn.textContent = '\u22EF'; btn.setAttribute('aria-label', ko ? '파일 메뉴' : 'File menu')
     const phone = isPhone()
-    btn.style.cssText = 'position:fixed;left:calc(env(safe-area-inset-left,0px) + 8px);bottom:calc(env(safe-area-inset-bottom,0px) + ' + (phone ? '112px' : '88px') + ');z-index:1500;width:40px;height:40px;border-radius:20px;border:1px solid rgba(128,128,128,.4);background:rgba(120,120,128,.55);color:#fff;font-size:22px;line-height:1;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)'
+    btn.style.cssText = 'position:fixed;right:calc(env(safe-area-inset-right,0px) + 12px);bottom:calc(env(safe-area-inset-bottom,0px) + ' + (phone ? '112px' : '88px') + ');z-index:1500;width:40px;height:40px;border-radius:20px;border:1px solid rgba(128,128,128,.4);background:rgba(120,120,128,.55);color:#fff;font-size:22px;line-height:1;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)'
     const menu = document.createElement('div')
-    menu.style.cssText = 'position:fixed;left:calc(env(safe-area-inset-left,0px) + 56px);bottom:calc(env(safe-area-inset-bottom,0px) + ' + (phone ? '112px' : '88px') + ');z-index:1600;background:#fff;color:#111;border-radius:12px;box-shadow:0 6px 28px rgba(0,0,0,.28);padding:6px 0;display:none;min-width:200px;font:16px -apple-system,system-ui,sans-serif'
+    menu.style.cssText = 'position:fixed;right:calc(env(safe-area-inset-right,0px) + 60px);bottom:calc(env(safe-area-inset-bottom,0px) + ' + (phone ? '112px' : '88px') + ');z-index:1600;background:#fff;color:#111;border-radius:12px;box-shadow:0 6px 28px rgba(0,0,0,.28);padding:6px 0;display:none;min-width:200px;font:16px -apple-system,system-ui,sans-serif'
     for (const [action, k, e] of items) {
       const it = document.createElement('button'); it.textContent = ko ? k : e
       it.style.cssText = 'display:block;width:100%;text-align:left;padding:12px 18px;border:0;background:none;color:inherit;font:inherit'

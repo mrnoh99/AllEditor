@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * AllEditor: post-process Tauri's generated Xcode project (src-tauri/gen/apple) so that
- *  1. it targets iPhone AND iPad (TARGETED_DEVICE_FAMILY "1,2", all iPad orientations, multitasking), and
+ *  1. it targets iPhone AND iPad (TARGETED_DEVICE_FAMILY "1,2"; iPad: landscape, full screen), and
  *  2. it opens and runs straight from Xcode with no Node / npm / Rust installed: the "Build Rust Code"
  *     phase copies the committed prebuilt static library (Prebuilt/<platform>/libapp.a) instead of running
  *     `npm run -- tauri ios xcode-script`. Set AE_BUILD_RUST=1 (or delete Prebuilt/) to build Rust from source.
@@ -143,13 +143,18 @@ if (!plistDir) throw new Error('Info.plist not found under gen/apple')
 const plist = join(APPLE, plistDir.name, 'Info.plist')
 const pb = (cmd) => execFileSync('/usr/libexec/PlistBuddy', ['-c', cmd, plist], { stdio: 'pipe' })
 const tryPb = (cmd) => { try { pb(cmd) } catch {} }
+// AllEditor (user decision): iPad runs landscape, full screen (no Split View / Slide Over), status bar hidden
 tryPb('Delete :UISupportedInterfaceOrientations~ipad')
 pb('Add :UISupportedInterfaceOrientations~ipad array')
-for (const o of ['Portrait', 'PortraitUpsideDown', 'LandscapeLeft', 'LandscapeRight']) {
+for (const o of ['LandscapeLeft', 'LandscapeRight']) {
   pb(`Add :UISupportedInterfaceOrientations~ipad: string UIInterfaceOrientation${o}`)
 }
 tryPb('Delete :UIRequiresFullScreen')
-pb('Add :UIRequiresFullScreen bool false')
+pb('Add :UIRequiresFullScreen bool true')
+tryPb('Delete :UIStatusBarHidden~ipad')
+pb('Add :UIStatusBarHidden~ipad bool true')
+tryPb('Delete :UIViewControllerBasedStatusBarAppearance')
+pb('Add :UIViewControllerBasedStatusBarAppearance bool false')
 // office suite: documents visible in Files › AllEditor, local-network permission for direct (IPP / 9100) printing
 tryPb('Delete :UIFileSharingEnabled')
 pb('Add :UIFileSharingEnabled bool true')

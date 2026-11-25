@@ -63,4 +63,6 @@ that stays alive while you are back on the 이음오피스 home (‹ 이음 butt
   as a copy in Documents (iWork → editable docx/pptx/xlsx copy), event `ae-office-intent` + command `ae_take_office_intents`.
   The document types live in the committed `gen/apple/.../Info.plist` (re-add them if the Xcode project is regenerated).
 - Languages: Korean (default) and English only.
+- iPad: landscape only, full screen (no Split View / Slide Over), status bar hidden (`ae-xcode-setup.mjs` + Info.plist).
+- Office apps: an "AI ‹ / ›" handle on the AI panel edge folds / unfolds it; the choice is remembered (`shim/runtime/ai-toggle.ts`).
 
