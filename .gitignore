@@ -8,3 +8,5 @@ dist/*
 .build/
 ieumoffice-ios/apps/mobile/dist/
 ieumoffice-ios/apps/hwp/public/studio/
+xcuserdata/
+*.xcuserstate

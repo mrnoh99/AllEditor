@@ -9,8 +9,19 @@ iOS build of the open-source [GenOffice](https://github.com/genspark-ai/genoffic
 ## Open in Xcode (nothing to install)
 
 ```bash
-open ios/App/App.xcworkspace
+git clone https://github.com/mrnoh99/AllEditor && cd AllEditor
+open AllEditor.xcworkspace
 ```
+`AllEditor.xcworkspace` (repository root) contains both iOS apps — choose the scheme at the top of Xcode:
+
+| Scheme | App |
+|---|---|
+| **App** | full office suite (Docs / Slides / Sheets / PDF), Capacitor — same as `open ios/App/App.xcworkspace` |
+| **ieumoffice-mobile_iOS** | 이음오피스's own mobile app (HWP / Markdown), Tauri — see `ieumoffice-ios/README-IOS.md` |
+
+No npm, CocoaPods, Node or Rust is needed: the web bundle, `Pods/` and the prebuilt Rust library are committed.
+CI (`.github/workflows/xcode-open.yml`) builds both schemes from a fresh clone with nothing installed.
+The ieumoffice app's prebuilt library is arm64 only → Apple-silicon Mac (or a real device).
 Pick your Team under *Signing & Capabilities* (bundle id `com.mrnoh99.alleditor`, change if taken),
 choose an iPhone/iPad or simulator, press Run. The built web app is committed in
 `ios/App/App/public` and CocoaPods' `Pods/` is committed, so no `npm install` / `pod install` is needed.
