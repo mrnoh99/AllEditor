@@ -14,15 +14,22 @@ const idbOpen = () => new Promise<IDBDatabase>((res, rej) => { const r = indexed
 const idbTx = async <T,>(mode: IDBTransactionMode, f: (s: IDBObjectStore) => IDBRequest<T>) => { const db = await idbOpen(); return new Promise<T>((res, rej) => { const r = f(db.transaction('f', mode).objectStore('f')); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error) }) }
 const native = isNative
 export const USER_ROOT = '/userData'
+const DOC_EXT_ROOT = () => DOCS_ROOT + '/'
 const rootOf = (p: string) => (p.startsWith(USER_ROOT + '/') ? USER_ROOT : DOCS_ROOT)
 const dirOfRoot = (r: string) => (r === USER_ROOT ? Directory.Support : Directory.Documents)
 const rel = (p: string) => p.slice(rootOf(p).length + 1)
 const dirty = new Set<string>()
 let timer: any = null
 const norm = (p: unknown) => (typeof p === 'string' ? (p.startsWith('/') ? p : '/' + p) : null)
+// the document this page (one tab = one document) edits: the file it opened, else the last office file it saved
+const DOC_EXT = /\.(docx|dotx|doc|odt|pptx|potx|ppt|odp|xlsx|xlsm|xls|ods|csv|tsv|pdf)$/i
+let docPath: string | null = (() => { try { const o = new URLSearchParams(location.search).get('open'); return o && DOC_EXT.test(o) ? o : null } catch { return null } })()
+;(globalThis as any).__aeDocPath = () => docPath
+;(globalThis as any).__aeReadFile = (p: string) => new Uint8Array(fs.readFileSync(p))
 function mark(...ps: unknown[]) {
   for (const p of ps) {
     const n = norm(p)
+    if (n && n.startsWith(DOC_EXT_ROOT()) && DOC_EXT.test(n) && !n.split('/').pop()!.startsWith('.')) docPath = n
     if (n && (n.startsWith(DOCS_ROOT + '/') && !n.includes('/.') || n.startsWith(USER_ROOT + '/'))) dirty.add(n)
   }
   if (dirty.size && !timer) timer = setTimeout(flush, 250)
@@ -75,6 +82,10 @@ fs.createWriteStream = (p: any, ...a: any[]) => { const s = cws.call(fs, p, ...a
 
 /** load Documents from iOS into memfs (call once before any IPC is served) */
 export async function hydrate() {
+  const openedDoc = docPath // loading the stored files below is not "saving a document"
+  try { await hydrateInner() } finally { docPath = openedDoc }
+}
+async function hydrateInner() {
   // dev/test hook: files injected by the page before boot
   const seed = (globalThis as any).__seedFiles
   if (seed) for (const [n, d] of Object.entries<string>(seed)) { const bin = atob(d); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); fs.writeFileSync(`${DOCS_ROOT}/${n}`, u) }

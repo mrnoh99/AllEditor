@@ -65,4 +65,10 @@ that stays alive while you are back on the 이음오피스 home (‹ 이음 butt
 - Languages: Korean (default) and English only.
 - iPad: landscape only, full screen (no Split View / Slide Over), status bar hidden (`ae-xcode-setup.mjs` + Info.plist).
 - Office apps: an "AI ‹ / ›" handle on the AI panel edge folds / unfolds it; the choice is remembered (`shim/runtime/ai-toggle.ts`).
+- "Pages로 보내기 / Keynote로 보내기 / Numbers로 보내기" (office tab bar): the tab's saved docx / pptx / xlsx goes to the
+  iOS share sheet (`AEShare.share` → `IeumFilePlugin.shareFileBytes`); Pages / Keynote / Numbers open it and can keep it
+  in Apple format. iWork files themselves are imported as editable copies (their format is closed; no write-back).
+- Credit (all app screens, every language): "AllEditor (iOS / iPadOS) — Developed by JaiSung NOH MD, 2026. This app is
+  built on the open source of 이음오피스 (IeumOffice) by 박준일 (Jun-il Park), which is itself based on GenOffice by
+  Genspark AI / Mainfunc, Inc. (Apache License 2.0)"
 

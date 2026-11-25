@@ -6,7 +6,8 @@
 //! answers the suite's native calls (`POST office://localhost/__ae/<plugin>/<method>`, JSON in / JSON out):
 //!
 //! * `AEFiles.readFile|writeFile|deleteFile|readdir` — app Documents (visible in Files.app) or private support dir;
-//! * `AEPdf.render` and `AEPrint.printPdf|directPrint` — forwarded to the Swift side (`AllEditorOfficePlugin`).
+//! * `AEPdf.render` and `AEPrint.printPdf|directPrint` — forwarded to the Swift side (`AllEditorOfficePlugin`);
+//! * `AEShare.share` — iOS share sheet (send a document to Pages / Keynote / Numbers, …) via `IeumFilePlugin.shareFileBytes`.
 //!
 //! Each request runs on its own thread: the Swift calls are blocking and must never run on the main thread.
 
@@ -206,6 +207,13 @@ fn native_call<R: Runtime>(app: &AppHandle<R>, plugin: &str, method: &str, args:
                 _ => return Err(format!("unknown method {plugin}.{method}")),
             };
             tauri_plugin_ieum_mobile::office_native_call(app, swift_method, args)
+        }
+        "AEShare" if method == "share" => {
+            let name = args.get("name").and_then(Value::as_str).unwrap_or("document");
+            let mime = args.get("mime").and_then(Value::as_str).unwrap_or("application/octet-stream");
+            let data = args.get("data").and_then(Value::as_str).ok_or("data missing")?;
+            tauri_plugin_ieum_mobile::share_file_base64(app, name, mime, data)?;
+            Ok(json!({}))
         }
         "AEApp" if method == "ping" => Ok(json!({ "native": "tauri", "platform": std::env::consts::OS })),
         _ => Err(format!("unknown plugin {plugin}")),

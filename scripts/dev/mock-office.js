@@ -21,6 +21,7 @@ http.createServer((req, res) => {
         else if (method === 'readdir') out = { files: fs.existsSync(f) ? fs.readdirSync(f).map((n) => { const st = fs.statSync(path.join(f, n)); return { name: n, type: st.isDirectory() ? 'directory' : 'file', size: st.size, mtime: st.mtimeMs } }) : [] }
         else if (plugin === 'AEPdf') out = { data: Buffer.from('%PDF-1.4 mock').toString('base64') }
         else if (plugin === 'AEPrint') out = { via: 'mock', completed: true }
+        else if (plugin === 'AEShare') { log.push('share ' + a.name + ' ' + a.mime + ' ' + Buffer.from(a.data, 'base64').length + 'B') }
         res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(out))
       } catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: String(e.message) })) }
     }); return

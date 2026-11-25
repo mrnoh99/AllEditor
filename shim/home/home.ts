@@ -4,6 +4,7 @@ import { AI_PROVIDERS, defaultAiSettings, sanitizeAiSettings } from '@genoffice/
 import { LANGS, tr } from './i18n'
 import { convertIwork, IWORK_EXT } from '../iwork/convert'
 import { getPrinters, setPrinters, sendToPrinter, testPdf, type PrinterCfg } from '../runtime/print'
+import { nativeShare } from '../runtime/native-files'
 
 const APP_BY_EXT: Record<string, string> = {
   docx: 'docs', dotx: 'docs', doc: 'docs', dot: 'docs', odt: 'docs', ott: 'docs', hwp: 'docs', hwpx: 'docs',
@@ -90,16 +91,54 @@ function renderBar() {
     if (x.kind !== 'home') { const c = el('button', 'tx', '✕'); c.setAttribute('aria-label', t('closeTab')); c.onclick = () => void closeTab(x.id); b.append(c) }
     bar.append(b)
   }
+  const cur = tabs.find((x) => x.id === active)
+  if (cur?.kind === 'app') {
+    const send = el('button', 'send', sendLabel(cur)); send.setAttribute('aria-label', sendLabel(cur))
+    send.onclick = () => void sendDoc(cur)
+    bar.append(send)
+  }
   const gear = el('button', 'gear' + (tabs.find((x) => x.id === active)?.kind === 'settings' ? ' on' : ''), '⚙'); gear.setAttribute('aria-label', t('settings'))
   gear.onclick = () => addTab({ kind: 'settings', title: t('settings') })
   bar.append(gear)
   bar.querySelector('.tab.on')?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
 }
 
+// ---- send to Pages / Keynote / Numbers (iOS share sheet) ----
+// The tab's document as last saved: Pages / Keynote / Numbers open docx / pptx / xlsx and can keep it in Apple format.
+const SEND_TARGET: Record<string, [string, string]> = { docs: ['Pages', 'Pages'], slides: ['Keynote', 'Keynote'], sheets: ['Numbers', 'Numbers'] }
+const MIME: Record<string, string> = {
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pdf: 'application/pdf', csv: 'text/csv',
+}
+function sendLabel(x: Tab) {
+  const target = SEND_TARGET[x.app ?? '']
+  if (lang() === 'ko') return target ? `${target[0]}로 보내기` : '보내기'
+  return target ? `Send to ${target[1]}` : 'Send'
+}
+async function sendDoc(x: Tab) {
+  const f = frames.get(x.id)
+  const w = f?.contentWindow as any
+  try { await w?.__aeFlush?.() } catch {}
+  const path: string | null = w?.__aeDocPath?.() ?? x.path ?? null
+  if (!path) {
+    alert(lang() === 'ko' ? '먼저 문서를 저장하세요 (파일 › 저장). 저장된 내용이 보내집니다.' : 'Save the document first (File › Save). The saved version is sent.')
+    return
+  }
+  try {
+    const bytes: Uint8Array = w?.__aeReadFile ? w.__aeReadFile(path) : new Uint8Array(fs.readFileSync(path))
+    const name = path.split('/').pop()!
+    await nativeShare(name, MIME[ext(name)] ?? 'application/octet-stream', bytes)
+  } catch (e: any) {
+    alert((lang() === 'ko' ? '보내지 못했습니다: ' : 'Could not send: ') + (e?.message ?? e))
+  }
+}
+
 // ---- files ----
-const credit = () => (lang() === 'ko'
-  ? '이음오피스(박준일, pblsketch/ieumoffice) 오픈소스를 바탕으로 iOS·iPad용 기능을 더했습니다. 이음오피스는 GenOffice(Genspark AI · Mainfunc, Inc.)를 바탕으로 합니다. (Apache-2.0)\nDeveloped by JaiSung NOH MD 2026'
-  : 'Built on the open source of IeumOffice by Jun-il Park (pblsketch/ieumoffice), extended for iOS / iPad. IeumOffice is based on GenOffice by Genspark AI · Mainfunc, Inc. (Apache-2.0)\nDeveloped by JaiSung NOH MD 2026')
+// credit line (same text in every language, user-mandated)
+export const CREDIT = 'AllEditor (iOS / iPadOS) — Developed by JaiSung NOH MD, 2026. This app is built on the open source of 이음오피스 (IeumOffice) by 박준일 (Jun-il Park), which is itself based on GenOffice by Genspark AI / Mainfunc, Inc. (Apache License 2.0)'
+const credit = () => CREDIT
 const busy = new Set<string>()
 async function openPath(path: string) {
   const name = path.split('/').pop()!, app = appFor(name)

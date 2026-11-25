@@ -74,3 +74,8 @@ const toB64 = (u: Uint8Array) => { let s = ''; for (let i = 0; i < u.length; i +
 export const nativePrintDialog = (pdf: Uint8Array, jobName: string) => printPlugin.printPdf({ data: toB64(pdf), jobName })
 export const nativeDirectPrint = (o: { host: string; port?: number; protocol: string; pdf: Uint8Array; jobName: string; copies?: number; sides?: string }) =>
   printPlugin.directPrint({ host: o.host, port: o.port, protocol: o.protocol, data: toB64(o.pdf), jobName: o.jobName, copies: o.copies, sides: o.sides })
+
+// ---- AEShare: iOS share sheet (send a document to Pages / Keynote / Numbers, Files, Mail, …) ----
+interface AEShare { share(o: { name: string; mime: string; data: string }): Promise<unknown> }
+const sharePlugin = bridge<AEShare>('AEShare')
+export const nativeShare = (name: string, mime: string, bytes: Uint8Array) => sharePlugin.share({ name, mime, data: toB64(bytes) })

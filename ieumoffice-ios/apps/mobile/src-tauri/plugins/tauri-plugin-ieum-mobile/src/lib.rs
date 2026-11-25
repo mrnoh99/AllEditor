@@ -371,3 +371,24 @@ pub fn enqueue_open_url<R: Runtime>(app: &AppHandle<R>, url: &str) -> Result<(),
         Err("Open in AllEditor is iOS only".into())
     }
 }
+
+/// Presents the iOS share sheet for a file (base64 bytes): "send to Pages / Keynote / Numbers", Files, Mail, …
+pub fn share_file_base64<R: Runtime>(app: &AppHandle<R>, name: &str, mime: &str, data_b64: &str) -> Result<(), String> {
+    #[cfg(target_os = "ios")]
+    {
+        let state = app.try_state::<IosFilePluginHandle<R>>().ok_or("file plugin not registered")?;
+        state
+            .handle
+            .run_mobile_plugin::<serde_json::Value>(
+                "shareFileBytes",
+                serde_json::json!({ "suggestedName": name, "mime": mime, "bytesBase64": data_b64 }),
+            )
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        let _ = (app, name, mime, data_b64);
+        Err("sharing needs the iOS app".into())
+    }
+}

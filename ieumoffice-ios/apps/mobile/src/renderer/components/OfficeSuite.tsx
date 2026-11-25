@@ -211,18 +211,16 @@ export function OfficeOverlay() {
 }
 
 /** Credit line (user-mandated, small text, Korean first). Apache-2.0 attribution of 이음오피스 and GenOffice. */
+export const CREDIT_TEXT =
+  'AllEditor (iOS / iPadOS) — Developed by JaiSung NOH MD, 2026. This app is built on the open source of 이음오피스 (IeumOffice) by 박준일 (Jun-il Park), which is itself based on GenOffice by Genspark AI / Mainfunc, Inc. (Apache License 2.0)'
+
 export function CreditFooter() {
-  const { lang } = useMobileLocale()
-  const text =
-    lang === 'ko'
-      ? '이음오피스(박준일, pblsketch/ieumoffice) 오픈소스를 바탕으로 iOS·iPad용 기능을 더했습니다. 이음오피스는 GenOffice(Genspark AI · Mainfunc, Inc.)를 바탕으로 합니다. (Apache-2.0)'
-      : 'Built on the open source of IeumOffice by Jun-il Park (pblsketch/ieumoffice), extended for iOS / iPad. IeumOffice is based on GenOffice by Genspark AI · Mainfunc, Inc. (Apache-2.0)'
   return (
     <footer
       data-testid="home-credit"
-      style={{ margin: '28px 4px 12px', fontSize: 11, lineHeight: 1.5, opacity: 0.6, textAlign: 'center', whiteSpace: 'pre-line' }}
+      style={{ margin: '28px 4px 12px', fontSize: 11, lineHeight: 1.5, opacity: 0.6, textAlign: 'center' }}
     >
-      {text + '\nDeveloped by JaiSung NOH MD 2026'}
+      {CREDIT_TEXT}
     </footer>
   )
 }
