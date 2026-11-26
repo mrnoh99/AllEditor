@@ -87,6 +87,11 @@ const SOURCE_EDITS = {
     ['              <ZoomControls zoom={zoom} onPreview={previewZoom} />\n            </div>',
      '              <ZoomControls zoom={zoom} onPreview={previewZoom} />\n              <button className=\"zoom-btn ae-fit-width\" data-tip={lang === "ko" ? "폭 맞춤" : "Fit to width"} aria-label={lang === "ko" ? "폭 맞춤" : "Fit to width"} onClick={zoomToFit}><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"1.9\" strokeLinecap=\"round\" strokeLinejoin=\"round\"><path d=\"M3 5v14M21 5v14M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3\"/></svg></button>\n            </div>'],
   ],
+  // PowerPoint's save button: usable whenever a deck is open (as in Word), not only while the deck is marked
+  // dirty — with AutoSave on, or while a text box is being edited, it stayed greyed out
+  'apps/slides/src/renderer/components/Ribbon.tsx': [
+    ["          disabled={!dirty}\n          onClick={onSave}", "          disabled={!hasDoc}\n          onClick={onSave}"],
+  ],
   'packages/ui/src/template-fonts.ts': [
     ['  return `${TEMPLATE_FONT_SCHEME}://${TEMPLATE_FONT_HOST}/${encodeURIComponent(file)}`',
      '  return `/hwp/studio/fonts/tpl/${encodeURIComponent(file)}` // AllEditor: bundled copy (office/hwp/studio/fonts/tpl)'],
