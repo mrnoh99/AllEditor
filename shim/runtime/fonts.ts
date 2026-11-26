@@ -38,10 +38,10 @@ const FAMILIES: Array<{ names: string[]; local: string[]; faces: Face[] }> = [
 const SANS_KR: Face[] = [{ file: 'Pretendard-Regular.woff2', weight: 400 }, { file: 'Pretendard-Bold.woff2', weight: 700 }]
 const GOTHIC_KR: Face[] = [{ file: 'NanumGothic-Regular.woff2', weight: 400 }, { file: 'NanumGothic-Bold.woff2', weight: 700 }]
 const SERIF_KR: Face[] = [{ file: 'NanumMyeongjo-Regular.woff2', weight: 400 }, { file: 'NanumMyeongjo-Bold.woff2', weight: 700 }]
-export const ALIASES: Array<{ names: string[]; shownAs: string; faces: Face[] }> = [
+export const ALIASES: Array<{ names: string[]; shownAs: string; faces: Face[]; system?: string }> = [
   { names: ['Malgun Gothic', '맑은 고딕'], shownAs: 'Pretendard', faces: SANS_KR },
   { names: ['Gulim', '굴림', 'GulimChe', '굴림체', 'New Gulim', '새굴림', 'Dotum', '돋움', 'DotumChe', '돋움체', '함초롬돋움', 'HCR Dotum', '한컴돋움'], shownAs: '나눔고딕', faces: GOTHIC_KR },
-  { names: ['Batang', '바탕', 'BatangChe', '바탕체', 'Gungsuh', '궁서', 'GungsuhChe', '궁서체', '함초롬바탕', 'HCR Batang', '한컴바탕'], shownAs: '나눔명조', faces: SERIF_KR },
+  { names: ['Batang', '바탕', 'BatangChe', '바탕체', 'Gungsuh', '궁서', 'GungsuhChe', '궁서체', '함초롬바탕', 'HCR Batang', '한컴바탕'], shownAs: 'AppleMyungjo', faces: SERIF_KR, system: 'AppleMyungjo' },
   { names: ['Calibri', 'Calibri Light'], shownAs: 'Carlito', faces: [{ file: 'Carlito-Regular.woff2', weight: 400 }, { file: 'Carlito-Bold.woff2', weight: 700 }] },
   { names: ['Cambria'], shownAs: 'Caladea', faces: [{ file: 'Caladea-Regular.woff2', weight: 400 }, { file: 'Caladea-Bold.woff2', weight: 700 }] },
   { names: ['Segoe UI', 'Tahoma', 'Aptos'], shownAs: 'Liberation Sans', faces: [{ file: 'LiberationSans-Regular.woff2', weight: 400 }, { file: 'LiberationSans-Bold.woff2', weight: 700 }] },
@@ -56,8 +56,14 @@ export const BUNDLED_FAMILY_NAMES = new Set([...FAMILIES, ...ALIASES].flatMap((f
 
 export function bundledFontCss(base = FONT_BASE, aliases = true): string {
   const rules: string[] = []
+  // the Word editor keeps its own stand-ins, except 바탕 — the default Hangul font of a new document — which the
+  // iPad draws with its own 명조
+  if (!aliases) for (const name of ['Batang', '바탕', 'BatangChe', '바탕체']) {
+    rules.push(`@font-face{font-family:"${name}";src:local("${name}"),local("AppleMyungjo"),url("${base}NanumMyeongjo-Regular.woff2") format("woff2");font-style:normal;font-display:swap}`)
+  }
   if (aliases) for (const a of ALIASES) for (const name of a.names) for (const face of a.faces) {
-    rules.push(`@font-face{font-family:"${name}";src:local("${name}"),url("${base}${face.file}") format("woff2");font-weight:${face.weight};font-style:normal;font-display:swap}`)
+    const sys = a.system && face.weight === 400 ? `local("${a.system}"),` : ''
+    rules.push(`@font-face{font-family:"${name}";src:local("${name}"),${sys}url("${base}${face.file}") format("woff2");font-weight:${face.weight};font-style:normal;font-display:swap}`)
   }
   for (const fam of FAMILIES) {
     for (const name of fam.names) {

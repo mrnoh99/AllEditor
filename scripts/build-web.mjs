@@ -60,13 +60,15 @@ const SOURCE_EDITS = {
     ["    type: 'nodebuffer',\n    compression: 'DEFLATE',\n    compressionOptions: { level: 6 },\n    streamFiles: true,\n  })\n  try {",
      "    type: 'uint8array',\n    compression: 'DEFLATE',\n    compressionOptions: { level: 6 },\n    streamFiles: true,\n  })\n  try {"],
   ],
-  // default font of a new Word document: AppleMyungjo (iPad's 명조) for Hangul and Latin (user's choice)
+  // default font of a new Word document: serif fonts that Windows, macOS and iOS all know (user's choice) —
+  // Latin Times New Roman (built into all three), Hangul 바탕/Batang (Windows, Office for Mac; on the iPad drawn
+  // with AppleMyungjo, shim/runtime/fonts.ts DOCS_SERIF)
   'packages/docx-engine/src/blank.ts': [
-    ['w:ascii="Calibri"', 'w:ascii="AppleMyungjo"'],
-    ['w:hAnsi="Calibri"', 'w:hAnsi="AppleMyungjo"'],
+    ['w:ascii="Calibri"', 'w:ascii="Times New Roman"'],
+    ['w:hAnsi="Calibri"', 'w:hAnsi="Times New Roman"'],
   ],
   'apps/docs/src/renderer/file-actions.ts': [
-    ['    eastAsiaFont: defaultEastAsiaFontFor(getLang()),\n    paperSize', "    eastAsiaFont: 'AppleMyungjo', // AllEditor default (was defaultEastAsiaFontFor(getLang()))\n    paperSize"],
+    ['    eastAsiaFont: defaultEastAsiaFontFor(getLang()),\n    paperSize', "    eastAsiaFont: 'Batang', // AllEditor default (was defaultEastAsiaFontFor(getLang()))\n    paperSize"],
   ],
   'packages/ui/src/template-fonts.ts': [
     ['  return `${TEMPLATE_FONT_SCHEME}://${TEMPLATE_FONT_HOST}/${encodeURIComponent(file)}`',
