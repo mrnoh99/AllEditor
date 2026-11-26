@@ -99,34 +99,6 @@ function makeMockTransport(options?: { pendingIntent?: MobileDocSession | null }
 }
 
 describe('MobileApp end-to-end integration', () => {
-  it('opens an external ephemeral share intent in view mode and lets the user toggle to edit mode', async () => {
-    const ephemeralDoc: MobileDocSession = {
-      sessionId: 'ext-1',
-      docKey: 'untitled-share-1',
-      name: 'shared.md',
-      ext: 'md',
-      format: 'md',
-      writable: false,
-      ephemeral: true,
-    }
-    const { transport } = makeMockTransport({ pendingIntent: ephemeralDoc })
-    const client = createMobileClient(transport)
-
-    const div = document.createElement('div')
-    document.body.appendChild(div)
-    containers.push(div)
-    const root = createRoot(div)
-
-    await act(async () => {
-      root.render(<MobileApp client={client} />)
-      await new Promise((r) => setTimeout(r, 30))
-    })
-
-    const mdView = div.querySelector('[data-editor="markdown"]')
-    expect(mdView).not.toBeNull()
-    expect(mdView?.getAttribute('data-mode')).toBe('view')
-  })
-
   it('opens on the office home (AllEditor: the office suite is the app home; the 이음오피스 home is gone)', async () => {
     const { transport } = makeMockTransport()
     const client = createMobileClient(transport)

@@ -8,6 +8,12 @@ const readFolded = (): boolean => { try { return JSON.parse(localStorage.getItem
 const writeFolded = (v: boolean) => {
   try { const s = JSON.parse(localStorage.getItem(KEY) || '{}'); s.aiFolded = v; localStorage.setItem(KEY, JSON.stringify(s)) } catch {}
 }
+/** the app's theme (설정 › 테마), not only the system's: a light app on a dark iPad keeps a light handle */
+const appDark = () => {
+  let th = 'system'
+  try { th = JSON.parse(localStorage.getItem(KEY) || '{}').theme ?? 'system' } catch {}
+  return th === 'dark' || (th !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+}
 const ko = () => { try { return (JSON.parse(localStorage.getItem(KEY) || '{}').language ?? 'ko') !== 'en' } catch { return true } }
 
 const dock = () => document.querySelector<HTMLElement>('.ai-dock, aside.copilot')
@@ -23,7 +29,7 @@ const CSS = `
 #ae-ai-toggle.left{border-radius:0 12px 12px 0;border-left:0}
 #ae-ai-toggle.right{border-radius:12px 0 0 12px;border-right:0}
 #ae-ai-toggle .chev{font-size:15px;line-height:1}
-@media (prefers-color-scheme: dark){#ae-ai-toggle{background:#2c2c2e;color:#eee}}
+#ae-ai-toggle.dark{background:#2c2c2e;color:#eee}
 `
 
 export function installAiToggle() {
@@ -43,7 +49,7 @@ export function installAiToggle() {
       const r = d.getBoundingClientRect()
       // panel on the left (default) or moved to the right by the user
       const right = open ? r.left > window.innerWidth / 2 : d.classList.contains('ai-dock-right') || getComputedStyle(d).order === '2'
-      b.className = right ? 'right' : 'left'
+      b.className = (right ? 'right' : 'left') + (appDark() ? ' dark' : '')
       const top = open ? r.top + r.height / 2 : window.innerHeight / 2
       b.style.top = `${Math.round(top)}px`
       if (right) { b.style.left = ''; b.style.right = `${Math.round(open ? window.innerWidth - r.left : 0)}px` }
@@ -68,6 +74,8 @@ export function installAiToggle() {
     const schedule = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(place) }
     new MutationObserver(schedule).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] })
     addEventListener('resize', schedule)
+    addEventListener('storage', schedule)
+    matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', schedule)
     document.addEventListener('transitionend', schedule, true)
     schedule()
   }

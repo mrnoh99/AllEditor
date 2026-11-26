@@ -140,6 +140,58 @@ public final class AllEditorOfficePlugin: Plugin, WKNavigationDelegate {
         }
     }
 
+    // MARK: iCloud Drive file changes under NSFileCoordinator (called by src-tauri/src/office.rs `coordinate`)
+
+    struct AECoordArgs: Decodable {
+        let op: String
+        let from: String?
+        let to: String
+    }
+
+    /// "replace": swap the finished file `from` in at `to` · "move": rename `from` to `to` · "delete": remove `to`.
+    /// Coordinated so iCloud sees one complete change (no half-written file is synced, no conflicting copy).
+    @objc public func coordinatedFile(_ invoke: Invoke) throws {
+        let a = try invoke.parseArgs(AECoordArgs.self)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let fm = FileManager.default
+            let to = URL(fileURLWithPath: a.to)
+            let coordinator = NSFileCoordinator(filePresenter: nil)
+            var coordError: NSError?
+            var opError: Error?
+            switch a.op {
+            case "replace":
+                guard let fromPath = a.from else { invoke.reject("from missing"); return }
+                let from = URL(fileURLWithPath: fromPath)
+                coordinator.coordinate(writingItemAt: to, options: .forReplacing, error: &coordError) { dest in
+                    do {
+                        if fm.fileExists(atPath: dest.path) { _ = try fm.replaceItemAt(dest, withItemAt: from) }
+                        else { try fm.moveItem(at: from, to: dest) }
+                    } catch { opError = error }
+                }
+                if coordError != nil || opError != nil { try? fm.removeItem(at: from) }
+            case "move":
+                guard let fromPath = a.from else { invoke.reject("from missing"); return }
+                let from = URL(fileURLWithPath: fromPath)
+                coordinator.coordinate(writingItemAt: from, options: .forMoving, writingItemAt: to, options: .forReplacing,
+                                       error: &coordError) { src, dst in
+                    do {
+                        try fm.moveItem(at: src, to: dst)
+                        coordinator.item(at: src, didMoveTo: dst)
+                    } catch { opError = error }
+                }
+            case "delete":
+                coordinator.coordinate(writingItemAt: to, options: .forDeleting, error: &coordError) { dest in
+                    do { try fm.removeItem(at: dest) } catch { opError = error }
+                }
+            default:
+                invoke.reject("unknown op \(a.op)")
+                return
+            }
+            if let e = coordError ?? (opError as NSError?) { invoke.reject(e.localizedDescription) }
+            else { invoke.resolve(["ok": true]) }
+        }
+    }
+
     // MARK: iOS print dialog
 
     @objc public func printPdf(_ invoke: Invoke) throws {

@@ -11,7 +11,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['ieumoffice-ios/**', '.github/workflows/ieum-ios.yml']
+    # office/ (the suite the app bundles) and its sources too, so every app change gets a new build number
+    paths: ['ieumoffice-ios/**', 'office/**', 'shim/**', 'fonts/**', 'web/**', 'scripts/build-web.mjs', '.github/workflows/ieum-ios.yml']
 permissions:
   contents: write
 concurrency:

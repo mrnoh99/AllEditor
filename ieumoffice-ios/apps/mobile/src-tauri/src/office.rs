@@ -150,10 +150,22 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
+/// One file change under an NSFileCoordinator on the Swift side: "replace" (`from` → `to`), "move", "delete" (`to`).
+fn coordinate<R: Runtime>(app: &AppHandle<R>, op: &str, from: Option<&Path>, to: &Path) -> Result<(), String> {
+    let mut args = json!({ "op": op, "to": to.to_string_lossy() });
+    if let Some(from) = from {
+        args["from"] = json!(from.to_string_lossy());
+    }
+    tauri_plugin_ieum_mobile::office_native_call(app, "coordinatedFile", args).map(|_| ())
+}
+
 fn files_call<R: Runtime>(app: &AppHandle<R>, method: &str, args: &Value) -> Result<Value, String> {
     let dir = args.get("dir").and_then(Value::as_str).unwrap_or("documents");
     let base = storage_root(app, dir);
     let path = safe_join(&base, args.get("path").and_then(Value::as_str).unwrap_or(""))?;
+    // documents in iCloud Drive (…/Mobile Documents/iCloud~…): changes go through NSFileCoordinator, so iCloud
+    // sees each write, rename and delete as one change and never syncs a half-written file
+    let coordinated = cfg!(target_os = "ios") && dir == "documents" && base.to_string_lossy().contains("Mobile Documents");
     match method {
         "readFile" => {
             let bytes = fs::read(&path).map_err(|e| format!("Cannot read file: {e}"))?;
@@ -164,6 +176,20 @@ fn files_call<R: Runtime>(app: &AppHandle<R>, method: &str, args: &Value) -> Res
             let bytes = B64.decode(data).map_err(|_| "Invalid data".to_string())?;
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            if coordinated {
+                // iCloud: written aside, then swapped in under a file coordinator (AllEditorOfficePlugin.coordinatedFile)
+                let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+                let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                let aside = std::env::temp_dir().join(format!("ae-{stamp}-{name}"));
+                fs::write(&aside, &bytes).map_err(|e| format!("Cannot write file: {e}"))?;
+                match coordinate(app, "replace", Some(&aside), &path) {
+                    Ok(()) => return Ok(json!({})),
+                    Err(e) => {
+                        let _ = fs::remove_file(&aside);
+                        eprintln!("[AllEditor] coordinated write failed, writing directly: {e}");
+                    }
+                }
             }
             let tmp = path.with_extension(format!(
                 "{}.ae-tmp",
@@ -178,10 +204,16 @@ fn files_call<R: Runtime>(app: &AppHandle<R>, method: &str, args: &Value) -> Res
             if to.exists() {
                 return Err("a file with that name already exists".into());
             }
+            if coordinated && coordinate(app, "move", Some(&path), &to).is_ok() {
+                return Ok(json!({}));
+            }
             fs::rename(&path, &to).map_err(|e| format!("Cannot rename: {e}"))?;
             Ok(json!({}))
         }
         "deleteFile" => {
+            if coordinated && path.is_file() && coordinate(app, "delete", None, &path).is_ok() {
+                return Ok(json!({}));
+            }
             if path.is_dir() { fs::remove_dir_all(&path) } else { fs::remove_file(&path) }
                 .map_err(|e| format!("Cannot delete file: {e}"))?;
             Ok(json!({}))
@@ -397,7 +429,8 @@ mod tests {
 //  * office files → read natively, kept here until the page takes them (`ae_take_office_intents`), announced
 //    with `ae-office-intent`; the office suite imports them into Documents (iWork → editable copy) and opens them.
 
-const IEUM_EXTS: &[&str] = &["md", "markdown", "txt"];
+// Markdown / text files went to 이음오피스's own Markdown editor, which AllEditor removed (HANDOFF.md §0f)
+const IEUM_EXTS: &[&str] = &[];
 const OFFICE_EXTS: &[&str] = &[
     "hwp", "hwpx", "docx", "dotx", "doc", "dot", "odt", "ott", "pptx", "potx", "ppt", "odp", "otp", "xlsx", "xlsm", "xls", "ods",
     "ots", "csv", "tsv", "pdf", "pages", "key", "numbers",
@@ -480,7 +513,7 @@ mod open_in_tests {
     fn routes() {
         assert_eq!(route_for("보고서.HWP"), Some("office"));
         assert_eq!(route_for("a.hwpx"), Some("office"));
-        assert_eq!(route_for("a.md"), Some("ieum"));
+        assert_eq!(route_for("a.md"), None);
         assert_eq!(route_for("a.docx"), Some("office"));
         assert_eq!(route_for("a.key"), Some("office"));
         assert_eq!(route_for("a.numbers"), Some("office"));

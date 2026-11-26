@@ -63,17 +63,54 @@ export function installPdfPencil() {
   }
   if (document.body) start(); else addEventListener('DOMContentLoaded', start)
 
-  // Pencil on the page: no scrolling under the pen; arm the ink tool when nothing is armed
+  // Pencil on the page: no scrolling under the pen
   document.addEventListener('touchstart', (e) => {
     const stylus = [...e.changedTouches].some((t) => (t as Touch & { touchType?: string }).touchType === 'stylus')
     if (stylus) {
       if (!pencilSeen) { pencilSeen = true; document.documentElement.classList.add('ae-pencil') }
-      if (drawLayer(e.target)) e.preventDefault()
-      else if (onPage(e.target) && !document.querySelector('.pdf-draw-active')) setInk(true)
+      if (drawLayer(e.target) || onPage(e.target)) e.preventDefault()
     } else if (!pencilSeen && drawLayer(e.target)) {
       e.preventDefault() // no Pencil yet: a finger draws, so it must not scroll
     }
   }, { capture: true, passive: false })
+
+  // the Pencil touching a page while no tool is armed arms the ink tool, and the stroke it started is kept: its
+  // points wait until the drawing layer is on screen, then go to it (the rest of the stroke reaches it directly)
+  let pending: { id: number; points: PointerEvent[]; up: PointerEvent | null } | null = null
+  const replay = (layer: Element, ev: PointerEvent, type: string) =>
+    layer.dispatchEvent(new PointerEvent(type, {
+      bubbles: true, cancelable: true, composed: true, pointerId: ev.pointerId, pointerType: 'pen', isPrimary: true,
+      clientX: ev.clientX, clientY: ev.clientY, screenX: ev.screenX, screenY: ev.screenY, pressure: ev.pressure || 0.5,
+      button: type === 'pointermove' ? -1 : 0, buttons: type === 'pointerup' ? 0 : 1,
+    }))
+  const flushPending = (tries = 0) => {
+    if (!pending) return
+    const layer = document.querySelector('.pdf-draw-active')
+    if (!layer) { if (tries < 60) requestAnimationFrame(() => flushPending(tries + 1)); else pending = null; return }
+    const p = pending
+    pending = null
+    replay(layer, p.points[0], 'pointerdown')
+    for (const ev of p.points.slice(1)) replay(layer, ev, 'pointermove')
+    if (p.up) replay(layer, p.up, 'pointerup')
+  }
+  const autoArm = (e: PointerEvent) => {
+    if (e.pointerType !== 'pen') return
+    if (pending && e.pointerId === pending.id) {
+      e.stopPropagation()
+      if (e.type === 'pointermove') pending.points.push(e)
+      else if (e.type === 'pointerup' || e.type === 'pointercancel') pending.up = e
+      return
+    }
+    if (e.type !== 'pointerdown' || drawLayer(e.target) || !onPage(e.target) || document.querySelector('.pdf-draw-active')) return
+    e.stopPropagation(); e.preventDefault()
+    pending = { id: e.pointerId, points: [e], up: null }
+    setInk(true)
+    requestAnimationFrame(() => flushPending())
+  }
+  for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'] as const) window.addEventListener(type, autoArm, true)
+  // a replayed stroke may ask to capture a pointer that has already lifted: that is not an error here
+  const capture = Element.prototype.setPointerCapture
+  Element.prototype.setPointerCapture = function (id: number) { try { capture.call(this, id) } catch {} }
 
   // once a Pencil is in use, finger / palm pointers never reach the drawing layer (they scroll instead),
   // and a second pointer never joins a stroke in progress

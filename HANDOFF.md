@@ -87,6 +87,11 @@ Working branch now `claude/great-curie-4a2rbo`; merge to `main` only when the us
 - **PDF + Apple Pencil:** `shim/runtime/pdf-pencil.ts` (pen button, Pencil draws / finger scrolls).
 - **CI note:** `ieum-ios.yml` runs only for `ieumoffice-ios/**`; office/shim-only changes ship via the `office`
   folder reference without a Rust rebuild (the build number then does not change).
+- **11-26 fixes:** iCloud writes / renames / deletes go through `NSFileCoordinator` (Rust writes aside, Swift
+  `coordinatedFile` swaps it in); a Pencil stroke that arms the ink tool is kept (replayed to the layer); the AI fold
+  handle follows the app theme; `ieum-ios.yml` also runs for office/shim/fonts changes (build number moves);
+  이음오피스's mobile screens (HWP/Markdown editors, home, settings, shell) and the app's 45 MB studio copy are
+  removed — `App.tsx` is only the office suite; .md/.txt "Open in" dropped; `applinks:ieumoffice.com` removed.
 - **Not verified on a device yet:** the Swift parts (dialogs, picker, iCloud), Pencil vs finger, the 한글 글자 모양
   dialog (does not open in headless Chromium either, also from the original toolbar). Known small issue: the "AI"
   fold handle follows the system theme, not the app theme. `apps/hwp` tests: 3 `hwp-skill` tests fail because the
