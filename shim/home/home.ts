@@ -508,13 +508,18 @@ const CONNECT_CARDS: ConnectCard[] = [
   { id: 'gemini', name: 'Google Gemini', sub: ['무료 키로 시작할 수 있습니다 (하루 한도 있음)', 'Free key available (daily limit)'], keyUrl: 'https://aistudio.google.com/apikey', free: true },
   { id: 'openai', name: 'ChatGPT (OpenAI API)', sub: ['OpenAI API 키 — 쓴 만큼 요금이 나갑니다', 'OpenAI API key — pay as you go'], keyUrl: 'https://platform.openai.com/api-keys' },
   { id: 'anthropic', name: 'Claude (Anthropic API)', sub: ['Anthropic API 키 — 쓴 만큼 요금이 나갑니다', 'Anthropic API key — pay as you go'], keyUrl: 'https://console.anthropic.com/settings/keys' },
+  { id: 'baze', name: 'BAZE Gateway (factchat-cloud)', sub: ['키 하나로 Claude·GPT·Gemini 등 — 쓴 만큼 크레딧 차감', 'One key for Claude, GPT, Gemini … — credits per use'], keyUrl: 'https://docs.mindlogic.ai' },
   { id: 'openrouter', name: 'OpenRouter', sub: ['여러 회사 모델을 키 하나로, 무료 모델도 있습니다', 'Many models with one key, some free'], keyUrl: 'https://openrouter.ai/keys', free: true },
 ]
+// BAZE API Gateway: OpenAI-compatible, one fixed host (the native store keeps it as "baze"; the office editors
+// see it as their `custom` provider with this base URL)
+const BAZE_BASE = 'https://factchat-cloud.mindlogic.ai/v1/gateway'
+const BAZE_META = { id: 'baze', label: 'BAZE Gateway (factchat-cloud)', models: ['claude-sonnet-5', 'claude-opus-5', 'claude-fable-5-1', 'claude-fable-5', 'gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol', 'gpt-5.5'], defaultModel: 'claude-sonnet-5', keyPlaceholder: 'BAZE API key' }
 const NOT_ON_IOS = new Set(['claude-code', 'codex', 'chatgpt', 'genspark', 'auto'])
 const ko2 = (k: string, e: string) => (lang() === 'ko' ? k : e)
 
 /** a cheap request that only succeeds with a valid key */
-async function checkKey(id: string, key: string, baseUrl?: string): Promise<string | null> {
+async function checkKey(id: string, key: string, baseUrl?: string, models?: string[]): Promise<string | null> {
   const f = (globalThis as any).fetch as typeof fetch
   let r: Response
   try {
@@ -522,10 +527,14 @@ async function checkKey(id: string, key: string, baseUrl?: string): Promise<stri
     else if (id === 'anthropic') r = await f('https://api.anthropic.com/v1/models', { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' } })
     else if (id === 'openrouter') r = await f('https://openrouter.ai/api/v1/key', { headers: { authorization: `Bearer ${key}` } })
     else if (id === 'openai') r = await f('https://api.openai.com/v1/models', { headers: { authorization: `Bearer ${key}` } })
+    else if (id === 'baze') r = await f(`${BAZE_BASE}/models/`, { headers: { authorization: `Bearer ${key}` } })
     else if (baseUrl) r = await f(baseUrl.replace(/\/$/, '') + '/models', { headers: { authorization: `Bearer ${key}` } })
     else return null
   } catch (e: any) { return ko2('네트워크 오류: ', 'Network error: ') + (e?.message ?? e) }
-  if (r.ok) return null
+  if (r.ok) {
+    if (models) try { const j: any = await r.json(); for (const m of j?.data ?? j?.models ?? []) { const mid = typeof m === 'string' ? m : m?.id; if (mid) models.push(String(mid)) } } catch {}
+    return null
+  }
   if (r.status === 401 || r.status === 403 || r.status === 400) return ko2('키가 맞지 않습니다', 'The key was not accepted') + ` (HTTP ${r.status})`
   return `HTTP ${r.status}`
 }
@@ -555,9 +564,10 @@ async function loadAiStore(): Promise<AiStore> {
   const def = defaultAiSettings()
   const cur = { ...def, ...stored, providers: { ...def.providers, ...(stored.providers ?? {}) } } as any
   const st: AiStore = {
-    provider: cur.provider,
-    cfg: (id) => { const c = cur.providers[id] ?? {}; return { hasKey: !!c.apiKey, key: c.apiKey ?? '', model: c.model ?? '', models: c.models ?? [] } },
+    provider: cur.provider === 'custom' && cur.providers?.custom?.baseUrl === BAZE_BASE ? 'baze' : cur.provider,
+    cfg: (id) => { const c = cur.providers[id === 'baze' ? 'custom' : id] ?? {}; return { hasKey: !!c.apiKey, key: c.apiKey ?? '', model: c.model ?? '', models: c.models ?? [] } },
     async save(provider, key, model, baseUrl) {
+      if (provider === 'baze') { provider = 'custom'; baseUrl = BAZE_BASE }
       const prev = cur.providers[provider] ?? {}
       const next: any = { ...cur, provider, providers: { ...cur.providers, [provider]: { ...prev, ...(key ? { apiKey: key } : {}), model, ...(baseUrl !== undefined ? { baseUrl } : {}) } } }
       const clean = sanitizeAiSettings(next) ?? next
@@ -572,7 +582,7 @@ function renderAiConnect(wrap: HTMLElement, toast: (m: string) => void) {
   const h = el('h2', '', ko2('AI 연결', 'AI connection')); h.id = 'ai'; wrap.append(h)
   const box = el('div', 'group'); wrap.append(box)
   box.append(el('p', 'hint', ko2('불러오는 중…', 'Loading…')))
-  const metas = (AI_PROVIDERS as any[]).filter((m) => !m.needsCliPath && !NOT_ON_IOS.has(m.id))
+  const metas = [...(AI_PROVIDERS as any[]).filter((m) => !m.needsCliPath && !NOT_ON_IOS.has(m.id) && m.id !== 'custom'), BAZE_META]
   void loadAiStore().then((store) => {
     let selected: string = NOT_ON_IOS.has(store.provider) || !metas.some((m) => m.id === store.provider) ? 'gemini' : store.provider
     const status = el('p', 'hint')
@@ -618,8 +628,10 @@ function renderAiConnect(wrap: HTMLElement, toast: (m: string) => void) {
         const k = key.value.trim()
         if (!k) { msg.textContent = pcfg.hasKey ? ko2('저장된 키는 화면에 다시 보이지 않습니다. 확인하려면 키를 다시 넣으세요.', 'Saved keys are not shown again; type the key to check it.') : ko2('키를 먼저 넣으세요.', 'Enter a key first.'); return }
         msg.textContent = ko2('확인하는 중…', 'Checking…')
-        const err = await checkKey(selected, k, base?.value.trim())
-        msg.textContent = err ? `✕ ${err}` : `✓ ${ko2('키가 맞습니다.', 'The key works.')}`
+        const found: string[] = []
+        const err = await checkKey(selected, k, base?.value.trim(), found)
+        msg.textContent = err ? `✕ ${err}` : `✓ ${ko2('키가 맞습니다.', 'The key works.')}` + (found.length ? ` ${ko2(`모델 ${found.length}개 — 모델 칸에서 고르세요.`, `${found.length} models — pick one in the Model field.`)}` : '')
+        if (found.length) { dl.textContent = ''; for (const id of found) { const o = el('option'); o.value = id; dl.append(o) } }
       }
       const ok = el('button', 'primary', ko2('이 AI로 연결', 'Use this AI'))
       ok.onclick = async () => {

@@ -108,7 +108,7 @@ export async function syncAiFromNative() {
   if (old) void Filesystem.deleteFile({ path: 'ai-settings.json', directory: Directory.Support }).catch(() => {})
   const base: any = defaultAiSettings()
   const providers: any = { ...base.providers }
-  for (const [id, cfg] of Object.entries(ex.providers)) providers[id] = { ...(providers[id] ?? {}), ...(cfg.apiKey ? { apiKey: cfg.apiKey } : {}), ...(cfg.model ? { model: cfg.model } : {}) }
+  for (const [id, cfg] of Object.entries(ex.providers)) providers[id] = { ...(providers[id] ?? {}), ...(cfg.apiKey ? { apiKey: cfg.apiKey } : {}), ...(cfg.model ? { model: cfg.model } : {}), ...((cfg as any).baseUrl ? { baseUrl: (cfg as any).baseUrl } : {}) }
   fs.mkdirSync(USER_ROOT, { recursive: true })
   fs.writeFileSync(AI_FILE, JSON.stringify({ ...base, ...(old && typeof old === 'object' ? { search: old.search, media: old.media } : {}), provider: ex.provider, providers }, null, 2))
 }

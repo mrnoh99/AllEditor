@@ -107,8 +107,14 @@ pub fn is_supported_mobile_cloud_provider(provider: &str) -> bool {
             | "qwen"
             | "upstage"
             | "exaone"
+            | "baze"
     )
 }
+
+/// BAZE API Gateway (Mindlogic): one key, many companies' models, OpenAI-compatible. A fixed host — not a
+/// user-typed custom endpoint, which stays excluded on mobile. The office suite sees it as its `custom` provider
+/// with this base URL (office.rs `export`).
+pub const BAZE_BASE_URL: &str = "https://factchat-cloud.mindlogic.ai/v1/gateway";
 
 pub fn provider_models_url(provider: &str) -> MobileResult<&'static str> {
     match provider {
@@ -119,6 +125,7 @@ pub fn provider_models_url(provider: &str) -> MobileResult<&'static str> {
         "deepseek" => Ok("https://api.deepseek.com/v1/models"),
         "xai" => Ok("https://api.x.ai/v1/models"),
         "mistral" => Ok("https://api.mistral.ai/v1/models"),
+        "baze" => Ok("https://factchat-cloud.mindlogic.ai/v1/gateway/models/"),
         _ => Err(MobileError::with_detail(
             MobileErrorCode::InvalidArgument,
             "mobile.ai.unsupportedProvider",
@@ -136,6 +143,7 @@ pub fn provider_chat_url(provider: &str) -> MobileResult<&'static str> {
         "deepseek" => Ok("https://api.deepseek.com/v1/chat/completions"),
         "xai" => Ok("https://api.x.ai/v1/chat/completions"),
         "mistral" => Ok("https://api.mistral.ai/v1/chat/completions"),
+        "baze" => Ok("https://factchat-cloud.mindlogic.ai/v1/gateway/chat/completions/"), // trailing slash: the documented path
         _ => Err(MobileError::with_detail(
             MobileErrorCode::InvalidArgument,
             "mobile.ai.unsupportedProvider",
