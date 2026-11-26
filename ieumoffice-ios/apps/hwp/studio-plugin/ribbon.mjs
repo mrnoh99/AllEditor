@@ -304,6 +304,16 @@ export function installAllEditorRibbon(bar, updateStates) {
   show(TABS.some((t) => t.id === saved) ? saved : 'home')
   installAllEditorTheme(bar)
   installHancomStandIns()
+  installFitWidthLook()
+}
+
+/** the status bar's 폭 맞춤 button looks like the one of the other editors (same icon, same place) */
+function installFitWidthLook() {
+  const b = document.getElementById('sb-zoom-fit-width')
+  if (!b) return
+  b.innerHTML = icon('<path d="M3 5v14M21 5v14M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3"/>', 16)
+  b.title = ko() ? '폭 맞춤' : 'Fit to width'
+  b.setAttribute('aria-label', b.title)
 }
 
 // [AllEditor] dark mode: the editor follows the app's 화면 테마 (설정 › 테마: 시스템 / 라이트 / 다크), and the paper

@@ -70,6 +70,23 @@ const SOURCE_EDITS = {
   'apps/docs/src/renderer/file-actions.ts': [
     ['    eastAsiaFont: defaultEastAsiaFontFor(getLang()),\n    paperSize', "    eastAsiaFont: 'Batang', // AllEditor default (was defaultEastAsiaFontFor(getLang()))\n    paperSize"],
   ],
+  // a "폭 맞춤" (fit to width) button beside the zoom controls, bottom right (the editor's own zoomFit('width'))
+  'apps/docs/src/renderer/App.tsx': [
+    ["                {Math.round(zoom)}%\n              </button>\n            </div>\n          </footer>",
+     "                {Math.round(zoom)}%\n              </button>\n" +
+     "              <button\n                className=\"zoom-btn ae-fit-width\"\n                data-tip={lang === 'ko' ? '폭 맞춤' : 'Fit to width'}\n                aria-label={lang === 'ko' ? '폭 맞춤' : 'Fit to width'}\n                disabled={!doc}\n                onClick={() => zoomFit('width')}\n              >\n" +
+     "                <svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"1.9\" strokeLinecap=\"round\" strokeLinejoin=\"round\"><path d=\"M3 5v14M21 5v14M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3\"/></svg>\n" +
+     "              </button>\n            </div>\n          </footer>"],
+  ],
+  // the same "폭 맞춤" button in PDF (its own chooseFit('width')) and PowerPoint (fit the slide, zoomToFit)
+  'apps/pdf/src/renderer/App.tsx': [
+    ['              <span className="zoom-value">{Math.round(scale * 100)}%</span>\n            </div>\n          </footer>',
+     '              <span className="zoom-value">{Math.round(scale * 100)}%</span>\n              <button className=\"zoom-btn ae-fit-width\" data-tip={lang === "ko" ? "폭 맞춤" : "Fit to width"} aria-label={lang === "ko" ? "폭 맞춤" : "Fit to width"} onClick={() => chooseFit("width")}><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"1.9\" strokeLinecap=\"round\" strokeLinejoin=\"round\"><path d=\"M3 5v14M21 5v14M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3\"/></svg></button>\n            </div>\n          </footer>'],
+  ],
+  'apps/slides/src/renderer/App.tsx': [
+    ['              <ZoomControls zoom={zoom} onPreview={previewZoom} />\n            </div>',
+     '              <ZoomControls zoom={zoom} onPreview={previewZoom} />\n              <button className=\"zoom-btn ae-fit-width\" data-tip={lang === "ko" ? "폭 맞춤" : "Fit to width"} aria-label={lang === "ko" ? "폭 맞춤" : "Fit to width"} onClick={zoomToFit}><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"1.9\" strokeLinecap=\"round\" strokeLinejoin=\"round\"><path d=\"M3 5v14M21 5v14M7 12h10M10 9l-3 3 3 3M14 9l3 3-3 3\"/></svg></button>\n            </div>'],
+  ],
   'packages/ui/src/template-fonts.ts': [
     ['  return `${TEMPLATE_FONT_SCHEME}://${TEMPLATE_FONT_HOST}/${encodeURIComponent(file)}`',
      '  return `/hwp/studio/fonts/tpl/${encodeURIComponent(file)}` // AllEditor: bundled copy (office/hwp/studio/fonts/tpl)'],
