@@ -389,6 +389,10 @@ function renderSettings() {
   const g = el('div', 'group'); wrap.append(g)
   g.append(field(t('language'), select(LANGS, lang(), (v) => { sSet('language', v); changed(true) })))
   g.append(field(t('theme'), select([['system', t('themeSystem')], ['light', t('themeLight')], ['dark', t('themeDark')]], sGet('theme', 'system'), (v) => { sSet('theme', v); applyTheme(); changed(true) })))
+  // 한글 editor menus: the Word-style ribbon (default) or 한글's own menu bar; applies to 한글 documents opened next
+  g.append(field(lang() === 'ko' ? '한글 메뉴' : 'Hangul menus', select([['ribbon', lang() === 'ko' ? 'Word식 리본' : 'Word-style ribbon'], ['classic', lang() === 'ko' ? '한글식 메뉴' : 'Hangul menu bar']], sGet('hwpMenu', 'ribbon'), (v) => {
+    sSet('hwpMenu', v); toast(lang() === 'ko' ? '다음에 여는 한글 문서부터 적용됩니다' : 'Applies to the next Hangul document you open')
+  })))
   g.append(field(t('docTheme'), select([['follow', t('follow')], ['light', t('themeLight')], ['dark', t('themeDark')]], sGet('documentTheme', 'follow'), (v) => { sSet('documentTheme', v); changed(true) })))
   const mu = sGet('measurementUnit', { unit: 'cm', explicit: false })
   g.append(field(t('unit'), select([['cm', 'cm'], ['in', 'in'], ['mm', 'mm'], ['pt', 'pt'], ['pi', 'pica']], mu.unit, (v) => { sSet('measurementUnit', { unit: v, explicit: true }); changed(true) })))

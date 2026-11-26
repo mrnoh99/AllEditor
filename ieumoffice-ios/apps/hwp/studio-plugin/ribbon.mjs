@@ -67,6 +67,7 @@ const BUNDLES = [
   { match: /^insert:caption-/, ko: '캡션', en: 'Caption', icon: '<rect x="3" y="3" width="18" height="12" rx="1"/><path d="M6 19h12"/>' },
 ]
 const KEY = 'alleditor.hwpRibbonTab'
+const FOLD_KEY = 'alleditor.hwpRibbonFolded'
 const ko = () => !/^en/i.test(document.documentElement.lang || navigator.language || 'ko')
 const icon = (paths, size = 18) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`
 
@@ -103,6 +104,8 @@ const CSS = `
 .ae-sub-pop .md-shortcut{display:none}
 /* the studio's effective theme (follows the app's 테마 setting, see installAllEditorTheme) */
 :root[data-theme-effective="dark"]{--ae-rb-bg:#1f1f21;--ae-rb-fg:#e8e8e8;--ae-rb-line:#3a3a3c;--ae-rb-hover:#2c2c2e}
+#menu-bar.ae-ribbon .ae-fold{margin-left:auto}
+body.ae-ribbon-folded #ae-ribbon,body.ae-ribbon-folded #icon-toolbar,body.ae-ribbon-folded #style-bar{display:none!important}
 body.ae-ribbon-tab:not(.ae-ribbon-home) #icon-toolbar,body.ae-ribbon-tab:not(.ae-ribbon-home) #style-bar{display:none!important}
 `
 
@@ -173,6 +176,12 @@ function groupsOf(dropdown, openSub) {
  */
 export function installAllEditorRibbon(bar, updateStates) {
   if (!bar || bar.classList.contains('ae-ribbon')) return
+  // 설정 › 한글 메뉴: "한글식 메뉴" keeps the studio's own menu bar (파일 · 편집 · 보기 · 입력 · 서식 · 쪽 · 표 · 도구)
+  if (readApp().hwpMenu === 'classic') {
+    installAllEditorTheme(bar)
+    installHancomStandIns()
+    return
+  }
   const style = document.createElement('style')
   style.textContent = CSS
   document.head.appendChild(style)
@@ -266,6 +275,27 @@ export function installAllEditorRibbon(bar, updateStates) {
     bar.insertBefore(b, anchor)
   }
   bar.append(panel)
+
+  // fold the ribbon (like Word): only the tab row stays, the document gets the room; a tab unfolds it again
+  const fold = document.createElement('button')
+  fold.type = 'button'
+  fold.className = 'ae-qa ae-fold'
+  const setFold = (on) => {
+    document.body.classList.toggle('ae-ribbon-folded', on)
+    try { localStorage.setItem(FOLD_KEY, on ? '1' : '0') } catch {}
+    fold.innerHTML = icon(on ? '<path d="m6 9 6 6 6-6"/>' : '<path d="m18 15-6-6-6 6"/>')
+    const label = on ? (ko() ? '리본 펼치기' : 'Show the ribbon') : (ko() ? '리본 접기' : 'Fold the ribbon')
+    fold.title = label
+    fold.setAttribute('aria-label', label)
+    fold.setAttribute('aria-expanded', String(!on))
+    window.dispatchEvent(new Event('resize'))
+  }
+  fold.onclick = () => setFold(!document.body.classList.contains('ae-ribbon-folded'))
+  bar.insertBefore(fold, panel)
+  for (const t of tabs) t.addEventListener('click', () => { if (document.body.classList.contains('ae-ribbon-folded')) setFold(false) })
+  let folded = false
+  try { folded = localStorage.getItem(FOLD_KEY) === '1' } catch {}
+  setFold(folded)
   // enabled states follow the caret / selection: refresh while the ribbon is on screen, and after every command
   bar.addEventListener('click', () => setTimeout(refresh, 60))
   setInterval(() => { if (!document.hidden) refresh() }, 1200)
