@@ -175,8 +175,11 @@ const RUNTIMES = {
     code: 'registerDocsIpc(); registerAiIpc(); registerProjectIpc(); if (open) openExternalDocx(open)' },
   slides: { file: 'slides-main', imports: 'createSlidesView, registerAiIpc, registerProjectIpc',
     code: 'registerAiIpc(); registerProjectIpc(); createSlidesView(open)' },
-  sheets: { file: 'sheets-main', imports: 'createSheetsView, registerProjectIpc, queueWorkbookForView, setSheetsNewBlank',
-    code: 'createSheetsView(); registerProjectIpc(); if (open) queueWorkbookForView(webContents, open); else setSheetsNewBlank()' },
+  // a new spreadsheet starts from a blank backing workbook, as in the desktop shell (newSheetTab): the save pipeline
+  // needs a real file, and its first Save goes through Save As (the name prompt) into Documents
+  sheets: { file: 'sheets-main', imports: 'createSheetsView, registerProjectIpc, queueWorkbookForView, setSheetsNewBlank, markSheetsUnsavedNew, markSheetsUntitledPath',
+    tools: "import { blankXlsxBuffer } from '" + upstream + "/packages/xlsx-gateway/src/gateway/csv-import'; import { newBlankSheet } from '" + join(root, 'shim/runtime/sheets-new.ts') + "'",
+    code: 'createSheetsView(); registerProjectIpc(); if (open) queueWorkbookForView(webContents, open); else void newBlankSheet({ blankXlsxBuffer, markSheetsUnsavedNew, markSheetsUntitledPath, queueWorkbookForView, setSheetsNewBlank, webContents })' },
   pdf: { file: 'pdf-main', imports: 'createPdfView', code: 'createPdfView(open); registerAiIpc(); registerProjectIpc(); registerPdfTools(open)', tools: "import { registerPdfTools } from '" + join(root, 'shim/runtime/pdf-tools.ts') + "'; import { registerAiIpc, registerProjectIpc } from '" + upstream + "/apps/docs/src/main/docs-main'",
     preload: [['/app/wasm/pdfium.wasm', 'wasm/pdfium.wasm'], ['/app/wasm/harfbuzz-subset.wasm', 'wasm/harfbuzz-subset.wasm']] },
 }
