@@ -177,6 +177,7 @@ function groupsOf(dropdown, openSub) {
 export function installAllEditorRibbon(bar, updateStates) {
   if (!bar || bar.classList.contains('ae-ribbon')) return
   // 설정 › 한글 메뉴: "한글식 메뉴" keeps the studio's own menu bar (파일 · 편집 · 보기 · 입력 · 서식 · 쪽 · 표 · 도구)
+  installPinchZoom()
   if (readApp().hwpMenu === 'classic') {
     installAllEditorTheme(bar)
     installHancomStandIns()
@@ -378,4 +379,47 @@ export function installHancomStandIns() {
   // load them now, so the first drawing of a page already has them; redraw once they arrive
   Promise.all(HANCOM_STANDINS.flatMap(([names]) => [document.fonts.load(`16px "${names[0]}"`, '가'), document.fonts.load(`bold 16px "${names[0]}"`, '가')]))
     .then(() => window.dispatchEvent(new Event('resize')), () => {})
+}
+
+// [AllEditor] two-finger pinch zooms the 한글 document around the point between the fingers (menus keep their size):
+// handed to the studio's Ctrl+wheel zoom, as shim/runtime/pinch.ts does for the other editors
+export function installPinchZoom() {
+  let last = null
+  const seen = new WeakSet()
+  const span = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY)
+  const onMove = (e) => {
+    if (seen.has(e)) return
+    seen.add(e)
+    if (e.touches.length !== 2 || last === null) return
+    e.preventDefault()
+    const d = span(e.touches)
+    if (!d || !last) return
+    const scale = d / last
+    if (Math.abs(Math.log(scale)) < 0.008) return
+    last = d
+    const x = (e.touches[0].clientX + e.touches[1].clientX) / 2
+    const y = (e.touches[0].clientY + e.touches[1].clientY) / 2
+    const target = document.elementFromPoint(x, y) ?? document.body
+    target.dispatchEvent(new WheelEvent('wheel', { deltaY: -100 * Math.log(scale), deltaMode: 0, ctrlKey: true, clientX: x, clientY: y, bubbles: true, cancelable: true, composed: true }))
+  }
+  // a touch keeps sending its moves to the element it started on, which a re-render can take out of the page
+  let held = []
+  const release = () => { for (const t of held) { t.removeEventListener('touchmove', onMove); t.removeEventListener('touchend', end); t.removeEventListener('touchcancel', end) } held = [] }
+  const end = (e) => { if (e.touches.length < 2) { last = null; release() } }
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 2) return
+    last = span(e.touches)
+    e.preventDefault()
+    release()
+    for (const t of Array.from(e.touches)) if (t.target && !held.includes(t.target)) {
+      held.push(t.target)
+      t.target.addEventListener('touchmove', onMove, { passive: false })
+      t.target.addEventListener('touchend', end)
+      t.target.addEventListener('touchcancel', end)
+    }
+  }, { capture: true, passive: false })
+  document.addEventListener('touchmove', onMove, { capture: true, passive: false })
+  document.addEventListener('touchend', end, { capture: true })
+  document.addEventListener('touchcancel', end, { capture: true })
+  for (const t of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(t, (e) => e.preventDefault(), { passive: false })
 }

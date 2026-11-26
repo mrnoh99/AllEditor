@@ -105,6 +105,10 @@ func aeLockWebViewScroll(_ webView: WKWebView) {
         sv.isScrollEnabled = false
         sv.bounces = false
         sv.contentInsetAdjustmentBehavior = .never
+        // no page zoom: a pinch zooms the document inside the editor (shim/runtime/pinch.ts)
+        sv.minimumZoomScale = 1
+        sv.maximumZoomScale = 1
+        sv.pinchGestureRecognizer?.isEnabled = false
         sv.contentOffset = .zero
         aeScrollLocks.append(sv.observe(\.contentOffset, options: [.new]) { sv, _ in
             if sv.contentOffset != .zero { sv.contentOffset = .zero }

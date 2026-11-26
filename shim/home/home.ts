@@ -142,6 +142,7 @@ async function renameTab(x: Tab) {
 }
 // a tab follows its document: once a new document is saved (or saved under another name), the tab shows the file
 addEventListener('scroll', () => { if (scrollY || scrollX) scrollTo(0, 0) }, { passive: true }) // keyboard: the page never scrolls
+for (const t of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(t, (e) => e.preventDefault(), { passive: false }) // no page zoom
 setInterval(() => {
   let changed = false
   for (const x of tabs) {
