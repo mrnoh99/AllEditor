@@ -15,6 +15,8 @@ export function start(app: string, register: (open: string | null) => void, prel
   addHomeButton()
   installAiToggle()
   installBundledFonts(app)
+  // the keyboard must not scroll the page (the editors scroll inside their own panes)
+  addEventListener('scroll', () => { if (scrollY || scrollX) scrollTo(0, 0) }, { passive: true })
   // the editors' own main-process code (dialogs, untitled names) speaks the app's language (Korean unless English is chosen)
   try { setUiLang((JSON.parse(localStorage.getItem('alleditor.settings') || '{}').language ?? 'ko') === 'en' ? 'en' : 'ko') } catch { setUiLang('ko') }
   if (app === 'pdf') installPdfPencil()

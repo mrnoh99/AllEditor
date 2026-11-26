@@ -78,6 +78,22 @@ export function OfficeOverlay({ active, onShow }: { readonly active: boolean; re
   const showRef = useRef(onShow)
   showRef.current = onShow
 
+  // the on-screen keyboard: the suite fills the space above it (the web view itself never scrolls, see
+  // AllEditorDialogs.swift aeLockWebViewScroll), so the tab bar and the ribbon stay on screen while typing
+  const [viewH, setViewH] = useState<number | null>(null)
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const fit = () => {
+      setViewH(Math.round(vv.height) < window.innerHeight - 1 ? Math.round(vv.height) : null)
+      if (window.scrollY || window.scrollX) window.scrollTo(0, 0)
+    }
+    vv.addEventListener('resize', fit)
+    vv.addEventListener('scroll', fit)
+    window.addEventListener('scroll', fit)
+    return () => { vv.removeEventListener('resize', fit); vv.removeEventListener('scroll', fit); window.removeEventListener('scroll', fit) }
+  }, [])
+
   const send = useCallback((a: OfficeAction) => {
     frame.current?.contentWindow?.postMessage({ type: 'ae-office', ...a }, '*')
   }, [])
@@ -124,7 +140,10 @@ export function OfficeOverlay({ active, onShow }: { readonly active: boolean; re
       aria-hidden={!active}
       style={{
         position: 'fixed',
-        inset: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        height: viewH ?? '100%',
         zIndex: 1000,
         background: 'var(--mobile-bg, #f2f2f7)',
         display: active ? 'block' : 'none',

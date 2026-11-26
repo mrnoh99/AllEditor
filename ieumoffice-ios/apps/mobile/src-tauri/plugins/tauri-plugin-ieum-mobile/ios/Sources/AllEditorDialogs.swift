@@ -93,3 +93,22 @@ func aeInstallWebDialogs(_ webView: WKWebView) {
     }
     if Thread.isMainThread { install() } else { DispatchQueue.main.async(execute: install) }
 }
+
+// The keyboard must not push the app up. iOS scrolls the whole web view to bring the caret above the keyboard,
+// which moved the office's tab bar and ribbon off the top of the screen. The pages lay themselves out in the space
+// above the keyboard instead (shim: visualViewport), so the web view itself never scrolls.
+private var aeScrollLocks: [NSKeyValueObservation] = []
+
+func aeLockWebViewScroll(_ webView: WKWebView) {
+    let lock = {
+        let sv = webView.scrollView
+        sv.isScrollEnabled = false
+        sv.bounces = false
+        sv.contentInsetAdjustmentBehavior = .never
+        sv.contentOffset = .zero
+        aeScrollLocks.append(sv.observe(\.contentOffset, options: [.new]) { sv, _ in
+            if sv.contentOffset != .zero { sv.contentOffset = .zero }
+        })
+    }
+    if Thread.isMainThread { lock() } else { DispatchQueue.main.async(execute: lock) }
+}

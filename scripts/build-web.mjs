@@ -60,6 +60,14 @@ const SOURCE_EDITS = {
     ["    type: 'nodebuffer',\n    compression: 'DEFLATE',\n    compressionOptions: { level: 6 },\n    streamFiles: true,\n  })\n  try {",
      "    type: 'uint8array',\n    compression: 'DEFLATE',\n    compressionOptions: { level: 6 },\n    streamFiles: true,\n  })\n  try {"],
   ],
+  // default font of a new Word document: AppleMyungjo (iPad's 명조) for Hangul and Latin (user's choice)
+  'packages/docx-engine/src/blank.ts': [
+    ['w:ascii="Calibri"', 'w:ascii="AppleMyungjo"'],
+    ['w:hAnsi="Calibri"', 'w:hAnsi="AppleMyungjo"'],
+  ],
+  'apps/docs/src/renderer/file-actions.ts': [
+    ['    eastAsiaFont: defaultEastAsiaFontFor(getLang()),\n    paperSize', "    eastAsiaFont: 'AppleMyungjo', // AllEditor default (was defaultEastAsiaFontFor(getLang()))\n    paperSize"],
+  ],
   'packages/ui/src/template-fonts.ts': [
     ['  return `${TEMPLATE_FONT_SCHEME}://${TEMPLATE_FONT_HOST}/${encodeURIComponent(file)}`',
      '  return `/hwp/studio/fonts/tpl/${encodeURIComponent(file)}` // AllEditor: bundled copy (office/hwp/studio/fonts/tpl)'],

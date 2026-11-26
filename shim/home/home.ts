@@ -140,6 +140,7 @@ async function renameTab(x: Tab) {
   renderBar(); saveTabs()
 }
 // a tab follows its document: once a new document is saved (or saved under another name), the tab shows the file
+addEventListener('scroll', () => { if (scrollY || scrollX) scrollTo(0, 0) }, { passive: true }) // keyboard: the page never scrolls
 setInterval(() => {
   let changed = false
   for (const x of tabs) {

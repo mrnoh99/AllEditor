@@ -343,16 +343,24 @@ export function installAllEditorTheme(bar) {
   addEventListener('focus', sync)
 }
 
-// [AllEditor] 한컴 fonts the app cannot ship (함초롬체: no redistribution licence checked) are drawn with the bundled
-// free look-alikes (studio/fonts): 바탕 계열 → 나눔명조, 돋움 계열 → 나눔고딕. The document keeps its font names.
+// [AllEditor] 한컴 fonts the app cannot ship (함초롬체: no redistribution licence checked) are drawn with stand-ins:
+// 바탕 계열 (the default body font of a 한글 document) → AppleMyungjo, the iPad's own 명조 (user's choice; 나눔명조
+// where it is missing), 돋움 계열 → 나눔고딕 (studio/fonts). The document keeps its font names.
 const HANCOM_STANDINS = [
-  [['함초롬바탕', '함초롱바탕', '한컴바탕', 'HCR Batang', '새바탕'], 'NanumMyeongjo'],
-  [['함초롬돋움', '함초롱돋움', '한컴돋움', 'HCR Dotum', '새돋움', '한컴산뜻돋움'], 'NanumGothic'],
+  [['함초롬바탕', '함초롱바탕', '한컴바탕', 'HCR Batang', '새바탕'], 'NanumMyeongjo', 'AppleMyungjo'],
+  [['함초롬돋움', '함초롱돋움', '한컴돋움', 'HCR Dotum', '새돋움', '한컴산뜻돋움'], 'NanumGothic', null],
 ]
 export function installHancomStandIns() {
   const rules = []
-  for (const [names, file] of HANCOM_STANDINS) for (const name of names) for (const [w, f] of [[400, 'Regular'], [700, 'Bold']]) {
-    rules.push(`@font-face{font-family:"${name}";src:local("${name}"),url("fonts/${file}-${f}.woff2") format("woff2");font-weight:${w};font-style:normal;font-display:block}`)
+  for (const [names, file, system] of HANCOM_STANDINS) for (const name of names) {
+    if (system) {
+      // one regular face: bold text gets the system's synthesized bold of the same 명조
+      rules.push(`@font-face{font-family:"${name}";src:local("${name}"),local("${system}"),url("fonts/${file}-Regular.woff2") format("woff2");font-style:normal;font-display:block}`)
+      continue
+    }
+    for (const [w, f] of [[400, 'Regular'], [700, 'Bold']]) {
+      rules.push(`@font-face{font-family:"${name}";src:local("${name}"),url("fonts/${file}-${f}.woff2") format("woff2");font-weight:${w};font-style:normal;font-display:block}`)
+    }
   }
   const style = document.createElement('style')
   style.textContent = rules.join('\n')

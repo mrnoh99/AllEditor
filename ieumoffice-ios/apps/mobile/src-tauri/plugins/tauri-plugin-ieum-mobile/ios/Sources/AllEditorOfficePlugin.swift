@@ -44,6 +44,7 @@ public final class AllEditorOfficePlugin: Plugin, WKNavigationDelegate {
     // at start: the pages' JavaScript dialogs, and the documents in iCloud Drive › AllEditor (AllEditorICloud.swift)
     public override func load(webview: WKWebView) {
         aeInstallWebDialogs(webview) // alert / confirm / prompt (AllEditorDialogs.swift)
+        aeLockWebViewScroll(webview) // the keyboard never pushes the app off the top of the screen
         aeSetupICloudDocuments()
     }
 
