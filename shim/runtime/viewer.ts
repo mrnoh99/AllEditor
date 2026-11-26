@@ -14,7 +14,9 @@ const key = (k: string, mods: Partial<KeyboardEventInit> = {}) => {
 }
 
 const CSS = `
-html.ae-viewer #ae-pen,html.ae-viewer #ae-eraser,html.ae-viewer #ae-ai-toggle,html.ae-viewer .ae-home-btn,html.ae-viewer .ae-fab{display:none!important}
+html.ae-viewer #ae-pen,html.ae-viewer #ae-eraser,html.ae-viewer #ae-ai-toggle,html.ae-viewer #ae-home,html.ae-viewer #ae-file,html.ae-viewer .ae-fab{display:none!important}
+/* one way out: the viewer's ✕ (the editors' own exit buttons would leave the viewer half way) */
+html.ae-viewer .read-exit,html.ae-viewer [class*="present-exit"],html.ae-viewer [class*="presenter-exit"],html.ae-viewer [class*="exit-present"]{display:none!important}
 #ae-viewer-exit{position:fixed;z-index:2147483000;top:calc(env(safe-area-inset-top,0px) + 10px);right:calc(env(safe-area-inset-right,0px) + 12px);
   width:40px;height:40px;border-radius:20px;border:0;background:rgba(0,0,0,.45);color:#fff;font:600 18px/40px -apple-system,system-ui,sans-serif;
   backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:none;padding:0}
@@ -50,6 +52,14 @@ const studioDoc = (): Document | null => {
 }
 
 export function installViewer(app: string) {
+  // the presentation views ask for the browser's full screen; on the iPad that adds a system ✕ in the top-left
+  // corner (a second way out that leaves the viewer half way). The viewer already fills the screen: the request is
+  // answered at once without leaving the page layout.
+  for (const proto of [Element.prototype as any]) {
+    for (const name of ['requestFullscreen', 'webkitRequestFullscreen', 'webkitRequestFullScreen']) {
+      if (typeof proto[name] === 'function') proto[name] = function () { return Promise.resolve() }
+    }
+  }
   let on = false
   const style = document.createElement('style'); style.textContent = CSS
   const exitBtn = document.createElement('button'); exitBtn.id = 'ae-viewer-exit'; exitBtn.type = 'button'; exitBtn.textContent = '✕'
