@@ -6,6 +6,7 @@ import { installAiToggle } from './ai-toggle'
 import { installBundledFonts } from './fonts'
 import { installPdfPencil } from './pdf-pencil'
 import { installPinchZoom } from './pinch'
+import { installViewer } from './viewer'
 import { setUiLang } from '@genoffice/i18n'
 import { USER_ROOT } from './fs'
 
@@ -22,6 +23,7 @@ export function start(app: string, register: (open: string | null) => void, prel
   try { setUiLang((JSON.parse(localStorage.getItem('alleditor.settings') || '{}').language ?? 'ko') === 'en' ? 'en' : 'ko') } catch { setUiLang('ko') }
   if (app === 'pdf') installPdfPencil()
   installPinchZoom() // two fingers zoom the document, not the app
+  installViewer(app) // 전체보기
   ;(async () => {
     try { await hydrate() } catch (e) { console.warn('[hydrate]', e) }
     if (app === 'hwp') try {

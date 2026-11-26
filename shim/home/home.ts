@@ -73,6 +73,16 @@ function activate(id: string) {
   if (tab.kind === 'settings') renderSettings()
   renderBar(); saveTabs()
 }
+// 전체보기: the tab bar steps aside and the tab shows its document as a viewer (shim/runtime/viewer.ts)
+function startViewer(x: Tab) {
+  const w = frames.get(x.id)?.contentWindow
+  if (!w) return
+  document.body.classList.add('ae-viewing')
+  w.postMessage({ type: 'ae-viewer', on: true }, '*')
+}
+addEventListener('message', (e) => {
+  if ((e.data as { type?: string } | null)?.type === 'ae-viewer-exit') document.body.classList.remove('ae-viewing')
+})
 function tabLabel(x: Tab) { return x.kind === 'home' ? t('home') : x.kind === 'settings' ? t('settings') : x.title }
 // Inside the Tauri app the suite is the app's home, in a full-screen iframe (office://localhost/index.html?embed=1);
 // the host can send { type: 'ae-office', action: 'new', app }.
@@ -89,9 +99,13 @@ function renderBar() {
   }
   const cur = tabs.find((x) => x.id === active)
   if (cur?.kind === 'app') {
+    const view = el('button', 'viewbtn')
+    view.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg><span>' + (lang() === 'ko' ? '전체보기' : 'Full view') + '</span>'
+    view.setAttribute('aria-label', lang() === 'ko' ? '전체보기 (보기 전용, 쪽 넘기기)' : 'Full view (read only, page by page)')
+    view.onclick = () => startViewer(cur)
     const send = el('button', 'send', sendLabel(cur)); send.setAttribute('aria-label', sendLabel(cur))
     send.onclick = () => void sendDoc(cur)
-    bar.append(send)
+    bar.append(view, send)
   }
   const gear = el('button', 'gear' + (tabs.find((x) => x.id === active)?.kind === 'settings' ? ' on' : ''), '⚙'); gear.setAttribute('aria-label', t('settings'))
   gear.onclick = () => addTab({ kind: 'settings', title: t('settings') })

@@ -144,10 +144,11 @@ if (!plistDir) throw new Error('Info.plist not found under gen/apple')
 const plist = join(APPLE, plistDir.name, 'Info.plist')
 const pb = (cmd) => execFileSync('/usr/libexec/PlistBuddy', ['-c', cmd, plist], { stdio: 'pipe' })
 const tryPb = (cmd) => { try { pb(cmd) } catch {} }
-// AllEditor (user decision): iPad runs landscape, full screen (no Split View / Slide Over), status bar hidden
+// AllEditor (user decisions): iPad runs full screen (no Split View / Slide Over), status bar hidden; landscape and
+// portrait (portrait added for 전체보기, the viewer)
 tryPb('Delete :UISupportedInterfaceOrientations~ipad')
 pb('Add :UISupportedInterfaceOrientations~ipad array')
-for (const o of ['LandscapeLeft', 'LandscapeRight']) {
+for (const o of ['LandscapeLeft', 'LandscapeRight', 'Portrait', 'PortraitUpsideDown']) {
   pb(`Add :UISupportedInterfaceOrientations~ipad: string UIInterfaceOrientation${o}`)
 }
 tryPb('Delete :UIRequiresFullScreen')

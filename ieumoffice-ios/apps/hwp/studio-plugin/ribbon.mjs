@@ -178,6 +178,7 @@ export function installAllEditorRibbon(bar, updateStates) {
   if (!bar || bar.classList.contains('ae-ribbon')) return
   // 설정 › 한글 메뉴: "한글식 메뉴" keeps the studio's own menu bar (파일 · 편집 · 보기 · 입력 · 서식 · 쪽 · 표 · 도구)
   installPinchZoom()
+  installViewerMode()
   if (readApp().hwpMenu === 'classic') {
     installAllEditorTheme(bar)
     installHancomStandIns()
@@ -422,4 +423,21 @@ export function installPinchZoom() {
   document.addEventListener('touchend', end, { capture: true })
   document.addEventListener('touchcancel', end, { capture: true })
   for (const t of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(t, (e) => e.preventDefault(), { passive: false })
+}
+
+// [AllEditor] 전체보기 (shim/runtime/viewer.ts): the pages alone, fitted to the width — no menus, bars or rulers
+const VIEWER_CSS = `html.ae-viewer #menu-bar,html.ae-viewer #icon-toolbar,html.ae-viewer #style-bar,html.ae-viewer #ae-ribbon,
+html.ae-viewer #status-bar,html.ae-viewer .status-bar,html.ae-viewer [id*="ruler"],html.ae-viewer [class*="ruler"]{display:none!important}`
+export function installViewerMode() {
+  const style = document.createElement('style')
+  style.textContent = VIEWER_CSS
+  document.head.appendChild(style)
+  addEventListener('message', (e) => {
+    if (e.data?.type !== 'ae-viewer') return
+    document.documentElement.classList.toggle('ae-viewer', !!e.data.on)
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'))
+      if (e.data.on) document.getElementById('sb-zoom-fit-width')?.click()
+    }, 150)
+  })
 }
