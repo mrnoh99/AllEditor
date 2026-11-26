@@ -205,6 +205,7 @@ const creditEl = () => {
 }
 const busy = new Set<string>()
 async function openPath(path: string) {
+  unhide(path.slice(path.lastIndexOf('/') + 1))
   const name = path.split('/').pop()!, app = appFor(name)
   if (!app) { alert(`${t('unsupported')}: ${name}`); return }
   const kind = IWORK_EXT[ext(name)]
@@ -282,6 +283,53 @@ async function openPicked() {
     else alert((lang() === 'ko' ? '파일을 열지 못했습니다: ' : 'Could not open the file: ') + (e?.message ?? e))
   }
 }
+// ---- 최근 문서 ----
+// The list is the AllEditor folder, newest first. ✕ only takes a document off this list (the file stays in the
+// folder); it comes back when the document is opened or changed again.
+type Row = { n: string; size: number; m: number }
+const HIDDEN_KEY = 'alleditor.recentHidden'
+const readHidden = (): Record<string, number> => { try { return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '{}') } catch { return {} } }
+const writeHidden = (h: Record<string, number>) => { try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(h)) } catch {} }
+function unhide(name: string) { const h = readHidden(); if (name in h) { delete h[name]; writeHidden(h) } }
+function memRows(): Row[] {
+  let names: string[] = []
+  try { names = fs.readdirSync(DOCS_ROOT).map(String).filter((n: string) => !n.startsWith('.') && appFor(n)) } catch {}
+  return names.map((n) => { const st = fs.statSync(`${DOCS_ROOT}/${n}`); return { n, size: st.size as number, m: Number(st.mtimeMs ?? 0) } })
+}
+async function nativeRows(): Promise<Row[] | null> {
+  if (!isTauriOffice()) return null
+  try {
+    const { files } = await Filesystem.readdir({ path: '', directory: Directory.Documents })
+    return (files as any[]).filter((f) => f.type !== 'directory' && !String(f.name).startsWith('.') && appFor(String(f.name)))
+      .map((f) => ({ n: String(f.name), size: Number(f.size ?? 0), m: Number(f.mtime ?? 0) }))
+  } catch { return null }
+}
+function fillRecent(list: HTMLElement, all: Row[]) {
+  const ko = lang() === 'ko'
+  const hidden = readHidden()
+  const rows = all.filter((r) => !(r.n in hidden) || r.m > hidden[r.n]).sort((a, b) => b.m - a.m)
+  list.textContent = ''
+  list.classList.toggle('none', !rows.length)
+  if (!rows.length) list.append(el('p', 'empty', ko ? '최근 문서가 없습니다. 새로 만들거나 파일을 여세요.' : 'No recent documents. Create one or open a file.'))
+  for (const r of rows) {
+    const row = el('div', 'row'); const b = el('button', 'file')
+    const meta = el('span', 'meta'); meta.append(el('span', 'nm', r.n), el('span', 'sz', [typeName(r.n), fmt(r.size), ago(r.m)].filter(Boolean).join(' · ')))
+    b.append(badge(badgeFor(r.n)), meta); b.onclick = () => openPath(`${DOCS_ROOT}/${r.n}`)
+    const rn = el('button', 'ren'); rn.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
+    rn.setAttribute('aria-label', ko ? '이름 바꾸기' : 'Rename'); rn.title = rn.getAttribute('aria-label')!
+    rn.onclick = () => void renameListed(`${DOCS_ROOT}/${r.n}`)
+    const d = el('button', 'del', '✕')
+    d.setAttribute('aria-label', ko ? '최근 문서에서 빼기' : 'Remove from recent'); d.title = d.getAttribute('aria-label')!
+    d.onclick = () => {
+      if (!confirm(ko ? `${r.n}\n\n최근 문서 목록에서 뺄까요?\n파일은 AllEditor 폴더에 그대로 남습니다.` : `${r.n}\n\nRemove from the recent list?\nThe file stays in the AllEditor folder.`)) return
+      const h = readHidden(); h[r.n] = Math.max(r.m, Date.now()); writeHidden(h)
+      row.remove()
+      if (!list.querySelector('.row')) fillRecent(list, [])
+    }
+    row.append(b, rn, d); list.append(row)
+  }
+}
+
 function renderHome() {
   const ko = lang() === 'ko'
   const root = $('homePane'); root.textContent = ''
@@ -313,21 +361,10 @@ function renderHome() {
 
   wrap.append(el('h2', '', ko ? '최근 문서' : 'Recent documents'))
   const list = el('div', 'files'); wrap.append(list)
-  let names: string[] = []
-  try { names = fs.readdirSync(DOCS_ROOT).map(String).filter((n: string) => !n.startsWith('.') && appFor(n)) } catch {}
-  const rows = names.map((n) => { const st = fs.statSync(`${DOCS_ROOT}/${n}`); return { n, size: st.size as number, m: Number(st.mtimeMs ?? 0) } }).sort((a, b) => b.m - a.m)
-  if (!rows.length) { list.classList.add('none'); list.append(el('p', 'empty', ko ? '아직 문서가 없습니다. 새로 만들거나 파일을 여세요.' : 'No documents yet. Create one or open a file.')) }
-  for (const r of rows) {
-    const row = el('div', 'row'); const b = el('button', 'file')
-    const meta = el('span', 'meta'); meta.append(el('span', 'nm', r.n), el('span', 'sz', [typeName(r.n), fmt(r.size), ago(r.m)].filter(Boolean).join(' · ')))
-    b.append(badge(badgeFor(r.n)), meta); b.onclick = () => openPath(`${DOCS_ROOT}/${r.n}`)
-    const rn = el('button', 'ren'); rn.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
-    rn.setAttribute('aria-label', ko ? '이름 바꾸기' : 'Rename'); rn.title = rn.getAttribute('aria-label')!
-    rn.onclick = () => void renameListed(`${DOCS_ROOT}/${r.n}`)
-    const d = el('button', 'del', '✕'); d.setAttribute('aria-label', t('del'))
-    d.onclick = async () => { if (!confirm(`${r.n}\n${t('confirmDel')}`)) return; fs.rmSync(`${DOCS_ROOT}/${r.n}`, { force: true }); await flush(); renderHome() }
-    row.append(b, rn, d); list.append(row)
-  }
+  const draw = (rows: Row[]) => fillRecent(list, rows)
+  draw(memRows())
+  // documents saved by an editor tab (each tab is its own page) or added in the Files app: ask the device
+  void nativeRows().then((rows) => { if (rows && list.isConnected) draw(rows) })
   wrap.append(creditEl())
 }
 
