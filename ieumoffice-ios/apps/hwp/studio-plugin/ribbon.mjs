@@ -327,6 +327,9 @@ const readApp = () => { try { return JSON.parse(localStorage.getItem(APP_SETTING
 const DARK_CSS = `
 html.ae-doc-dark #scroll-content canvas.document-page-canvas,html.ae-doc-dark #scroll-content canvas{filter:invert(.9) hue-rotate(180deg)}
 html.ae-doc-dark #scroll-content{background:#1b1b1d}
+/* the caret is a black div over the (now dark) page: draw it light, and a bit wider so it shows on the iPad */
+html.ae-doc-dark .caret{background:#f2f2f2!important;width:2.5px!important;box-shadow:0 0 0 .5px rgba(0,0,0,.6)}
+html.ae-doc-dark .caret-composition{background:#f2f2f2!important;color:#111!important}
 `
 export function installAllEditorTheme(bar) {
   const style = document.createElement('style')

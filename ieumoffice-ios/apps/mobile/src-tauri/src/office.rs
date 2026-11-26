@@ -290,7 +290,7 @@ fn native_call<R: Runtime>(app: &AppHandle<R>, plugin: &str, method: &str, args:
 
 /// providers both sides support (the office suite's ids are the same)
 const AI_KEY_PROVIDERS: &[&str] = &[
-    "gemini", "openai", "anthropic", "openrouter", "deepseek", "xai", "mistral", "kimi", "glm", "qwen", "upstage", "exaone",
+    "gemini", "openai", "anthropic", "openrouter", "deepseek", "xai", "mistral", "kimi", "glm", "qwen", "upstage", "exaone", "baze",
 ];
 
 fn ai_call<R: Runtime>(app: &AppHandle<R>, method: &str, args: &Value) -> Result<Value, String> {
@@ -330,6 +330,13 @@ fn ai_call<R: Runtime>(app: &AppHandle<R>, method: &str, args: &Value) -> Result
             for id in AI_KEY_PROVIDERS {
                 let key = store.get_api_key(id).map_err(|e| e.to_string())?.unwrap_or_default();
                 let model = snap.model_by_provider.get(*id).cloned().unwrap_or_default();
+                if *id == "baze" {
+                    // the office suite reaches BAZE as its OpenAI-compatible `custom` provider
+                    if !key.is_empty() || !model.is_empty() {
+                        providers.insert("custom".to_string(), json!({ "apiKey": key, "model": model, "baseUrl": crate::ai::settings::BAZE_BASE_URL }));
+                    }
+                    continue;
+                }
                 if !key.is_empty() || !model.is_empty() {
                     providers.insert((*id).to_string(), json!({ "apiKey": key, "model": model }));
                 }
@@ -337,12 +344,15 @@ fn ai_call<R: Runtime>(app: &AppHandle<R>, method: &str, args: &Value) -> Result
             // the office suite has no "auto" over subscriptions on iPad: an unsupported selection becomes the first
             // provider with a key, else Gemini (its panel then asks for that key)
             let selected = snap.selected_provider.clone();
-            let provider = if AI_KEY_PROVIDERS.contains(&selected.as_str()) {
+            let provider = if selected == "baze" {
+                "custom".to_string()
+            } else if AI_KEY_PROVIDERS.contains(&selected.as_str()) {
                 selected
             } else {
                 AI_KEY_PROVIDERS
                     .iter()
-                    .find(|id| providers.get(**id).and_then(|p| p.get("apiKey")).and_then(Value::as_str).is_some_and(|k| !k.is_empty()))
+                    .map(|id| if *id == "baze" { "custom" } else { *id })
+                    .find(|id| providers.get(*id).and_then(|p| p.get("apiKey")).and_then(Value::as_str).is_some_and(|k| !k.is_empty()))
                     .map(|id| (*id).to_string())
                     .unwrap_or_else(|| "gemini".to_string())
             };
