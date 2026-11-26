@@ -70,6 +70,19 @@ main.home .empty{text-align:center;padding:34px 18px;color:var(--fg);opacity:.75
 main.home .file{gap:12px}
 .meta{display:flex;flex-direction:column;flex:1;min-width:0;text-align:left}
 .meta .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.meta .sz{font-size:12px;color:var(--mut)}
+.recent-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.seg{display:inline-flex;background:var(--card);border:1px solid var(--sep);border-radius:9px;padding:2px;margin-bottom:8px}
+.seg button{padding:5px 12px;border-radius:7px;font-size:13px;color:var(--mut)}
+.seg button.on{background:var(--acc);color:#fff;font-weight:600}
+.recent .files:not(.none){display:grid;grid-template-columns:1fr 1fr}
+.recent .files .row{border-top:1px solid var(--sep);min-width:0}
+.recent .files .row:nth-child(-n+2){border-top:0}
+.recent .files .row:nth-child(odd){border-right:1px solid var(--sep)}
+@media(max-width:700px){.recent .files:not(.none){grid-template-columns:1fr}.recent .files .row:nth-child(2){border-top:1px solid var(--sep)}.recent .files .row:nth-child(odd){border-right:0}}
+.kind-head{display:flex;align-items:center;gap:8px;margin:16px 4px 8px;font-size:14px;font-weight:700}
+.kind-head:first-child{margin-top:4px}
+.badge.small{width:22px;height:22px;border-radius:5px;font-size:11px}
+.kind-count{font-size:12px;font-weight:600;color:var(--mut);background:var(--card);border:1px solid var(--sep);border-radius:10px;padding:1px 8px}
 .credit{white-space:pre-line;line-height:1.5;text-align:center;color:var(--mut);font-size:11px;margin:28px 0 8px;letter-spacing:.02em}
 .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 40px);transform:translateX(-50%);background:rgba(60,60,67,.92);color:#fff;padding:10px 18px;border-radius:20px;z-index:9;font-size:15px}
 /* AI 연결 */

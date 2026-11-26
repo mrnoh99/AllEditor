@@ -1,1 +1,0 @@
-import{m as e}from"./index-DJfZl1SI.js";const t={"sheets-note-ui":{note:{placeholder:"Escribe aquí"},rightClick:{addNote:"Agregar nota",deleteNote:"Eliminar nota",toggleNote:"Mostrar/Ocultar nota"}}},a=e(t);export{a as default};

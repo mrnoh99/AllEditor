@@ -49,7 +49,7 @@ const SOURCE_EDITS = {
     ["export const KOREAN_FAMILIES: readonly string[] = [\n",
      "export const KOREAN_FAMILIES: readonly string[] = [\n  // AllEditor: bundled free fonts first, then the iPad's own\n  'Nanum Gothic',\n  'Nanum Myeongjo',\n  'Nanum Gothic Coding',\n  'AppleMyungjo',\n"],
     ["  Pretendard: ['프리텐다드'],\n",
-     "  Pretendard: ['프리텐다드'],\n  'Nanum Gothic': ['나눔고딕'],\n  'Nanum Myeongjo': ['나눔명조'],\n  'Nanum Gothic Coding': ['나눔고딕코딩'],\n  AppleMyungjo: ['애플명조'],\n  'Gowun Batang': ['고운바탕'],\n  'Gowun Dodum': ['고운돋움'],\n"],
+     "  Pretendard: ['프리텐다드'],\n  'Nanum Gothic': ['나눔고딕'],\n  'Nanum Myeongjo': ['나눔명조'],\n  'Nanum Gothic Coding': ['나눔고딕코딩'],\n  AppleMyungjo: ['애플명조'],\n"],
   ],
   // PowerPoint save: JSZip's Node stream does not exist in the browser ("nodestream is not supported by this
   // platform"); the package is built in one piece with the same options and written once — the same bytes

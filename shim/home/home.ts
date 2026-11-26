@@ -305,30 +305,52 @@ async function nativeRows(): Promise<Row[] | null> {
       .map((f) => ({ n: String(f.name), size: Number(f.size ?? 0), m: Number(f.mtime ?? 0) }))
   } catch { return null }
 }
+// grouped by kind (한글 · Word · PowerPoint · Excel · PDF · Pages · Keynote · Numbers), newest first in each group,
+// or one list newest first; the choice is remembered
+const RECENT_VIEW_KEY = 'alleditor.recentView'
+const recentView = (): 'kind' | 'time' => { try { return localStorage.getItem(RECENT_VIEW_KEY) === 'time' ? 'time' : 'kind' } catch { return 'kind' } }
+const KIND_ORDER = ['hwp', 'docs', 'slides', 'sheets', 'pdf', 'pages', 'key', 'numbers']
+const kindOf = (n: string) => (IWORK_LABEL[ext(n)] ? ext(n) : appFor(n))
 function fillRecent(list: HTMLElement, all: Row[]) {
   const ko = lang() === 'ko'
   const hidden = readHidden()
   const rows = all.filter((r) => !(r.n in hidden) || r.m > hidden[r.n]).sort((a, b) => b.m - a.m)
   list.textContent = ''
-  list.classList.toggle('none', !rows.length)
-  if (!rows.length) list.append(el('p', 'empty', ko ? '최근 문서가 없습니다. 새로 만들거나 파일을 여세요.' : 'No recent documents. Create one or open a file.'))
-  for (const r of rows) {
-    const row = el('div', 'row'); const b = el('button', 'file')
-    const meta = el('span', 'meta'); meta.append(el('span', 'nm', r.n), el('span', 'sz', [typeName(r.n), fmt(r.size), ago(r.m)].filter(Boolean).join(' · ')))
-    b.append(badge(badgeFor(r.n)), meta); b.onclick = () => openPath(`${DOCS_ROOT}/${r.n}`)
-    const rn = el('button', 'ren'); rn.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
-    rn.setAttribute('aria-label', ko ? '이름 바꾸기' : 'Rename'); rn.title = rn.getAttribute('aria-label')!
-    rn.onclick = () => void renameListed(`${DOCS_ROOT}/${r.n}`)
-    const d = el('button', 'del', '✕')
-    d.setAttribute('aria-label', ko ? '최근 문서에서 빼기' : 'Remove from recent'); d.title = d.getAttribute('aria-label')!
-    d.onclick = () => {
-      if (!confirm(ko ? `${r.n}\n\n최근 문서 목록에서 뺄까요?\n파일은 AllEditor 폴더에 그대로 남습니다.` : `${r.n}\n\nRemove from the recent list?\nThe file stays in the AllEditor folder.`)) return
-      const h = readHidden(); h[r.n] = Math.max(r.m, Date.now()); writeHidden(h)
-      row.remove()
-      if (!list.querySelector('.row')) fillRecent(list, [])
-    }
-    row.append(b, rn, d); list.append(row)
+  if (!rows.length) {
+    const box = el('div', 'files none'); box.append(el('p', 'empty', ko ? '최근 문서가 없습니다. 새로 만들거나 파일을 여세요.' : 'No recent documents. Create one or open a file.'))
+    list.append(box); return
   }
+  const groups: Array<[string, Row[]]> = recentView() === 'time'
+    ? [['', rows]]
+    : KIND_ORDER.map((k) => [k, rows.filter((r) => kindOf(r.n) === k)] as [string, Row[]]).filter(([, g]) => g.length)
+  for (const [kind, items] of groups) {
+    if (kind) {
+      const head = el('div', 'kind-head')
+      const sample = items[0].n
+      head.append(badge(badgeFor(sample), 'badge small'), el('span', 'kind-name', typeName(sample)), el('span', 'kind-count', String(items.length)))
+      list.append(head)
+    }
+    const box = el('div', 'files'); list.append(box)
+    for (const r of items) box.append(recentRow(r, () => fillRecent(list, all)))
+  }
+}
+function recentRow(r: Row, redraw: () => void): HTMLElement {
+  const ko = lang() === 'ko'
+  const row = el('div', 'row'); const b = el('button', 'file')
+  const meta = el('span', 'meta'); meta.append(el('span', 'nm', r.n), el('span', 'sz', [typeName(r.n), fmt(r.size), ago(r.m)].filter(Boolean).join(' · ')))
+  b.append(badge(badgeFor(r.n)), meta); b.onclick = () => openPath(`${DOCS_ROOT}/${r.n}`)
+  const rn = el('button', 'ren'); rn.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
+  rn.setAttribute('aria-label', ko ? '이름 바꾸기' : 'Rename'); rn.title = rn.getAttribute('aria-label')!
+  rn.onclick = () => void renameListed(`${DOCS_ROOT}/${r.n}`)
+  const d = el('button', 'del', '✕')
+  d.setAttribute('aria-label', ko ? '최근 문서에서 빼기' : 'Remove from recent'); d.title = d.getAttribute('aria-label')!
+  d.onclick = () => {
+    if (!confirm(ko ? `${r.n}\n\n최근 문서 목록에서 뺄까요?\n파일은 AllEditor 폴더에 그대로 남습니다.` : `${r.n}\n\nRemove from the recent list?\nThe file stays in the AllEditor folder.`)) return
+    const h = readHidden(); h[r.n] = Math.max(r.m, Date.now()); writeHidden(h)
+    redraw()
+  }
+  row.append(b, rn, d)
+  return row
 }
 
 function renderHome() {
@@ -360,10 +382,19 @@ function renderHome() {
   open.onclick = () => void openPicked()
   wrap.append(open)
 
-  wrap.append(el('h2', '', ko ? '최근 문서' : 'Recent documents'))
-  const list = el('div', 'files'); wrap.append(list)
-  const draw = (rows: Row[]) => fillRecent(list, rows)
-  draw(memRows())
+  const rhead = el('div', 'recent-head')
+  const seg = el('div', 'seg')
+  const list = el('div', 'recent')
+  let last: Row[] = memRows()
+  const draw = (rows: Row[]) => { last = rows; fillRecent(list, rows) }
+  for (const [v, label] of [['kind', ko ? '종류별' : 'By type'], ['time', ko ? '최신순' : 'Newest']] as const) {
+    const btn = el('button', recentView() === v ? 'on' : '', label)
+    btn.onclick = () => { try { localStorage.setItem(RECENT_VIEW_KEY, v) } catch {}; for (const x of seg.children) x.classList.toggle('on', x === btn); fillRecent(list, last) }
+    seg.append(btn)
+  }
+  rhead.append(el('h2', '', ko ? '최근 문서' : 'Recent documents'), seg)
+  wrap.append(rhead, list)
+  draw(last)
   // documents saved by an editor tab (each tab is its own page) or added in the Files app: ask the device
   void nativeRows().then((rows) => { if (rows && list.isConnected) draw(rows) })
   wrap.append(creditEl())
