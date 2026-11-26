@@ -31,6 +31,14 @@ if (!existsSync(join(upstream, 'node_modules'))) {
  */
 const SOURCE_EDITS = {
   'packages/ui/src/font-list.ts': [
+    // the fonts neither the iPad nor the bundle has go to the end of every list (shim/runtime/fonts.ts MISSING)
+    ['export const BUILTIN_FONT_FAMILIES: readonly string[] = [', 'const BUILTIN_FONT_FAMILIES_UPSTREAM: readonly string[] = ['],
+    ['export function fontFamiliesFor(lang: Lang): readonly string[] {',
+     "const AE_IPAD_MISSING = new Set(" + JSON.stringify(['Impact', 'Garamond', '等线', '等线 Light', '宋体', '黑体', '微软雅黑', '楷体', '仿宋', '仿宋_GB2312', '楷体_GB2312', '方正小标宋简体', 'Noto Sans SC', 'Noto Serif SC', 'Yu Gothic', 'Yu Mincho', 'Meiryo', 'MS Gothic', 'MS Mincho', 'Noto Sans JP', 'Noto Serif JP', 'Microsoft JhengHei', 'PMingLiU', 'Noto Sans TC', 'Noto Serif TC']) + ')\n' +
+     'function aeIPadOrder(list: readonly string[]): readonly string[] {\n  return [...list.filter((f) => !AE_IPAD_MISSING.has(f)), ...list.filter((f) => AE_IPAD_MISSING.has(f))]\n}\n' +
+     'export const BUILTIN_FONT_FAMILIES: readonly string[] = aeIPadOrder(BUILTIN_FONT_FAMILIES_UPSTREAM)\n' +
+     'export function fontFamiliesFor(lang: Lang): readonly string[] {\n  return aeIPadOrder(fontFamiliesForUpstream(lang))\n}\n' +
+     'function fontFamiliesForUpstream(lang: Lang): readonly string[] {'],
     ["  'Courier New',\n  'Impact',\n",
      "  'Courier New',\n  'Impact',\n  // iPad (iPadOS) fonts\n" +
      ['Helvetica Neue', 'Helvetica', 'Avenir Next', 'Avenir', 'Futura', 'Gill Sans', 'Optima', 'Palatino', 'Baskerville',

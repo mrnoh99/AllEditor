@@ -32,11 +32,33 @@ const FAMILIES: Array<{ names: string[]; local: string[]; faces: Face[] }> = [
     faces: [{ file: 'GowunDodum-Regular.woff2', weight: 400 }] },
 ]
 
-/** every family name the bundle answers to (lower-case) */
-export const BUNDLED_FAMILY_NAMES = new Set(FAMILIES.flatMap((f) => f.names.map((n) => n.toLowerCase())))
+// Windows / 한컴 fonts the iPad does not have, shown with a free look-alike from the bundle. A document keeps the
+// font name it stores (on Windows it shows in the real font); a local() source comes first, so the real font
+// wins wherever it is installed. The Word editor has its own metric-matched stand-ins and keeps them.
+const SANS_KR: Face[] = [{ file: 'Pretendard-Regular.woff2', weight: 400 }, { file: 'Pretendard-Bold.woff2', weight: 700 }]
+const GOTHIC_KR: Face[] = [{ file: 'NanumGothic-Regular.woff2', weight: 400 }, { file: 'NanumGothic-Bold.woff2', weight: 700 }]
+const SERIF_KR: Face[] = [{ file: 'NanumMyeongjo-Regular.woff2', weight: 400 }, { file: 'NanumMyeongjo-Bold.woff2', weight: 700 }]
+export const ALIASES: Array<{ names: string[]; shownAs: string; faces: Face[] }> = [
+  { names: ['Malgun Gothic', '맑은 고딕'], shownAs: 'Pretendard', faces: SANS_KR },
+  { names: ['Gulim', '굴림', 'GulimChe', '굴림체', 'New Gulim', '새굴림', 'Dotum', '돋움', 'DotumChe', '돋움체', '함초롬돋움', 'HCR Dotum', '한컴돋움'], shownAs: '나눔고딕', faces: GOTHIC_KR },
+  { names: ['Batang', '바탕', 'BatangChe', '바탕체', 'Gungsuh', '궁서', 'GungsuhChe', '궁서체', '함초롬바탕', 'HCR Batang', '한컴바탕'], shownAs: '나눔명조', faces: SERIF_KR },
+  { names: ['Calibri', 'Calibri Light'], shownAs: 'Carlito', faces: [{ file: 'Carlito-Regular.woff2', weight: 400 }, { file: 'Carlito-Bold.woff2', weight: 700 }] },
+  { names: ['Cambria'], shownAs: 'Caladea', faces: [{ file: 'Caladea-Regular.woff2', weight: 400 }, { file: 'Caladea-Bold.woff2', weight: 700 }] },
+  { names: ['Segoe UI', 'Tahoma', 'Aptos'], shownAs: 'Liberation Sans', faces: [{ file: 'LiberationSans-Regular.woff2', weight: 400 }, { file: 'LiberationSans-Bold.woff2', weight: 700 }] },
+]
+/** fonts of the pickers that neither the iPad nor the bundle has (they show in a fallback font) */
+export const MISSING = new Set(['Impact', 'Garamond', '等线', '等线 Light', '宋体', '黑体', '微软雅黑', '楷体', '仿宋', '仿宋_GB2312', '楷体_GB2312', '方正小标宋简体',
+  'Noto Sans SC', 'Noto Serif SC', 'Yu Gothic', 'Yu Mincho', 'Meiryo', 'MS Gothic', 'MS Mincho', 'Noto Sans JP', 'Noto Serif JP',
+  'Microsoft JhengHei', 'PMingLiU', 'Noto Sans TC', 'Noto Serif TC'])
 
-export function bundledFontCss(base = FONT_BASE): string {
+/** every family name the bundle answers to (lower-case) */
+export const BUNDLED_FAMILY_NAMES = new Set([...FAMILIES, ...ALIASES].flatMap((f) => f.names.map((n) => n.toLowerCase())))
+
+export function bundledFontCss(base = FONT_BASE, aliases = true): string {
   const rules: string[] = []
+  if (aliases) for (const a of ALIASES) for (const name of a.names) for (const face of a.faces) {
+    rules.push(`@font-face{font-family:"${name}";src:local("${name}"),url("${base}${face.file}") format("woff2");font-weight:${face.weight};font-style:normal;font-display:swap}`)
+  }
   for (const fam of FAMILIES) {
     for (const name of fam.names) {
       for (const face of fam.faces) {
@@ -84,13 +106,46 @@ function installCanvasHook() {
   })
 }
 
-export function installBundledFonts() {
+// The font pickers mark what the iPad shows for a name: "≈ 나눔고딕" for a stand-in, "iPad에 없음" for a font
+// shown in a fallback font. (The lists also put the missing ones last: scripts/build-web.mjs, font-list.ts.)
+const NOTE_CSS = `.ae-font-note{margin-left:6px;font:11px -apple-system,system-ui,sans-serif;color:#8e8e93;font-style:normal;font-weight:400;white-space:nowrap}`
+function noteFor(name: string, app: string): string | null {
+  const ko = (() => { try { return (JSON.parse(localStorage.getItem('alleditor.settings') || '{}').language ?? 'ko') !== 'en' } catch { return true } })()
+  const alias = ALIASES.find((a) => a.names.includes(name))
+  if (alias) return app === 'docs' ? (ko ? '대체 글꼴로 표시' : 'shown in a stand-in') : `≈ ${alias.shownAs}`
+  if (MISSING.has(name)) return ko ? 'iPad에 없음' : 'not on iPad'
+  return null
+}
+function markFontLists(app: string) {
+  if (!document.body) { document.addEventListener('DOMContentLoaded', () => markFontLists(app)); return }
+  const style = document.createElement('style'); style.textContent = NOTE_CSS; document.head.appendChild(style)
+  const mark = (root: ParentNode) => {
+    for (const el of root.querySelectorAll<HTMLElement>('button, [role="option"], [role="menuitem"], li')) {
+      if (el.dataset.aeFontNote) continue
+      const first = el.firstChild
+      if (!first || first.nodeType !== Node.TEXT_NODE) continue
+      const note = noteFor((first.textContent ?? '').trim(), app)
+      if (!note) continue
+      // only font pickers: the item previews its font, or sits in a font menu
+      if (!el.style.fontFamily && !el.closest('[class*="font" i], [data-font-key]') && !el.dataset.fontKey) continue
+      el.dataset.aeFontNote = '1'
+      const span = document.createElement('span'); span.className = 'ae-font-note'; span.textContent = note
+      first.after(span)
+    }
+  }
+  let raf = 0
+  new MutationObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => mark(document.body)) })
+    .observe(document.body, { childList: true, subtree: true })
+}
+
+export function installBundledFonts(app = '') {
   const add = () => {
     if (document.getElementById('ae-bundled-fonts')) return
     const style = document.createElement('style')
     style.id = 'ae-bundled-fonts'
-    style.textContent = bundledFontCss()
+    style.textContent = bundledFontCss(FONT_BASE, app !== 'docs')
     document.head.appendChild(style)
+    markFontLists(app)
   }
   if (document.head) add(); else document.addEventListener('DOMContentLoaded', add)
   installCanvasHook()

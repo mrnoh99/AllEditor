@@ -273,6 +273,7 @@ export function installAllEditorRibbon(bar, updateStates) {
   try { saved = localStorage.getItem(KEY) || 'home' } catch {}
   show(TABS.some((t) => t.id === saved) ? saved : 'home')
   installAllEditorTheme(bar)
+  installHancomStandIns()
 }
 
 // [AllEditor] dark mode: the editor follows the app's 화면 테마 (설정 › 테마: 시스템 / 라이트 / 다크), and the paper
@@ -310,4 +311,23 @@ export function installAllEditorTheme(bar) {
   addEventListener('storage', (e) => { if (e.key === APP_SETTINGS) sync() })
   new MutationObserver(syncPaper).observe(root, { attributes: true, attributeFilter: ['data-theme-effective'] })
   addEventListener('focus', sync)
+}
+
+// [AllEditor] 한컴 fonts the app cannot ship (함초롬체: no redistribution licence checked) are drawn with the bundled
+// free look-alikes (studio/fonts): 바탕 계열 → 나눔명조, 돋움 계열 → 나눔고딕. The document keeps its font names.
+const HANCOM_STANDINS = [
+  [['함초롬바탕', '함초롱바탕', '한컴바탕', 'HCR Batang', '새바탕'], 'NanumMyeongjo'],
+  [['함초롬돋움', '함초롱돋움', '한컴돋움', 'HCR Dotum', '새돋움', '한컴산뜻돋움'], 'NanumGothic'],
+]
+export function installHancomStandIns() {
+  const rules = []
+  for (const [names, file] of HANCOM_STANDINS) for (const name of names) for (const [w, f] of [[400, 'Regular'], [700, 'Bold']]) {
+    rules.push(`@font-face{font-family:"${name}";src:local("${name}"),url("fonts/${file}-${f}.woff2") format("woff2");font-weight:${w};font-style:normal;font-display:block}`)
+  }
+  const style = document.createElement('style')
+  style.textContent = rules.join('\n')
+  document.head.appendChild(style)
+  // load them now, so the first drawing of a page already has them; redraw once they arrive
+  Promise.all(HANCOM_STANDINS.flatMap(([names]) => [document.fonts.load(`16px "${names[0]}"`, '가'), document.fonts.load(`bold 16px "${names[0]}"`, '가')]))
+    .then(() => window.dispatchEvent(new Event('resize')), () => {})
 }

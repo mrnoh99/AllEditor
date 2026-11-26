@@ -14,7 +14,7 @@ export function start(app: string, register: (open: string | null) => void, prel
   ;(window as any).__aeFlush = flush
   addHomeButton()
   installAiToggle()
-  installBundledFonts()
+  installBundledFonts(app)
   // the editors' own main-process code (dialogs, untitled names) speaks the app's language (Korean unless English is chosen)
   try { setUiLang((JSON.parse(localStorage.getItem('alleditor.settings') || '{}').language ?? 'ko') === 'en' ? 'en' : 'ko') } catch { setUiLang('ko') }
   if (app === 'pdf') installPdfPencil()
