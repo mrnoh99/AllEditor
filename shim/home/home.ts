@@ -120,6 +120,7 @@ async function renamePath(path: string, before?: () => Promise<void>): Promise<s
     else { await ensureLoaded(path); fs.renameSync(path, to); await flush() }
   } catch (e: any) { alert((ko ? '이름을 바꾸지 못했습니다: ' : 'Could not rename: ') + (e?.message ?? e)); return null }
   try { if (fs.existsSync(path)) fs.renameSync(path, to) } catch {} // keep this page's listing in step
+  markUsed(to.slice(to.lastIndexOf('/') + 1), file)
   return to
 }
 /** an open tab follows its file to the new name */
@@ -146,7 +147,7 @@ setInterval(() => {
   for (const x of tabs) {
     if (x.kind !== 'app') continue
     const p = tabPath(x)
-    if (p && p !== x.path) { x.path = p; x.title = p.slice(p.lastIndexOf('/') + 1); changed = true }
+    if (p && p !== x.path) { const from = x.path ? x.path.slice(x.path.lastIndexOf('/') + 1) : undefined; x.path = p; x.title = p.slice(p.lastIndexOf('/') + 1); markUsed(x.title, from); changed = true }
   }
   if (changed) { renderBar(); saveTabs(); if (tabs.find((x) => x.id === active)?.kind === 'home') renderHome() }
 }, 1500)
@@ -207,6 +208,7 @@ const creditEl = () => {
 const busy = new Set<string>()
 async function openPath(path: string) {
   unhide(path.slice(path.lastIndexOf('/') + 1))
+  markUsed(path.slice(path.lastIndexOf('/') + 1))
   const name = path.split('/').pop()!, app = appFor(name)
   if (!app) { alert(`${t('unsupported')}: ${name}`); return }
   const kind = IWORK_EXT[ext(name)]
@@ -256,9 +258,12 @@ const badgeFor = (n: string): [string, string] => IWORK_BADGE[ext(n)] ?? BADGE[a
 function badge([label, color]: [string, string], cls = 'badge') { const b = el('span', cls, label); b.style.background = color; return b }
 const ago = (ms: number) => {
   if (!ms) return ''
+  const loc = lang() === 'ko' ? 'ko-KR' : 'en-US'
   const d = new Date(ms), now = new Date()
-  const same = d.toDateString() === now.toDateString()
-  return same ? d.toLocaleTimeString(lang() === 'ko' ? 'ko-KR' : 'en-US', { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString(lang() === 'ko' ? 'ko-KR' : 'en-US')
+  const time = d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' })
+  if (d.toDateString() === now.toDateString()) return time
+  const date = d.getFullYear() === now.getFullYear() ? d.toLocaleDateString(loc, { month: 'short', day: 'numeric' }) : d.toLocaleDateString(loc)
+  return `${date} ${time}`
 }
 /** 파일 열기: in the app, the system picker opens at the AllEditor folder (iCloud Drive › AllEditor); a file from
  * elsewhere is copied into it. In a browser, the page's own file input. */
@@ -291,6 +296,13 @@ type Row = { n: string; size: number; m: number }
 const HIDDEN_KEY = 'alleditor.recentHidden'
 const readHidden = (): Record<string, number> => { try { return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '{}') } catch { return {} } }
 const writeHidden = (h: Record<string, number>) => { try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(h)) } catch {} }
+// when a document was last opened or saved in the app: the list shows and sorts by it when it is newer than the
+// file's own time (files moved into iCloud together can share one modification time)
+const USED_KEY = 'alleditor.recentUsed'
+const readUsed = (): Record<string, number> => { try { return JSON.parse(localStorage.getItem(USED_KEY) || '{}') } catch { return {} } }
+function markUsed(name: string, from?: string) {
+  try { const u = readUsed(); if (from) delete u[from]; u[name] = Date.now(); localStorage.setItem(USED_KEY, JSON.stringify(u)) } catch {}
+}
 function unhide(name: string) { const h = readHidden(); if (name in h) { delete h[name]; writeHidden(h) } }
 function memRows(): Row[] {
   let names: string[] = []
@@ -314,7 +326,9 @@ const kindOf = (n: string) => (IWORK_LABEL[ext(n)] ? ext(n) : appFor(n))
 function fillRecent(list: HTMLElement, all: Row[]) {
   const ko = lang() === 'ko'
   const hidden = readHidden()
-  const rows = all.filter((r) => !(r.n in hidden) || r.m > hidden[r.n]).sort((a, b) => b.m - a.m)
+  const used = readUsed()
+  const rows = all.map((r) => ({ ...r, m: Math.max(r.m, used[r.n] ?? 0) }))
+    .filter((r) => !(r.n in hidden) || r.m > hidden[r.n]).sort((a, b) => b.m - a.m)
   list.textContent = ''
   if (!rows.length) {
     const box = el('div', 'files none'); box.append(el('p', 'empty', ko ? '최근 문서가 없습니다. 새로 만들거나 파일을 여세요.' : 'No recent documents. Create one or open a file.'))
@@ -385,7 +399,9 @@ function renderHome() {
   const rhead = el('div', 'recent-head')
   const seg = el('div', 'seg')
   const list = el('div', 'recent')
-  let last: Row[] = memRows()
+  // in the app the device's folder gives the real times; this page's in-memory copies only carry the time they
+  // were loaded (the same for all), so they are shown only when the device cannot be asked
+  let last: Row[] = isTauriOffice() ? [] : memRows()
   const draw = (rows: Row[]) => { last = rows; fillRecent(list, rows) }
   for (const [v, label] of [['kind', ko ? '종류별' : 'By type'], ['time', ko ? '최신순' : 'Newest']] as const) {
     const btn = el('button', recentView() === v ? 'on' : '', label)
@@ -394,9 +410,9 @@ function renderHome() {
   }
   rhead.append(el('h2', '', ko ? '최근 문서' : 'Recent documents'), seg)
   wrap.append(rhead, list)
-  draw(last)
+  if (!isTauriOffice()) draw(last)
   // documents saved by an editor tab (each tab is its own page) or added in the Files app: ask the device
-  void nativeRows().then((rows) => { if (rows && list.isConnected) draw(rows) })
+  void nativeRows().then((rows) => { if (list.isConnected) draw(rows ?? memRows()) })
   wrap.append(creditEl())
 }
 
