@@ -51,6 +51,15 @@ const SOURCE_EDITS = {
     ["  Pretendard: ['프리텐다드'],\n",
      "  Pretendard: ['프리텐다드'],\n  'Nanum Gothic': ['나눔고딕'],\n  'Nanum Myeongjo': ['나눔명조'],\n  'Nanum Gothic Coding': ['나눔고딕코딩'],\n  AppleMyungjo: ['애플명조'],\n  'Gowun Batang': ['고운바탕'],\n  'Gowun Dodum': ['고운돋움'],\n"],
   ],
+  // PowerPoint save: JSZip's Node stream does not exist in the browser ("nodestream is not supported by this
+  // platform"); the package is built in one piece with the same options and written once — the same bytes
+  'packages/pptx-engine/src/index.ts': [
+    ["  const { createWriteStream } = await import('node:fs')\n  const { pipeline } = await import('node:stream/promises')\n  const source = buildZip(opened).generateNodeStream({",
+     "  const { writeFileSync } = await import('node:fs')\n  const source = buildZip(opened).generateAsync({"],
+    ["    await pipeline(source, createWriteStream(filePath))", "    writeFileSync(filePath, await source)"],
+    ["    type: 'nodebuffer',\n    compression: 'DEFLATE',\n    compressionOptions: { level: 6 },\n    streamFiles: true,\n  })\n  try {",
+     "    type: 'uint8array',\n    compression: 'DEFLATE',\n    compressionOptions: { level: 6 },\n    streamFiles: true,\n  })\n  try {"],
+  ],
   'packages/ui/src/template-fonts.ts': [
     ['  return `${TEMPLATE_FONT_SCHEME}://${TEMPLATE_FONT_HOST}/${encodeURIComponent(file)}`',
      '  return `/hwp/studio/fonts/tpl/${encodeURIComponent(file)}` // AllEditor: bundled copy (office/hwp/studio/fonts/tpl)'],
