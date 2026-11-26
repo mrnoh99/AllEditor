@@ -61,6 +61,37 @@ Now files > 512 KB are only listed (name/size/date) and load when a page opens t
   (office.rs) and keeps its `ai-settings.json` in memory only. The office "AI 연결" page and the 이음 settings edit
   the same store.
 
+## 0f. 2026-11-26 — state after the session of 11-25/26 (main = 6a2ecd7, Build 99, all CI green)
+Working branch now `claude/great-curie-4a2rbo`; merge to `main` only when the user says so ("main에 합쳐라").
+- **One home.** The Tauri app opens straight on the office home (`shim/home/home.ts`, look of the former 이음오피스
+  home: AllEditor header, 새 한글/Word/PowerPoint/Excel cards, 파일 열기, 최근 문서, credit). `HomeScreen.tsx` is
+  deleted; `OfficeOverlay` (OfficeSuite.tsx) is the app's home screen (`active` while no other screen shows).
+- **Documents** live in **iCloud Drive › AllEditor** (public iCloud container `iCloud.com.mrnoh99.alleditor`;
+  `AllEditorICloud.swift` moves the local Documents there once and writes the path to
+  `Library/Application Support/AllEditorOffice/.icloud-documents`, which `office.rs storage_root` reads). Without
+  iCloud the local Documents folder is used. Needs a paid team + iCloud Documents capability (ae-xcode-setup.mjs
+  writes the entitlements and `NSUbiquitousContainers`).
+- **파일 열기** = native picker opening at that folder (`AEPick.open` → `pickDocument`); a file from elsewhere is
+  copied in. **최근 문서** is read from the device folder each time the home shows; ✕ only hides an entry
+  (localStorage `alleditor.recentHidden`); ✎ / tab-name tap renames (native `AEFiles.rename`).
+- **JS dialogs:** wry's iOS UI delegate has no alert/confirm/prompt panels — `AllEditorDialogs.swift` puts a proxy
+  delegate in front (native UIAlertController). Everything that asks (rename, save name, confirms) depends on it.
+- **Save:** the shim's `dialog.showSaveDialog` asks for the name (prompt), saves in the documents folder; new 한글
+  documents default to .hwpx (`app-settings.json hwpDefaultFormat`); the editors' main code speaks ko/en (`setUiLang`).
+- **한글 editor:** Word-style ribbon (`apps/hwp/studio-plugin/ribbon.mjs`, patch `studio-ribbon`): tabs are built
+  from the studio's own menus; quick save/print resolve to the app's `ext:ieum-*` file commands. Dark mode follows
+  the app theme; paper dark = canvas invert (setting 문서 배경). 함초롬 → 나눔명조/나눔고딕 stand-ins.
+- **Fonts:** `fonts/` (OFL, woff2) ships at `office/hwp/studio/fonts` (the studio's own font folder, shared by all
+  editors; `shim/runtime/fonts.ts`). Windows/한컴 names → look-alikes (not in Word, which has its own); pickers mark
+  "≈ …" / "iPad에 없음" and list missing ones last (SOURCE_EDITS in build-web.mjs).
+- **PDF + Apple Pencil:** `shim/runtime/pdf-pencil.ts` (pen button, Pencil draws / finger scrolls).
+- **CI note:** `ieum-ios.yml` runs only for `ieumoffice-ios/**`; office/shim-only changes ship via the `office`
+  folder reference without a Rust rebuild (the build number then does not change).
+- **Not verified on a device yet:** the Swift parts (dialogs, picker, iCloud), Pencil vs finger, the 한글 글자 모양
+  dialog (does not open in headless Chromium either, also from the original toolbar). Known small issue: the "AI"
+  fold handle follows the system theme, not the app theme. `apps/hwp` tests: 3 `hwp-skill` tests fail because the
+  desktop shell's skill files are not in this repo (environment, not a bug).
+
 ## 1. Goal
 An iOS/iPadOS app that runs the open-source office suite **이음오피스 (IeumOffice)** — which is itself built on
 **GenOffice** — "the same way" as the Mac/desktop app: Docs, Slides, Sheets, PDF (+PDF tools), HWP, local file open,
