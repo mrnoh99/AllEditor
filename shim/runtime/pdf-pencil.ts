@@ -70,10 +70,31 @@ function strokeAt(x: number, y: number): SVGGElement | null {
   return null
 }
 let erasing = false
+// an erased stroke is saved right away when AutoSave is on (the editor itself saves every 30 s)
+let saveTimer = 0
+function saveSoon() {
+  clearTimeout(saveTimer)
+  saveTimer = window.setTimeout(() => {
+    if (!document.querySelector('.autosave-toggle.on')) return
+    const b = document.querySelector<HTMLButtonElement>('button[data-tip^="저장"], button[data-tip^="Save"]')
+    if (b && !b.disabled) b.click()
+  }, 1500)
+}
 /** delete the drawing under (x, y); true when one was removed */
 async function eraseAt(x: number, y: number): Promise<boolean> {
+  const done = await eraseOnce(x, y)
+  if (done) saveSoon()
+  return done
+}
+async function eraseOnce(x: number, y: number): Promise<boolean> {
   if (erasing) return false
-  if (!strokeAt(x, y)) return false
+  if (!strokeAt(x, y)) {
+    // not a stroke of this session: an Ink annotation already saved in the file (App.tsx __aeEraseSavedInk)
+    const saved = (window as any).__aeEraseSavedInk as ((x: number, y: number) => Promise<boolean>) | undefined
+    if (!saved) return false
+    erasing = true
+    try { return await saved(x, y) } catch { return false } finally { erasing = false }
+  }
   erasing = true
   try {
     const wasArmed = inkArmed()
