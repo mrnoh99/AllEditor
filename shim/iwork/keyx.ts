@@ -7,6 +7,7 @@
 // positions are absolute on the slide, also inside groups.
 import JSZip from 'jszip'
 import PptxGenJS from 'pptxgenjs'
+import { pdfToPng } from './pdf-image'
 
 const IN = (p: number) => (Number.isFinite(p) ? p / 72 : 0)
 type J = any
@@ -89,6 +90,7 @@ function sniff(u: Uint8Array, name: string): string {
 async function toWebImage(u: Uint8Array, name: string): Promise<string | null> {
   const mime = sniff(u, name)
   if (/png|jpeg|gif/.test(mime)) return `data:${mime};base64,${b64(u)}`
+  if (mime === 'application/pdf' || (u[0] === 0x25 && u[1] === 0x50 && u[2] === 0x44 && u[3] === 0x46)) return pdfToPng(u)
   try {
     const blob = new Blob([u as unknown as BlobPart], { type: mime })
     const url = URL.createObjectURL(blob)
@@ -239,6 +241,35 @@ function textRuns(text: J, defPara: J): { runs: J[]; plain: string } {
   })
   return { runs: out, plain: paras.map((p) => p.runs.map((r) => r.s).join('')).join('\n') }
 }
+/** width_valid false: the box takes the natural width of its text (Keynote's auto-sizing text box) and the stored width
+ *  is stale. The text stays on its lines at its own size; the box is widened to the measured width (kept centred or
+ *  right-aligned when the text is). Returns true when the lines must not wrap. */
+let measureCtx: CanvasRenderingContext2D | null = null
+function naturalWidth(runs: J[], o: J, b: Box): boolean {
+  try {
+    measureCtx ??= document.createElement('canvas').getContext('2d')
+    if (!measureCtx) return false
+    const pad = o.layout_properties?.padding
+    const pads = pad ? Number(pad.left ?? 0) + Number(pad.right ?? 0) : 8
+    let widest = 0, line = 0, align = 'left'
+    for (const r of runs) {
+      const op = r.options ?? {}
+      if (op.align) align = op.align
+      measureCtx.font = `${op.italic ? 'italic ' : ''}${op.bold ? 'bold ' : ''}${op.fontSize ?? 18}px "${op.fontFace ?? 'Helvetica Neue'}", sans-serif`
+      line += measureCtx.measureText(String(r.text ?? '')).width
+      if (op.breakLine) { widest = Math.max(widest, line); line = 0 }
+    }
+    widest = Math.max(widest, line)
+    const need = widest * 1.04 + pads
+    if (need > b.w) {
+      const grow = need - b.w
+      if (align === 'center') b.x -= grow / 2
+      else if (align === 'right') b.x -= grow
+      b.w = need
+    }
+    return true
+  } catch { return false }
+}
 function textFrame(o: J): J {
   const lp = isObj(o.layout_properties) ? o.layout_properties : {}
   const pad = isObj(lp.padding) ? lp.padding : null
@@ -306,7 +337,9 @@ async function draw(ctx: Ctx, pptx: J, slide: J, obj: J): Promise<void> {
     const fillOpt = fill ? { fill: { color: fill.color, transparency: Math.max(fill.transparency, Math.round((1 - op) * 100)) } } : {}
     const tr = textRuns(o.text, o.paragraph_properties)
     const hasText = tr.plain.trim().length > 0
-    const common = { ...frame(b), ...fillOpt, ...(line ? { line } : {}), ...(hasText ? textFrame(o) : {}) }
+    let noWrap = false
+    if (hasText && o.geometry?.width_valid === false) noWrap = naturalWidth(tr.runs, o, b)
+    const common = { ...frame(b), ...fillOpt, ...(line ? { line } : {}), ...(hasText ? textFrame(o) : {}), ...(noWrap ? { wrap: false } : {}), ...(hasText && o.geometry?.height_valid === false ? { valign: 'top' } : {}) }
     if (kind === 'shape') {
       const p = isObj(o.path) && isObj(o.path.bezier) ? o.path.bezier : null
       const pts = p ? pathPoints(String(p.path ?? ''), p.space, b.w, b.h) : null
