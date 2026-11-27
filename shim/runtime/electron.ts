@@ -50,6 +50,19 @@ const browserWindow: any = new Proxy({ id: 1, webContents: wcProxy, isDestroyed:
   isFocused: () => true, isMinimized: () => false, isFullScreen: () => false, isMaximized: () => false }, {
   get: (t: any, k) => (k in t ? t[k] : inert(`win.${String(k)}`)),
 })
+/** a loaded HTML file's pictures next to it (src="image-0.png", the 한글 print job) become data URLs: the HTML is
+ *  rendered as a string by the native side, where a relative file name points nowhere */
+const IMG_MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml' }
+function inlineLocalImages(html: string, dir: string): string {
+  return html.replace(/(\b(?:src|href)=)(["'])([^"':#?]+?\.[a-z]{3,4})\2/gi, (all, pre: string, q: string, src: string) => {
+    const ext = src.split('.').pop()?.toLowerCase() ?? ''
+    if (!IMG_MIME[ext]) return all
+    try {
+      const b = fs.readFileSync(`${dir}/${decodeURIComponent(src)}`) as unknown as Uint8Array
+      return `${pre}${q}data:${IMG_MIME[ext]};base64,${Buffer.from(b).toString('base64')}${q}`
+    } catch { return all }
+  })
+}
 /** hidden export windows (slides/sheets build an HTML file, load it, printToPDF it) */
 function makeFakeWindow() {
   let html = ''
@@ -71,7 +84,7 @@ function makeFakeWindow() {
   }, { get: (t: any, k) => (k in t ? t[k] : inert(`fakewc.${String(k)}`)) })
   const win: any = new Proxy({
     webContents: wc, isDestroyed: () => false, destroy() {}, close() {}, hide() {}, show() {}, setBounds() {},
-    loadFile: async (p: string) => { html = String(fs.readFileSync(p, 'utf8')) },
+    loadFile: async (p: string) => { html = inlineLocalImages(String(fs.readFileSync(p, 'utf8')), p.replace(/\/[^/]*$/, '')) },
     loadURL: async (u: string) => {
       if (u.startsWith('data:')) { const i = u.indexOf(','); html = /;base64/.test(u.slice(0, i)) ? atob(u.slice(i + 1)) : decodeURIComponent(u.slice(i + 1)) }
       else if (u.startsWith('file://')) html = String(fs.readFileSync(decodeURIComponent(u.slice(7)), 'utf8'))
