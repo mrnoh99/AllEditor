@@ -1,0 +1,1 @@
+import{m as e}from"./index-Bldy0sGk.js";const o={"sheets-note-ui":{note:{placeholder:"اكتب هنا"},rightClick:{addNote:"إضافة ملاحظة",deleteNote:"حذف الملاحظة",toggleNote:"إظهار/إخفاء الملاحظة"}}},l=e(o);export{l as default};
