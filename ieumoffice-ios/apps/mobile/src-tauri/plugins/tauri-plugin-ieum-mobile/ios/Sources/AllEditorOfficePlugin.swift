@@ -117,9 +117,17 @@ public final class AllEditorOfficePlugin: Plugin, WKNavigationDelegate {
                     let fm = FileManager.default
                     let inside = url.standardizedFileURL.deletingLastPathComponent().resolvingSymlinksInPath().path
                         == docs.standardizedFileURL.resolvingSymlinksInPath().path
-                    if inside { invoke.resolve(["name": url.lastPathComponent, "copied": false]); return }
                     let scoped = url.startAccessingSecurityScopedResource()
                     defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                    // a Pages / Keynote / Numbers document saved as a package is a folder: it is handed over as the
+                    // zipped single file those apps also write (same contents), which the converter reads
+                    let isPackage = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+                    if inside && !isPackage {
+                        // an iCloud file not downloaded yet is fetched before the app reads it
+                        var coordError: NSError?
+                        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordError) { _ in }
+                        invoke.resolve(["name": url.lastPathComponent, "copied": false]); return
+                    }
                     let stem = url.deletingPathExtension().lastPathComponent, ext = url.pathExtension
                     var target = docs.appendingPathComponent(url.lastPathComponent)
                     var n = 1
@@ -128,10 +136,12 @@ public final class AllEditorOfficePlugin: Plugin, WKNavigationDelegate {
                         n += 1
                     }
                     var failure: Error?
-                    NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: nil) { readable in
+                    var coordError: NSError?
+                    let readOpts: NSFileCoordinator.ReadingOptions = isPackage ? .forUploading : []
+                    NSFileCoordinator().coordinate(readingItemAt: url, options: readOpts, error: &coordError) { readable in
                         do { try fm.copyItem(at: readable, to: target) } catch { failure = error }
                     }
-                    if let failure { invoke.reject("could not copy the file: \(failure.localizedDescription)"); return }
+                    if let failure = failure ?? (coordError as Error?) { invoke.reject("could not copy the file: \(failure.localizedDescription)"); return }
                     invoke.resolve(["name": target.lastPathComponent, "copied": true])
                 }
             }
