@@ -3,7 +3,7 @@ import fs, { DOCS_ROOT, USER_ROOT, hydrate, flush, ensureLoaded } from '../runti
 import { AI_PROVIDERS, defaultAiSettings, sanitizeAiSettings } from '@genoffice/ai-provider'
 import { LANGS, tr } from './i18n'
 import { convertIwork, IWORK_EXT } from '../iwork/convert'
-import { getPrinters, setPrinters, sendToPrinter, testPdf, type PrinterCfg } from '../runtime/print'
+import { getPrinters, setPrinters, restorePrinters, sendToPrinter, testPdf, type PrinterCfg } from '../runtime/print'
 import { nativeShare, nativeAi, isTauriOffice, nativeAppVersion, nativeRename, nativePickDocument, Filesystem, Directory, type AiSnapshot } from '../runtime/native-files'
 import { openExternalUrl } from '../runtime/electron'
 
@@ -658,6 +658,8 @@ async function boot() {
   applyTheme()
   document.documentElement.lang = lang()
   try { await hydrate() } catch (e) { console.warn('[home hydrate]', e) }
+  // printers saved in the AllEditor folder come back after a reinstall (redraw 설정 if it is open)
+  void restorePrinters().then((got) => { if (got && !$('settingsPane').hidden) renderSettings() }).catch(() => {})
   $<HTMLInputElement>('picker').onchange = (e) => { const f = (e.target as HTMLInputElement).files?.[0]; (e.target as HTMLInputElement).value = ''; if (f) void importFile(f) }
   tabs = [{ id: 'home', kind: 'home', title: t('home') }]
   let restore: { active?: string; tabs?: Array<{ app: string; path?: string; title: string }> } = {}
