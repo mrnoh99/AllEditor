@@ -67,6 +67,7 @@
 
 ## 7. 인쇄·AI·기타
 - [ ] 인쇄: AirPrint 프린터 선택 창이 뜨고 인쇄된다
+- [ ] Word·PowerPoint·Excel·PDF·한글 모두 인쇄 창의 미리 보기가 나오고, 추가한 IP 프린터로 인쇄된다 (pdfium.wasm 오류·"Not a string or buffer" 없음)
 - [ ] 설정 › AI 연결에서 키를 넣으면 AI 도우미가 답한다
 - [ ] 설정 › AI 연결 › **BAZE (아주LLM)** 카드: 키 입력 → 연결 확인(모델 개수 표시) → 모델(예: claude-sonnet-5) → "이 AI로 연결" 후 Word·한글 AI 도우미가 답한다
 - [ ] 다른 앱에서 docx·xlsx·pptx·pdf·hwp·hwpx 파일을 "AllEditor로 열기"하면 열린다

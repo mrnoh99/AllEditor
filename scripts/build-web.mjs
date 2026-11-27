@@ -199,6 +199,7 @@ rmSync(www, { recursive: true, force: true })
 mkdirSync(www, { recursive: true })
 const shimFile = null
 // Per app: the real main-process module + how to start it. `open` = path from ?open= (launcher)
+const PRINT_WASM = [['/app/wasm/pdfium.wasm', 'wasm/pdfium.wasm'], ['/app/wasm/harfbuzz-subset.wasm', 'wasm/harfbuzz-subset.wasm']]
 const RUNTIMES = {
   docs: { file: 'docs-main', imports: 'registerDocsIpc, registerAiIpc, registerProjectIpc, openExternalDocx',
     code: 'registerDocsIpc(); registerAiIpc(); registerProjectIpc(); if (open) openExternalDocx(open)' },
@@ -218,6 +219,8 @@ RUNTIMES.hwp = {
   file: 'hwp-main', imports: 'createHwpView',
   code: 'registerAiIpc(); registerProjectIpc(); createHwpView(open)',
   tools: `import { registerAiIpc, registerProjectIpc } from '${upstream}/apps/docs/src/main/docs-main'`,
+  // its print panel (print-layout) renders the pages with PDFium, as the PDF editor does
+  preload: [['/app/wasm/pdfium.wasm', 'wasm/pdfium.wasm'], ['/app/wasm/harfbuzz-subset.wasm', 'wasm/harfbuzz-subset.wasm']],
 }
 function prepareHwpStudio() {
   const ieumIos = join(root, 'ieumoffice-ios')
@@ -241,7 +244,8 @@ for (const app of APPS) {
   const out = join(www, app)
   run('npx', ['vite', 'build', '--config', 'vite.renderer.config.ts', '--outDir', out,
     '--emptyOutDir', '--base', `./`], appDir)
-  if (app === 'pdf') {
+  {
+    // every editor's print panel (print-layout) renders pages with PDFium
     mkdirSync(join(out, 'wasm'), { recursive: true })
     cpSync(join(upstream, 'node_modules/@embedpdf/pdfium/dist/pdfium.wasm'), join(out, 'wasm/pdfium.wasm'))
     cpSync(join(upstream, 'node_modules/harfbuzzjs/dist/harfbuzz-subset.wasm'), join(out, 'wasm/harfbuzz-subset.wasm'))
@@ -258,7 +262,7 @@ import { ${rt.imports} } from '${upstream}/apps/${app}/src/main/${rt.file}'
 import { webContents } from '${root}/shim/runtime/electron'
 ${rt.tools ?? ''}
 import { start } from '${root}/shim/runtime/start'
-start('${app}', (open) => { ${rt.code} }, ${JSON.stringify(rt.preload ?? [])})
+start('${app}', (open) => { ${rt.code} }, ${JSON.stringify(rt.preload ?? PRINT_WASM)})
 `,
   })
   const idx = join(out, 'index.html')
