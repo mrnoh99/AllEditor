@@ -12,9 +12,9 @@ const APP_BY_EXT: Record<string, string> = {
   pptx: 'slides', potx: 'slides', ppt: 'slides', odp: 'slides', otp: 'slides',
   xlsx: 'sheets', xlsm: 'sheets', xls: 'sheets', ods: 'sheets', ots: 'sheets', csv: 'sheets', tsv: 'sheets', pdf: 'pdf',
   // Apple iWork: converted to an editable copy first (see openPath)
-  pages: 'docs', key: 'slides', numbers: 'sheets',
+  pages: 'docs', key: 'slides', keyx: 'slides', numbers: 'sheets',
 }
-const IWORK_LABEL: Record<string, string> = { pages: 'Pages', key: 'Keynote', numbers: 'Numbers' }
+const IWORK_LABEL: Record<string, string> = { pages: 'Pages', key: 'Keynote', keyx: 'Keynote', numbers: 'Numbers' }
 const tagLabel = (n: string) => IWORK_LABEL[ext(n)] ?? APP_LABEL[appFor(n)][lang() === 'ko' ? 0 : 1]
 const APP_LABEL: Record<string, [string, string]> = { hwp: ['한글', 'Hangul'], docs: ['문서', 'Docs'], slides: ['슬라이드', 'Slides'], sheets: ['스프레드시트', 'Sheets'], pdf: ['PDF', 'PDF'] }
 const ext = (n: string) => n.split('.').pop()!.toLowerCase()
@@ -337,7 +337,7 @@ async function nativeRows(): Promise<Row[] | null> {
 const RECENT_VIEW_KEY = 'alleditor.recentView'
 const recentView = (): 'kind' | 'time' => { try { return localStorage.getItem(RECENT_VIEW_KEY) === 'time' ? 'time' : 'kind' } catch { return 'kind' } }
 const KIND_ORDER = ['hwp', 'docs', 'slides', 'sheets', 'pdf', 'pages', 'key', 'numbers']
-const kindOf = (n: string) => (IWORK_LABEL[ext(n)] ? ext(n) : appFor(n))
+const kindOf = (n: string) => (ext(n) === 'keyx' ? 'key' : IWORK_LABEL[ext(n)] ? ext(n) : appFor(n))
 function fillRecent(list: HTMLElement, all: Row[]) {
   const ko = lang() === 'ko'
   const hidden = readHidden()

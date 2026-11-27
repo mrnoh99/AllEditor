@@ -51,6 +51,8 @@
 - [ ] 맑은 고딕·바탕·Calibri로 된 문서가 비슷한 글꼴로 보인다
 - [ ] 위쪽 "Pages로 보내기 / Keynote로 보내기 / Numbers로 보내기"가 공유 창을 연다
 - [ ] Pages·Keynote·Numbers 파일을 열면 편집용 사본으로 열린다
+- [ ] PowerPoint 파일의 그림이 슬라이드에 보인다 (예전에는 빈 점선 상자)
+- [ ] Keynote에서 Keynote 교환 형식(.keyx)으로 내보낸 파일을 열면 글자 위치·그림·자르기·표·차트가 원본과 같다
 
 ## 6. PDF와 Apple Pencil
 - [ ] PDF 화면 오른쪽에 펜 버튼이 있고, 누르면 자유 그리기가 켜진다

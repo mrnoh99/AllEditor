@@ -5,9 +5,10 @@
 import { parseIworkDocument } from 'iwork-viewer/parser'
 import JSZip from 'jszip'
 import PptxGenJS from 'pptxgenjs'
+import { isKeyx, keyxToPptx } from './keyx'
 
 export type IworkKind = 'pages' | 'keynote' | 'numbers'
-export const IWORK_EXT: Record<string, IworkKind> = { pages: 'pages', key: 'keynote', numbers: 'numbers' }
+export const IWORK_EXT: Record<string, IworkKind> = { pages: 'pages', key: 'keynote', keyx: 'keynote', numbers: 'numbers' }
 export interface Converted { bytes: Uint8Array; ext: 'docx' | 'pptx' | 'xlsx'; notes: string[] }
 
 const esc = (s: string) => s.replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c]!)
@@ -23,6 +24,12 @@ const b64 = (u: Uint8Array) => { let s = ''; for (let i = 0; i < u.length; i += 
 const pt = (px: number) => px / 72
 
 export async function convertIwork(buf: ArrayBuffer, kind: IworkKind, parser?: () => any): Promise<Converted> {
+  // Keynote Interchange Format (.keyx, Apple's documented JSON form): rebuilt exactly, not guessed
+  if (kind === 'keynote') {
+    let keyx = false
+    try { keyx = isKeyx(await JSZip.loadAsync(buf)) != null } catch { /* not a ZIP: the binary .key reader below */ }
+    if (keyx) { const r = await keyxToPptx(buf); return { bytes: r.bytes, ext: 'pptx', notes: r.notes } }
+  }
   const doc: any = await parseIworkDocument(buf, kind, undefined, parser)
   const notes: string[] = [...(doc.limits ?? [])]
   if (!doc.scenes?.length) throw new Error('이 파일에서 내용을 읽지 못했습니다.')
@@ -59,7 +66,7 @@ async function toPptx(doc: any): Promise<Uint8Array> {
           bullet: p.bullet && ri === 0 ? true : undefined, breakLine: ri === arr.length - 1 && pi < paras.length - 1 },
       })))
       slide.addText(runs, { x: pt(b.x), y: pt(b.y), w: Math.max(pt(b.width), 0.3), h: Math.max(pt(b.height), 0.2), align: b.align, valign: b.verticalAlign,
-        margin: b.padding ? [b.padding.top, b.padding.right, b.padding.bottom, b.padding.left] : 0, fontSize: b.fontSize, fontFace: b.fontFamily, color: hex(b.color), fit: 'none' })
+        margin: b.padding ? [b.padding.left, b.padding.right, b.padding.bottom, b.padding.top] : 0, fontSize: b.fontSize, fontFace: b.fontFamily, color: hex(b.color), fit: 'none' })
     } }))
     scene.tables?.forEach((t: any, i: number) => items.push({ z: t.zIndex ?? 500 + i, draw: () => {
       if (!t.rows?.length) return
