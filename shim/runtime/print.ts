@@ -1,6 +1,6 @@
 // printToPDF for the in-page "Electron": snapshot the live document (or a fake hidden window's HTML)
 // into a self-contained HTML string and let the native side paginate it with @media print rules.
-import { renderPdfNative, nativePrintDialog, nativeDirectPrint, isNative } from './native-files'
+import { renderPdfNative, nativePrintDialog, nativeDirectPrint, isNative, Filesystem, Directory } from './native-files'
 
 const toDataUrl = async (src: string): Promise<string | null> => {
   try {
@@ -70,6 +70,33 @@ export function getPrinters(): PrinterCfg[] {
 export function setPrinters(list: PrinterCfg[]) {
   let s: Record<string, any> = {}; try { s = JSON.parse(localStorage.getItem(SKEY) || '{}') } catch {}
   s.printers = list; localStorage.setItem(SKEY, JSON.stringify(s))
+  void backupPrinters(list)
+}
+
+// The printer list also lives in the iCloud AllEditor folder (hidden: .alleditor/printers.json), so it comes back
+// after the app is deleted and installed again, and on the user's other devices.
+const PRINTERS_FILE = '.alleditor/printers.json'
+const b64 = (t: string) => { const u = new TextEncoder().encode(t); let s = ''; for (const x of u) s += String.fromCharCode(x); return btoa(s) }
+const unb64 = (d: string) => { const bin = atob(d); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new TextDecoder().decode(u) }
+async function backupPrinters(list: PrinterCfg[]) {
+  if (!isNative()) return
+  try { await Filesystem.writeFile({ path: PRINTERS_FILE, directory: Directory.Documents, data: b64(JSON.stringify({ version: 1, printers: list }, null, 2)) }) }
+  catch (e) { console.warn('[printers] backup', e) }
+}
+/** a fresh install (no printer list on this device yet): take the one saved in the AllEditor folder */
+export async function restorePrinters(): Promise<boolean> {
+  if (!isNative()) return false
+  let s: Record<string, any> = {}; try { s = JSON.parse(localStorage.getItem(SKEY) || '{}') } catch {}
+  if (Array.isArray(s.printers)) { if (s.printers.length) void backupPrinters(s.printers); return false }
+  try {
+    const { data } = await Filesystem.readFile({ path: PRINTERS_FILE, directory: Directory.Documents })
+    const saved = JSON.parse(unb64(data))?.printers
+    if (!Array.isArray(saved)) return false
+    const ok = saved.filter((p: any) => p && typeof p.id === 'string' && typeof p.host === 'string' && /^[\w.\-:]+$/.test(p.host))
+      .map((p: any) => ({ id: p.id, name: String(p.name ?? p.host), host: p.host, protocol: ['auto', 'ipp', 'raw'].includes(p.protocol) ? p.protocol : 'auto', ...(Number.isInteger(p.port) ? { port: p.port } : {}) }))
+    s.printers = ok; localStorage.setItem(SKEY, JSON.stringify(s))
+    return ok.length > 0
+  } catch { return false }
 }
 /** what the apps' print dialogs list (Electron's getPrintersAsync shape) */
 export const printerChoices = () => getPrinters().map((p) => ({ name: 'ip:' + p.id, displayName: `${p.name} (${p.host})`, isDefault: false }))
