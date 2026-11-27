@@ -17,6 +17,10 @@ export function start(app: string, register: (open: string | null) => void, prel
   addHomeButton()
   installAiToggle()
   installBundledFonts(app)
+  // WebKit (iPad, and the iPad app on a Mac) enlarges small text in wide blocks by itself ("text autosizing"). The
+  // print preview shows a page shrunk with CSS zoom, so its text came out larger than printed and the lines broke
+  // differently. Text keeps the size the document gives it, everywhere.
+  { const st = document.createElement('style'); st.textContent = 'html,body,*{-webkit-text-size-adjust:100%!important;text-size-adjust:100%!important}'; (document.head ?? document.documentElement).appendChild(st) }
   // the keyboard must not scroll the page (the editors scroll inside their own panes)
   addEventListener('scroll', () => { if (scrollY || scrollX) scrollTo(0, 0) }, { passive: true })
   // the editors' own main-process code (dialogs, untitled names) speaks the app's language (Korean unless English is chosen)
