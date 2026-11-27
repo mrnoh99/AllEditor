@@ -197,13 +197,20 @@ function paraOpts(pp: J, list: J, level: number): J {
   }
   const lv = isObj(list) && Array.isArray(list.levels) ? list.levels[Math.min(level, list.levels.length - 1)] : null
   const label = lv?.label
+  const left = Number(pp.left_indent ?? 0) || 0
+  const size = Number(pp.character_properties?.font_size ?? 18) || 18
   if (label && label !== 'none' && label !== 'null_image') {
-    if (isObj(label.number)) o.bullet = { type: 'number' }
-    else if (isObj(label.string) && label.string.string) o.bullet = { code: label.string.string.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0') }
-    else o.bullet = true
-    if (lv.text_indent != null) o.bullet = { ...(o.bullet === true ? {} : o.bullet), indent: Math.max(1, Number(lv.text_indent) - Number(lv.label_indent ?? 0)) }
-    if (level > 0) o.indentLevel = level
-  } else if (pp.left_indent) o.indentLevel = Math.min(8, Math.round(Number(pp.left_indent) / 36))
+    // hanging indent: the label at the left, the text where Keynote puts it (at least a label's width further)
+    const hang = Math.max(size * 1.2, Number(lv.text_indent ?? 0) - Number(lv.label_indent ?? 0))
+    const base = Math.max(left, Number(lv.label_indent ?? 0))
+    if (isObj(label.number)) o.bullet = { type: 'number', indent: base + hang }
+    else if (isObj(label.string) && label.string.string) o.bullet = { characterCode: label.string.string.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0'), indent: base + hang }
+    else o.bullet = { indent: base + hang }
+  } else if (left > 0) {
+    // an indented paragraph without a label: PowerPoint keeps a left margin only on list paragraphs, so the
+    // paragraph gets an invisible label (zero-width space) whose hang is the indent
+    o.bullet = { characterCode: '200B', indent: left }
+  }
   return o
 }
 /** a Text (string / text_runs / paragraphs) -> PptxGenJS runs, paragraph options repeated on each run of a paragraph */
@@ -229,12 +236,22 @@ function textRuns(text: J, defPara: J): { runs: J[]; plain: string } {
         const r = c?.run ?? c?.hyperlink?.run
         if (r) runs.push({ s: String(r.string ?? '').replace(/\u2028/g, '\n'), cp: r.style ?? {} })
       }
-      paras.push({ pp, list: p?.list_style ?? null, level: Number(p?.list_level ?? 0), runs })
+      paras.push({ pp, list: p?.list_style ?? null, level: Number(p?.list_level ?? 0), runs, ...(p?.list_start != null ? { start: p.list_start } : {}) } as J)
     }
   }
   const out: J[] = []
+  // numbered lists: Keynote keeps counting across the unnumbered lines under an item; PowerPoint restarts after
+  // any other paragraph, so each numbered paragraph is given its own start number
+  const count: number[] = []
   paras.forEach((p, pi) => {
     const po = paraOpts(p.pp, p.list, p.level)
+    if (po.bullet?.type === 'number') {
+      const L = p.level
+      count.length = Math.max(count.length, L + 1)
+      count[L] = (p as J).start != null ? Number((p as J).start) : (count[L] ?? 0) + 1
+      count.length = L + 1 // deeper levels start again
+      po.bullet = { ...po.bullet, numberStartAt: count[L] }
+    } else if (p.runs.some((r) => r.s.trim())) count.length = Math.min(count.length, p.level) // a plain line at this level ends the list
     const base = p.pp?.character_properties ?? {}
     const runs = p.runs.length ? p.runs : [{ s: '', cp: {} }]
     runs.forEach((r, ri) => out.push({ text: r.s, options: { ...po, ...charOpts(merge(base, r.cp)), ...(ri === runs.length - 1 && pi < paras.length - 1 ? { breakLine: true } : {}) } }))
