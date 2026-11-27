@@ -206,6 +206,11 @@ function paraOpts(pp: J, list: J, level: number): J {
     if (isObj(label.number)) o.bullet = { type: 'number', indent: base + hang }
     else if (isObj(label.string) && label.string.string) o.bullet = { characterCode: label.string.string.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0'), indent: base + hang }
     else o.bullet = { indent: base + hang }
+  } else if (Math.max(left, Number(lv?.label_indent ?? 0) || 0) > 0) {
+    // a list level without a label still sets where its text starts (label_indent), as the paragraph's own indent does
+    const at = Math.max(left, Number(lv?.label_indent ?? 0) || 0)
+    o.bullet = { characterCode: '200B', indent: at }
+    return o
   } else if (left > 0) {
     // an indented paragraph without a label: PowerPoint keeps a left margin only on list paragraphs, so the
     // paragraph gets an invisible label (zero-width space) whose hang is the indent
@@ -408,32 +413,64 @@ async function draw(ctx: Ctx, pptx: J, slide: J, obj: J): Promise<void> {
 }
 
 function drawTable(slide: J, t: J, b: Box) {
+  const vp = isObj(t.visual_properties) ? t.visual_properties : {}
   const nCols = Math.max(1, Number(t.number_of_columns) || 0), nRows = Math.max(1, Number(t.number_of_rows) || (t.content?.length ?? 1))
+  const hdrR = Number(t.number_of_header_rows ?? 0), hdrC = Number(t.number_of_header_columns ?? 0), ftrR = Number(t.number_of_footer_rows ?? 0)
   const heads: J[] = Array.isArray(t.column_headers) ? t.column_headers : []
   const colW = Array.from({ length: nCols }, (_, i) => IN(Number(heads[i]?.column_width ?? t.default_column_width ?? 98)))
   const rowIds: string[] = [], colIds: string[] = heads.map((h) => String(h?.column_identifier ?? ''))
-  const grid: J[][] = []
   const rows: J[] = Array.isArray(t.content) ? t.content : []
+  const area = (r: number, c: number) => (r < hdrR ? 'header_row' : r >= nRows - ftrR ? 'footer_row' : c < hdrC ? 'header_column' : 'body')
+  // lines: Keynote keeps them per area (body / header row / header column / footer), edges and inner lines apart
+  const line = (st: J, visible = true) => { const l = visible ? strokeOf(st) : undefined; return l ? { type: 'solid', pt: l.width, color: l.color } : { type: 'none' } }
+  const body = vp.body_stroke_properties ?? {}, hr = vp.header_row_stroke_properties ?? {}, hc = vp.header_column_stroke_properties ?? {}, fr = vp.footer_row_stroke_properties ?? {}
+  const bVis = body.border_strokes_visible !== false
+  const hLine = (r: number) => { // the line above row r
+    if (r === 0) return line(hdrR ? hr.border_stroke ?? body.horizontal_border_stroke : body.horizontal_border_stroke, bVis)
+    if (r === nRows) return line(ftrR ? fr.border_stroke ?? body.horizontal_border_stroke : body.horizontal_border_stroke, bVis)
+    if (hdrR && r === hdrR) return line(hr.separator_stroke, hr.separator_visible !== false)
+    if (ftrR && r === nRows - ftrR) return line(fr.separator_stroke, fr.separator_visible !== false)
+    if (r < hdrR) return line(hr.horizontal_stroke, hr.across_strokes_visible !== false)
+    return line(body.horizontal_stroke, body.horizontal_strokes_visible !== false)
+  }
+  const vLine = (r: number, c: number) => { // the line left of column c in row r
+    if (c === 0 || c === nCols) return line(body.vertical_border_stroke, bVis)
+    if (hdrC && c === hdrC) return line(hc.separator_stroke, hc.separator_visible !== false)
+    if (r < hdrR) return line(hr.vertical_stroke, hr.across_strokes_visible !== false)
+    return line(body.vertical_stroke, body.vertical_strokes_visible !== false)
+  }
+  const grid: J[][] = []
   const rowH: number[] = []
+  // every row's cells by column (sparse rows name the column of the first cell after a gap)
+  const at: J[][] = rows.map((row) => { const by: J[] = []; let c = 0; for (const cell of row?.cells ?? []) { if (cell?.column_index != null) c = Number(cell.column_index); if (c < nCols) by[c] = cell; c++ } return by })
+  // a cell's own line wins, then the neighbour's line on the shared edge, then the table area's line
+  const cellLine = (st: J) => (st === undefined ? undefined : line(st))
+  const edge = (r: number, c: number, side: 'top' | 'bottom' | 'left' | 'right', fallback: J) => {
+    const own = at[r]?.[c]?.strokes?.[side]
+    const nb = side === 'top' ? at[r - 1]?.[c]?.strokes?.bottom : side === 'bottom' ? at[r + 1]?.[c]?.strokes?.top : side === 'left' ? at[r]?.[c - 1]?.strokes?.right : at[r]?.[c + 1]?.strokes?.left
+    return cellLine(own) ?? cellLine(nb) ?? fallback
+  }
   for (let r = 0; r < nRows; r++) {
     const row = rows[r] ?? {}
     rowIds.push(String(row.row_identifier ?? ''))
     rowH.push(IN(Number(row.row_height ?? t.default_row_height ?? 20)))
-    const cells: J[] = Array.from({ length: nCols }, () => ({ text: '', options: {} }))
-    let c = 0
-    for (const cell of row.cells ?? []) {
-      if (cell?.column_index != null) c = Number(cell.column_index)
-      if (c >= nCols) break
-      const tp = merge(merge(heads[c]?.text_properties ?? {}, row.text_properties ?? {}), cell?.text_properties ?? {})
-      const cp = merge(merge(heads[c]?.cell_properties ?? {}, row.cell_properties ?? {}), cell?.cell_properties ?? {})
+    const cells: J[] = []
+    const byCol: J[] = at[r] ?? []
+    for (let c = 0; c < nCols; c++) {
+      const cell = byCol[c] ?? {}, a = area(r, c)
+      const tp = merge(merge(merge(vp[a + '_text_properties'] ?? vp.body_text_properties ?? {}, heads[c]?.text_properties ?? {}), row.text_properties ?? {}), cell.text_properties ?? {})
+      const cp = merge(merge(merge(vp[a + '_cell_properties'] ?? vp.body_cell_properties ?? {}, heads[c]?.cell_properties ?? {}), row.cell_properties ?? {}), cell.cell_properties ?? {})
+      const uv = cell.unformatted_value
+      const rich = isObj(uv?.rich_text) ? uv.rich_text : isObj(uv?.text) ? uv.text : null
+      const runs = rich ? textRuns(rich, tp).runs : textRuns({ string: String(cell.value ?? (uv?.number ?? uv?.boolean ?? '') ?? '') }, tp).runs
       const fill = fillColor(cp?.fill)
-      const header = r < Number(t.number_of_header_rows ?? 0) || c < Number(t.number_of_header_columns ?? 0)
-      cells[c] = { text: String(cell?.value ?? ''), options: {
-        ...charOpts(tp?.character_properties), ...(tp?.alignment && ALIGN[tp.alignment] ? { align: ALIGN[tp.alignment] } : {}),
+      const pad = isObj(cp?.padding) ? cp.padding : null
+      cells.push({ text: runs.length ? runs : '', options: {
         ...(cp?.vertical_alignment ? { valign: cp.vertical_alignment === 'center' ? 'middle' : cp.vertical_alignment } : {}),
-        ...(fill ? { fill: { color: fill.color } } : header ? { fill: { color: 'EEEEEE' } } : {}), ...(header && tp?.character_properties?.bold == null ? { bold: true } : {}),
-      } }
-      c++
+        ...(fill ? { fill: { color: fill.color } } : {}),
+        ...(pad ? { margin: [Number(pad.top ?? 0), Number(pad.right ?? 0), Number(pad.bottom ?? 0), Number(pad.left ?? 0)] } : {}),
+        border: [edge(r, c, 'top', hLine(r)), edge(r, c, 'right', vLine(r, c + 1)), edge(r, c, 'bottom', hLine(r + 1)), edge(r, c, 'left', vLine(r, c))],
+      } })
     }
     grid.push(cells)
   }
@@ -447,7 +484,7 @@ function drawTable(slide: J, t: J, b: Box) {
     for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) if (r !== r0 || c !== c0) grid[r][c] = null
   }
   const clean = grid.map((row) => row.filter((x) => x !== null))
-  slide.addTable(clean, { x: IN(b.x), y: IN(b.y), colW, rowH, fontSize: 12, border: { type: 'solid', pt: 0.5, color: 'BBBBBB' }, margin: 3 })
+  slide.addTable(clean, { x: IN(b.x), y: IN(b.y), colW, rowH })
 }
 
 function drawChart(ctx: Ctx, pptx: J, slide: J, chart: J, b: Box) {
@@ -475,7 +512,28 @@ function drawChart(ctx: Ctx, pptx: J, slide: J, chart: J, b: Box) {
   }
   const [kind, opts] = map[type] ?? [C.BAR, { barDir: 'col' }]
   if (!map[type]) ctx.notes.add('일부 차트는 막대 차트로 옮겨졌습니다.')
-  try { slide.addChart(kind, kind === C.PIE || kind === C.DOUGHNUT ? series.slice(0, 1) : series, { ...frame(b), ...opts, showLegend: c.show_legend !== false && series.length > 1 }) }
+  // Keynote's look: title, series colours, value labels in their number format, axis labels shown or not, legend place
+  const ks: J[] = Array.isArray(c.series) ? [...c.series].sort((x, y) => Number(x?.series_index ?? 0) - Number(y?.series_index ?? 0)) : []
+  const colors = series.map((_, i) => fillColor(ks[i]?.fill)?.color ?? fillColor(c.chart_colors?.[i]?.fill)?.color).filter(Boolean) as string[]
+  const titleText = c.title?.is_visible !== false && c.title?.text ? textRuns(c.title.text, {}).plain.trim() : ''
+  const titleSize = Number(c.title?.paragraph_properties?.character_properties?.font_size ?? 0) || undefined
+  const showValues = ks.some((x) => x?.show_value_labels)
+  const pct = ks.some((x) => /percent/i.test(String(x?.label_format_type ?? '')))
+  const dp = Number(ks[0]?.label_number_format?.decimal_places ?? 0)
+  const fmt = pct ? (dp > 0 && dp < 20 ? '0.' + '0'.repeat(dp) + '%' : '0%') : dp > 0 && dp < 20 ? '0.' + '0'.repeat(dp) : 'General'
+  const lg = box(c.legend?.geometry)
+  const look: J = {
+    ...(colors.length === series.length ? { chartColors: colors } : {}),
+    ...(titleText ? { showTitle: true, title: titleText, ...(titleSize ? { titleFontSize: titleSize } : {}) } : {}),
+    ...(showValues ? { showValue: true, dataLabelFormatCode: fmt, dataLabelPosition: 'outEnd' } : {}),
+    ...(c.value_axis?.show_labels === false ? { valAxisHidden: true } : {}),
+    ...(c.value_axis?.show_major_gridlines === false ? { valGridLine: { style: 'none' } } : {}),
+    ...(lg ? (() => { // the legend's frame is measured within the chart (a slide position below the chart's top is used as one)
+      const rel = lg.y < b.y || lg.x < b.x ? { x: lg.x + lg.w / 2, y: lg.y + lg.h / 2 } : { x: lg.x - b.x + lg.w / 2, y: lg.y - b.y + lg.h / 2 }
+      return { legendPos: rel.y > b.h * 0.6 ? 'b' : rel.y < b.h * 0.25 ? 't' : rel.x > b.w * 0.6 ? 'r' : 'l' }
+    })() : {}),
+  }
+  try { slide.addChart(kind, kind === C.PIE || kind === C.DOUGHNUT ? series.slice(0, 1) : series, { ...frame(b), ...opts, ...look, showLegend: c.show_legend !== false && (series.length > 1 || kind === C.PIE || kind === C.DOUGHNUT) }) }
   catch { ctx.notes.add('일부 차트는 옮기지 못했습니다.') }
 }
 
