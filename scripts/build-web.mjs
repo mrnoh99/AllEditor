@@ -71,6 +71,16 @@ const SOURCE_EDITS = {
     ['    eastAsiaFont: defaultEastAsiaFontFor(getLang()),\n    paperSize', "    eastAsiaFont: 'Batang', // AllEditor default (was defaultEastAsiaFontFor(getLang()))\n    paperSize"],
   ],
   // a "폭 맞춤" (fit to width) button beside the zoom controls, bottom right (the editor's own zoomFit('width'))
+  // AllEditor: the product name the editors show and print (menus, dialogs, AI panel, print headers) is AllEditor
+  // in every language. The credit on the home screen still names 이음오피스 and GenOffice (Apache-2.0 notice).
+  'packages/i18n/src/product.ts': [
+    ["export const PRODUCT_NAME = 'IeumOffice'", "export const PRODUCT_NAME = 'AllEditor'"],
+    ["  ko: '이음오피스',\n", "  ko: 'AllEditor',\n"],
+  ],
+  // files the editors create themselves go straight into the (iCloud) AllEditor folder, not a product-named subfolder
+  'packages/electron-utils/src/default-save-dir.ts': [
+    ["    ...(documents ? [join(documents, PRODUCT_NAME)] : []),", "    ...(documents ? [documents] : []),"],
+  ],
   // print preview: scale the cloned page with a transform, not CSS zoom. WebKit (iPad / Mac) keeps zoomed text at
   // a minimum logical font size (~9px), so a page zoomed to ~45% showed larger text and other line breaks than printed.
   'apps/docs/src/renderer/components/PrintDialog.tsx': [

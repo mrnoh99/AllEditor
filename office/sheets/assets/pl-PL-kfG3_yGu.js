@@ -1,0 +1,1 @@
+import{m as t}from"./index-Bldy0sGk.js";const e={"sheets-note-ui":{note:{placeholder:"Wpisz tutaj"},rightClick:{addNote:"Dodaj notatkę",deleteNote:"Usuń notatkę",toggleNote:"Pokaż/Ukryj notatkę"}}},a=t(e);export{a as default};

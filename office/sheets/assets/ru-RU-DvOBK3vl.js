@@ -1,0 +1,1 @@
+import{m as e}from"./index-Bldy0sGk.js";const o={"sheets-note-ui":{note:{placeholder:"Введите текст здесь"},rightClick:{addNote:"Добавить примечание",deleteNote:"Удалить примечание",toggleNote:"Показать/Скрыть примечание"}}},l=e(o);export{l as default};

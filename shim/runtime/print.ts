@@ -130,7 +130,7 @@ export async function sendToPrinter(pdf: Uint8Array, job: PrintJob = {}, jobName
 /** one-page test PDF (Helvetica text) for the Settings › Printer test button */
 export function testPdf(line: string): Uint8Array {
   const text = line.replace(/[^\x20-\x7e]/g, '?').replace(/[()\\]/g, '')
-  const stream = `BT /F1 20 Tf 72 740 Td (ieum office - test page) Tj 0 -32 Td /F1 12 Tf (${text}) Tj 0 -20 Td (Developed by JaiSung NOH MD 2026) Tj ET`
+  const stream = `BT /F1 20 Tf 72 740 Td (AllEditor - Test Page) Tj 0 -32 Td /F1 12 Tf (${text}) Tj 0 -20 Td (Developed by JaiSung NOH MD 2026) Tj ET`
   const objs = [
     '<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
     '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
