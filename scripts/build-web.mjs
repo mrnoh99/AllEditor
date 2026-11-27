@@ -71,6 +71,13 @@ const SOURCE_EDITS = {
     ['    eastAsiaFont: defaultEastAsiaFontFor(getLang()),\n    paperSize', "    eastAsiaFont: 'Batang', // AllEditor default (was defaultEastAsiaFontFor(getLang()))\n    paperSize"],
   ],
   // a "폭 맞춤" (fit to width) button beside the zoom controls, bottom right (the editor's own zoomFit('width'))
+  // print preview: scale the cloned page with a transform, not CSS zoom. WebKit (iPad / Mac) keeps zoomed text at
+  // a minimum logical font size (~9px), so a page zoomed to ~45% showed larger text and other line breaks than printed.
+  'apps/docs/src/renderer/components/PrintDialog.tsx': [
+    ["    host.style.zoom = '1'\n    const w = pageEl.offsetWidth\n    const h = pageEl.offsetHeight\n    if (w > 0 && h > 0) {\n      host.style.zoom = String(Math.min((pane.clientWidth - 36) / w, (pane.clientHeight - 36) / h))\n    }",
+     "    host.style.zoom = '1'\n    host.style.transform = ''\n    host.style.margin = ''\n    const w = pageEl.offsetWidth\n    const h = pageEl.offsetHeight\n    if (w > 0 && h > 0) {\n      const s = Math.min((pane.clientWidth - 36) / w, (pane.clientHeight - 36) / h)\n" +
+     "      host.style.transformOrigin = 'top left'\n      host.style.transform = `scale(${s})`\n      host.style.width = `${w}px`\n      host.style.height = `${h}px`\n      host.style.flex = 'none'\n      host.style.margin = `0 ${w * s - w}px ${h * s - h}px 0`\n    }"],
+  ],
   'apps/docs/src/renderer/App.tsx': [
     ["                {Math.round(zoom)}%\n              </button>\n            </div>\n          </footer>",
      "                {Math.round(zoom)}%\n              </button>\n" +
