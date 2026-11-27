@@ -81,6 +81,15 @@ const SOURCE_EDITS = {
   'packages/electron-utils/src/default-save-dir.ts': [
     ["    ...(documents ? [join(documents, PRODUCT_NAME)] : []),", "    ...(documents ? [documents] : []),"],
   ],
+  // slide pictures: the desktop answers genoffice-slide-media:// from its main process (protocol.handle); on the
+  // iPad that "main process" runs in the page itself and no one answers the scheme, so every picture failed. Hand
+  // the editor a blob: URL of the same bytes (EMF/WMF as a data: URL, which the editor rasterizes itself).
+  'apps/slides/src/main/session-state.ts': [
+    ["      url = `genoffice-slide-media://archive/${randomUUID()}?mime=${encodeURIComponent(mime)}`",
+     "      url = typeof document !== 'undefined' && typeof URL.createObjectURL === 'function'\n" +
+     "        ? (/emf|wmf/i.test(mime) ? `data:${mime};base64,${Buffer.from(bytes).toString('base64')}` : URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime })))\n" +
+     "        : `genoffice-slide-media://archive/${randomUUID()}?mime=${encodeURIComponent(mime)}`"],
+  ],
   // print preview: scale the cloned page with a transform, not CSS zoom. WebKit (iPad / Mac) keeps zoomed text at
   // a minimum logical font size (~9px), so a page zoomed to ~45% showed larger text and other line breaks than printed.
   'apps/docs/src/renderer/components/PrintDialog.tsx': [
