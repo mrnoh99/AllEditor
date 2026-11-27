@@ -234,7 +234,8 @@ async function openPath(path: string) {
   const copy = `${stem}.${outExt}`
   if (fs.existsSync(copy)) { openPath(copy); return }
   if (busy.has(path)) return
-  if (!confirm(`${name}\n\n${t('iworkConfirm')}`)) return
+  // a .key read directly is the least faithful route: point to Keynote's own PowerPoint export first
+  if (!confirm(`${name}\n\n${ext(name) === 'key' ? t('keyConfirm') : t('iworkConfirm')}`)) return
   busy.add(path)
   const wait = el('div', 'toast', t('converting')); document.body.append(wait)
   try {
