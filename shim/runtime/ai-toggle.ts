@@ -30,7 +30,11 @@ const CSS = `
 #ae-ai-toggle.right{border-radius:12px 0 0 12px;border-right:0}
 #ae-ai-toggle .chev{font-size:15px;line-height:1}
 #ae-ai-toggle.dark{background:#2c2c2e;color:#eee}
+@media print{#ae-ai-toggle{display:none!important}}
 `
+/** a dialog (print, export, settings) over the editor: the handle would sit on top of it */
+const dialogOpen = () => [...document.querySelectorAll<HTMLElement>('[role="dialog"], [aria-modal="true"], dialog[open], .modal-backdrop, .print-dialog, .modal, .pdf-modal, .pdf-modal-mask, [class*="modal-mask"], [class*="dialog-backdrop"]')]
+  .some((e) => { const r = e.getBoundingClientRect(); return r.width > 200 && r.height > 150 && getComputedStyle(e).visibility !== 'hidden' })
 
 export function installAiToggle() {
   const start = () => {
@@ -43,7 +47,7 @@ export function installAiToggle() {
 
     const place = () => {
       const d = dock()
-      if (!d || (!openBtn() && !collapseBtn())) { b.hidden = true; return }
+      if (!d || (!openBtn() && !collapseBtn()) || dialogOpen() || document.documentElement.classList.contains('ae-viewer')) { b.hidden = true; return }
       b.hidden = false
       const open = isOpen(d)
       const r = d.getBoundingClientRect()

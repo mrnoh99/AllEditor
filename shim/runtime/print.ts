@@ -13,7 +13,8 @@ const toDataUrl = async (src: string): Promise<string | null> => {
 export async function snapshotDocument(scale = 1): Promise<string> {
   const live = document.documentElement
   const clone = live.cloneNode(true) as HTMLElement
-  clone.querySelectorAll('#ae-home, #ae-file').forEach((n) => n.remove())
+  // AllEditor's own on-screen controls float over the document: none of them belongs on paper or in a PDF
+  clone.querySelectorAll('#ae-home, #ae-file, #ae-ai-toggle, #ae-pen, #ae-eraser, #ae-viewer-exit, #ae-viewer-page, .ae-fab, .toast').forEach((n) => n.remove())
   clone.querySelectorAll('script, link[rel=preload], link[rel=modulepreload], iframe, video, audio').forEach((n) => n.remove())
   // styles: replace <link rel=stylesheet> and <style> by the cssText of the live sheets (keeps @media print)
   clone.querySelectorAll('link[rel=stylesheet], style').forEach((n) => n.remove())
@@ -21,7 +22,7 @@ export async function snapshotDocument(scale = 1): Promise<string> {
   for (const sheet of Array.from(document.styleSheets)) {
     try { css.push(Array.from(sheet.cssRules).map((r) => r.cssText).join('\n')) } catch { /* cross-origin sheet */ }
   }
-  const style = document.createElement('style'); style.textContent = css.join('\n') + (scale && scale !== 1 ? `\nhtml{zoom:${scale}}` : '') + '\n@page{margin:0}'
+  const style = document.createElement('style'); style.textContent = '#ae-ai-toggle,#ae-pen,#ae-eraser,#ae-viewer-exit,#ae-viewer-page,.ae-fab{display:none!important}\n' + css.join('\n') + (scale && scale !== 1 ? `\nhtml{zoom:${scale}}` : '') + '\n@page{margin:0}'
   clone.querySelector('head')!.appendChild(style)
   // images
   const liveImgs = Array.from(live.querySelectorAll('img')); const cloneImgs = Array.from(clone.querySelectorAll('img'))
