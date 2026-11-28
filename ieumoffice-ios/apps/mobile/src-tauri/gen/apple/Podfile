@@ -1,13 +1,13 @@
 # Uncomment the next line to define a global platform for your project
 
-target 'ieumoffice-mobile_iOS' do
+target 'AllEditor_iOS' do
 platform :ios, '15.0'
-  # Pods for ieumoffice-mobile_iOS
+  # Pods for AllEditor_iOS
 end
 
-target 'ieumoffice-mobile_macOS' do
+target 'AllEditor_macOS' do
 platform :osx, '11.0'
-  # Pods for ieumoffice-mobile_macOS
+  # Pods for AllEditor_macOS
 end
 
 # Delete the deployment target for iOS and macOS, causing it to be inherited from the Podfile

@@ -2,6 +2,6 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "group:ieumoffice-ios/apps/mobile/src-tauri/gen/apple/ieumoffice-mobile.xcodeproj">
+      location = "group:ieumoffice-ios/apps/mobile/src-tauri/gen/apple/AllEditor.xcodeproj">
    </FileRef>
 </Workspace>

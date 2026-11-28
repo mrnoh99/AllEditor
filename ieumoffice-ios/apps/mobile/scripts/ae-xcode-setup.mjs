@@ -196,7 +196,7 @@ pb(`Add :NSUbiquitousContainers:${ICLOUD}:NSUbiquitousContainerIsDocumentScopePu
 pb(`Add :NSUbiquitousContainers:${ICLOUD}:NSUbiquitousContainerName string AllEditor`)
 pb(`Add :NSUbiquitousContainers:${ICLOUD}:NSUbiquitousContainerSupportedFolderLevels string Any`)
 {
-  const entPath = join(dirname(plist), 'ieumoffice-mobile_iOS.entitlements')
+  const entPath = join(dirname(plist), 'AllEditor_iOS.entitlements')
   writeFileSync(entPath, `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">

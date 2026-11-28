@@ -6,8 +6,8 @@ short, results first, honest about what was and was not verified.
 ## 0. DECISION 2026-11-25 — the base is 이음오피스's own iOS app (supersedes §1, §3–§6 where they conflict)
 The user decided: **AllEditor is built on `ieumoffice-ios/`** = 이음오피스's Tauri-2 mobile app (`apps/mobile` copied verbatim
 from `pblsketch/ieumoffice @ ad22c05`, plus the workspace packages / vendored rhwp it needs). Make it work on iOS,
-**especially iPad**, then add features there. Xcode: `open AllEditor.xcworkspace` → scheme **ieumoffice-mobile_iOS**
-(or `ieumoffice-ios/apps/mobile/src-tauri/gen/apple/ieumoffice-mobile.xcodeproj`); bundle id `com.mrnoh99.alleditor`.
+**especially iPad**, then add features there. Xcode: `open AllEditor.xcworkspace` → scheme **AllEditor_iOS**
+(or `ieumoffice-ios/apps/mobile/src-tauri/gen/apple/AllEditor.xcodeproj`); bundle id `com.mrnoh99.alleditor`.
 - State: Xcode project committed (`gen/apple`, iPhone+iPad, all iPad orientations, multitasking); the Rust library (web UI
   embedded) is prebuilt by CI `.github/workflows/ieum-ios.yml` and committed gzip-split under `gen/apple/Prebuilt/` so Xcode
   needs no Node/npm/Rust (wrapper `gen/apple/scripts/build-rust.sh`, setup script `apps/mobile/scripts/ae-xcode-setup.mjs`).

@@ -33,7 +33,7 @@
 		3DF2B2BBC237A1651090FEA7 /* preview.rs */ = {isa = PBXFileReference; path = preview.rs; sourceTree = "<group>"; };
 		420D16B2B3B1353A2D2965ED /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
 		433EF78D501F5F35D975B264 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
-		4E9486261FFDE07F8BEDECA9 /* ieumoffice-mobile_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "ieumoffice-mobile_iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		4E9486261FFDE07F8BEDECA9 /* AllEditor_iOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "AllEditor_iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		517C897824E16E4B2B4DA67A /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 		51CD106A9EE926047EC5A45A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5C030BAA879D7F1DE9FF4202 /* http.rs */ = {isa = PBXFileReference; path = http.rs; sourceTree = "<group>"; };
@@ -41,7 +41,7 @@
 		74FBF153F5956970A755062B /* vault.rs */ = {isa = PBXFileReference; path = vault.rs; sourceTree = "<group>"; };
 		78B2B4F275AAB7301F443FB2 /* prefs.rs */ = {isa = PBXFileReference; path = prefs.rs; sourceTree = "<group>"; };
 		821FD0E35002E63D9E73D5D1 /* chatgpt.rs */ = {isa = PBXFileReference; path = chatgpt.rs; sourceTree = "<group>"; };
-		872241FABCFE567DFC3DD77D /* ieumoffice-mobile_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "ieumoffice-mobile_iOS.entitlements"; sourceTree = "<group>"; };
+		872241FABCFE567DFC3DD77D /* AllEditor_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "AllEditor_iOS.entitlements"; sourceTree = "<group>"; };
 		87FBEC49A0DEA6C33A50CA2F /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
 		892F08C5C98A993E185C92D6 /* prefs.rs */ = {isa = PBXFileReference; path = prefs.rs; sourceTree = "<group>"; };
 		920AB9CB6961C44F3E6088F2 /* mod.rs */ = {isa = PBXFileReference; path = mod.rs; sourceTree = "<group>"; };
@@ -106,7 +106,7 @@
 		12DD3A23C403CA84E807A693 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
-				87CE7BCDCD1A02C2D1DF5D12 /* ieumoffice-mobile */,
+				87CE7BCDCD1A02C2D1DF5D12 /* AllEditor */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -131,7 +131,7 @@
 				B3DDA6A6F2353DC5570588C1 /* Assets.xcassets */,
 				0D961AF281EA0A48B714DFE4 /* LaunchScreen.storyboard */,
 				626693C825374A7F6073BE9A /* Externals */,
-				B22C13C239121CD8D128A2EA /* ieumoffice-mobile_iOS */,
+				B22C13C239121CD8D128A2EA /* AllEditor_iOS */,
 				12DD3A23C403CA84E807A693 /* Sources */,
 				009CBEFF6DF6F0D5E93E7867 /* src */,
 				828E2B3986BE8D0ACAB056AA /* Frameworks */,
@@ -170,7 +170,7 @@
 		66E30E50200589CC8907F903 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				4E9486261FFDE07F8BEDECA9 /* ieumoffice-mobile_iOS.app */,
+				4E9486261FFDE07F8BEDECA9 /* AllEditor_iOS.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -203,13 +203,13 @@
 			path = hwp;
 			sourceTree = "<group>";
 		};
-		87CE7BCDCD1A02C2D1DF5D12 /* ieumoffice-mobile */ = {
+		87CE7BCDCD1A02C2D1DF5D12 /* AllEditor */ = {
 			isa = PBXGroup;
 			children = (
 				6931022AF2A0235E21B52810 /* main.mm */,
 				5835935FBA9F84957E21A5AC /* bindings */,
 			);
-			path = "ieumoffice-mobile";
+			path = "AllEditor";
 			sourceTree = "<group>";
 		};
 		8F678733F1CDE7B1F10A8E38 /* commands */ = {
@@ -223,13 +223,13 @@
 			path = commands;
 			sourceTree = "<group>";
 		};
-		B22C13C239121CD8D128A2EA /* ieumoffice-mobile_iOS */ = {
+		B22C13C239121CD8D128A2EA /* AllEditor_iOS */ = {
 			isa = PBXGroup;
 			children = (
-				872241FABCFE567DFC3DD77D /* ieumoffice-mobile_iOS.entitlements */,
+				872241FABCFE567DFC3DD77D /* AllEditor_iOS.entitlements */,
 				51CD106A9EE926047EC5A45A /* Info.plist */,
 			);
-			path = "ieumoffice-mobile_iOS";
+			path = "AllEditor_iOS";
 			sourceTree = "<group>";
 		};
 		FE3CB8F6A4E8D3112ADC45DA /* secrets */ = {
@@ -244,9 +244,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		D361F05C6EE8EE7697A6D1A7 /* ieumoffice-mobile_iOS */ = {
+		D361F05C6EE8EE7697A6D1A7 /* AllEditor_iOS */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 257B32D973A280D6E468C1A0 /* Build configuration list for PBXNativeTarget "ieumoffice-mobile_iOS" */;
+			buildConfigurationList = 257B32D973A280D6E468C1A0 /* Build configuration list for PBXNativeTarget "AllEditor_iOS" */;
 			buildPhases = (
 				95F50C144B9B47CC06BEDB4F /* Build Rust Code */,
 				161D3CF41B262DFDE6925EB8 /* Sources */,
@@ -257,11 +257,11 @@
 			);
 			dependencies = (
 			);
-			name = "ieumoffice-mobile_iOS";
+			name = "AllEditor_iOS";
 			packageProductDependencies = (
 			);
-			productName = "ieumoffice-mobile_iOS";
-			productReference = 4E9486261FFDE07F8BEDECA9 /* ieumoffice-mobile_iOS.app */;
+			productName = "AllEditor_iOS";
+			productReference = 4E9486261FFDE07F8BEDECA9 /* AllEditor_iOS.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -275,7 +275,7 @@
 				TargetAttributes = {
 				};
 			};
-			buildConfigurationList = 8E0337EF7FDE0EB3B9C527FF /* Build configuration list for PBXProject "ieumoffice-mobile" */;
+			buildConfigurationList = 8E0337EF7FDE0EB3B9C527FF /* Build configuration list for PBXProject "AllEditor" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -289,7 +289,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				D361F05C6EE8EE7697A6D1A7 /* ieumoffice-mobile_iOS */,
+				D361F05C6EE8EE7697A6D1A7 /* AllEditor_iOS */,
 			);
 		};
 /* End PBXProject section */
@@ -352,7 +352,7 @@
 					arm64,
 				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = "ieumoffice-mobile_iOS/ieumoffice-mobile_iOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "AllEditor_iOS/AllEditor_iOS.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
@@ -360,7 +360,7 @@
 					"$(inherited)",
 					"\".\"",
 				);
-				INFOPLIST_FILE = "ieumoffice-mobile_iOS/Info.plist";
+				INFOPLIST_FILE = "AllEditor_iOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -448,7 +448,7 @@
 					arm64,
 				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = "ieumoffice-mobile_iOS/ieumoffice-mobile_iOS.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "AllEditor_iOS/AllEditor_iOS.entitlements";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				ENABLE_BITCODE = NO;
 				"EXCLUDED_ARCHS[sdk=iphoneos*]" = x86_64;
@@ -456,7 +456,7 @@
 					"$(inherited)",
 					"\".\"",
 				);
-				INFOPLIST_FILE = "ieumoffice-mobile_iOS/Info.plist";
+				INFOPLIST_FILE = "AllEditor_iOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -532,7 +532,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		257B32D973A280D6E468C1A0 /* Build configuration list for PBXNativeTarget "ieumoffice-mobile_iOS" */ = {
+		257B32D973A280D6E468C1A0 /* Build configuration list for PBXNativeTarget "AllEditor_iOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				62909FEBB1C7E963CF7FD2A3 /* debug */,
@@ -541,7 +541,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = debug;
 		};
-		8E0337EF7FDE0EB3B9C527FF /* Build configuration list for PBXProject "ieumoffice-mobile" */ = {
+		8E0337EF7FDE0EB3B9C527FF /* Build configuration list for PBXProject "AllEditor" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				17EF7057F848D1D45F153929 /* debug */,
