@@ -3,7 +3,7 @@ import fs, { DOCS_ROOT, USER_ROOT, hydrate, flush, ensureLoaded } from '../runti
 import { AI_PROVIDERS, defaultAiSettings, sanitizeAiSettings } from '@genoffice/ai-provider'
 import { LANGS, tr } from './i18n'
 import { convertIwork, IWORK_EXT } from '../iwork/convert'
-import { getPrinters, setPrinters, restorePrinters, sendToPrinter, testPdf, type PrinterCfg } from '../runtime/print'
+import { getPrinters, setPrinters, restorePrinters, restoreSettings, backupSettings, sendToPrinter, testPdf, type PrinterCfg } from '../runtime/print'
 import { nativeShare, nativeAi, isTauriOffice, nativeAppVersion, nativeRename, nativePickDocument, nativeStorageInfo, nativeSetStorage, Filesystem, Directory, type AiSnapshot } from '../runtime/native-files'
 import { openExternalUrl } from '../runtime/electron'
 import { typedPath, relName, KIND_FOLDERS } from '../runtime/folders'
@@ -25,7 +25,7 @@ const appFor = (n: string) => APP_BY_EXT[ext(n)]
 const SKEY = 'alleditor.settings'
 const sLoad = (): Record<string, any> => { try { return JSON.parse(localStorage.getItem(SKEY) || '{}') } catch { return {} } }
 const sGet = (k: string, d: any) => (sLoad()[k] === undefined ? d : sLoad()[k])
-const sSet = (k: string, v: any) => { const s = sLoad(); s[k] = v; localStorage.setItem(SKEY, JSON.stringify(s)) }
+const sSet = (k: string, v: any) => { const s = sLoad(); s[k] = v; localStorage.setItem(SKEY, JSON.stringify(s)); backupSettings() }
 const lang = () => sGet('language', 'ko') as string
 const t = (k: string) => tr(lang(), k)
 
@@ -471,7 +471,10 @@ function renderSettings() {
   const mu = sGet('measurementUnit', { unit: 'cm', explicit: false })
   g.append(field(t('unit'), select([['cm', 'cm'], ['in', 'in'], ['mm', 'mm'], ['pt', 'pt'], ['pi', 'pica']], mu.unit, (v) => { sSet('measurementUnit', { unit: v, explicit: true }); changed(true) })))
   g.append(field(t('autosave'), select([['1', t('on')], ['0', t('off')]], sGet('autoSave', { on: true }).on ? '1' : '0', (v) => { sSet('autoSave', { on: v === '1', updatedAt: Date.now() }); changed(true) })))
-  const au = el('input'); au.type = 'text'; au.value = sGet('authorName', ''); au.onchange = () => { sSet('authorName', au.value.trim()); changed(false) }
+  // saved while typing: closing the 설정 tab right after typing (no blur, no change event) kept the old name
+  const au = el('input'); au.type = 'text'; au.value = sGet('authorName', '')
+  au.oninput = () => sSet('authorName', au.value.trim())
+  au.onchange = () => { sSet('authorName', au.value.trim()); changed(false) }
   g.append(field(t('author'), au))
   wrap.append(el('p', 'hint', t('reloadHint')))
 
@@ -718,7 +721,12 @@ async function boot() {
   document.documentElement.lang = lang()
   try { await hydrate() } catch (e) { console.warn('[home hydrate]', e) }
   // printers saved in the AllEditor folder come back after a reinstall (redraw 설정 if it is open)
-  void restorePrinters().then((got) => { if (got && !$('settingsPane').hidden) renderSettings() }).catch(() => {})
+  // a reinstall: 설정 (author, theme, language …) and printers come back from the AllEditor folder
+  void restoreSettings().then(async (got) => {
+    const printers = await restorePrinters().catch(() => false)
+    if (got) { applyTheme(); renderBar(); renderHome() }
+    if ((got || printers) && !$('settingsPane').hidden) renderSettings()
+  }).catch(() => {})
   $<HTMLInputElement>('picker').onchange = (e) => { const f = (e.target as HTMLInputElement).files?.[0]; (e.target as HTMLInputElement).value = ''; if (f) void importFile(f) }
   tabs = [{ id: 'home', kind: 'home', title: t('home') }]
   let restore: { active?: string; tabs?: Array<{ app: string; path?: string; title: string }> } = {}
