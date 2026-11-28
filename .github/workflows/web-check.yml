@@ -1,0 +1,29 @@
+name: Web app check
+# Runs scripts/dev/check-all.js: the built office/ bundle against the mock office:// in Chromium (opening, new
+# documents, 한글 save, imports, home list, settings, tab restore).
+on:
+  push:
+    paths: ['office/**', 'shim/**', 'web/**', 'scripts/dev/**', '.github/workflows/web-check.yml']
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Playwright and Chromium
+        run: |
+          mkdir -p /tmp/pw && cd /tmp/pw && npm init -y >/dev/null && npm i playwright@1.63.0 >/dev/null
+          npx playwright install --with-deps chromium
+      - name: Check
+        run: NODE_PATH=/tmp/pw/node_modules node scripts/dev/check-all.js
+      - name: Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-check-shots
+          path: /tmp/ae-check-*/shots
+          if-no-files-found: ignore

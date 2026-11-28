@@ -120,7 +120,6 @@ func aeLockWebViewScroll(_ webView: WKWebView) {
 // The web view keeps the size of the window. After the iPad turns, or the app's window is resized (Split View, Stage
 // Manager) while it is in the background, the web view could keep its old width, leaving a blank strip at the side
 // until the app was switched away and back. Its frame follows its container whenever they differ.
-private var aeFitTimer: Timer?
 private var aeFitObservers: [Any] = []
 
 func aeKeepWebViewFilling(_ webView: WKWebView) {
@@ -137,8 +136,19 @@ func aeKeepWebViewFilling(_ webView: WKWebView) {
                 fit(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: fit)
             })
         }
-        // a window resized without a notification (Stage Manager) is caught here: a frame compare twice a second
-        aeFitTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in fit() }
+        // a window resized without a notification (Split View, Stage Manager): the container's and the window's layers
+        // report every change of their bounds, so the web view follows as it happens (no polling)
+        // the web view may not be in a window yet when the plugin loads: tried again until it is (a few seconds at most)
+        func attach(_ tries: Int) {
+            guard let box = webView.superview, let win = box.window else {
+                if tries > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { attach(tries - 1) } }
+                return
+            }
+            fit()
+            aeFitObservers.append(box.layer.observe(\.bounds, options: [.new]) { _, _ in DispatchQueue.main.async(execute: fit) })
+            aeFitObservers.append(win.layer.observe(\.bounds, options: [.new]) { _, _ in DispatchQueue.main.async(execute: fit) })
+        }
+        attach(20)
     }
     if Thread.isMainThread { start() } else { DispatchQueue.main.async(execute: start) }
 }

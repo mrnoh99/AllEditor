@@ -1,4 +1,4 @@
-import fs, { hydrate, flush, loadOpenedDocument } from './fs'
+import fs, { hydrate, flush, loadOpenedDocument, documentWrites } from './fs'
 import { markReady, webContents } from './electron'
 import { registerShellIpc, syncAiFromNative } from './shell-ipc'
 import { applyPhoneLayer, isPhone } from './phone'
@@ -12,8 +12,10 @@ import { setUiLang } from '@genoffice/i18n'
 import { USER_ROOT } from './fs'
 import { typedPath } from './folders'
 import { showLoading } from './loading'
+import { installDiag } from './diag'
 
 export function start(app: string, register: (open: string | null) => void, preload: Array<[string, string]> = []) {
+  installDiag(app) // errors are kept for 설정 › 진단 정보
   // a document picked from outside AllEditor is a copy (home: ?import=1); a .hwp copy is first saved as .hwpx
   {
     const q = new URLSearchParams(location.search), imp = q.get('import') === '1' ? q.get('open') : null
@@ -21,7 +23,14 @@ export function start(app: string, register: (open: string | null) => void, prel
     ;(globalThis as any).__aeImportTarget = (p: string, automatic = false): string | null => {
       if (!imp || !/\.hwp$/i.test(p) || p.normalize('NFC') !== imp.normalize('NFC')) return null
       if (automatic) return ''
-      return typedPath(p.slice(p.lastIndexOf('/') + 1).replace(/\.hwp$/i, '.hwpx'))
+      // a .hwpx of the same name is there already: replace it, or keep both (the new one numbered)
+      const want = p.slice(p.lastIndexOf('/') + 1).replace(/\.hwp$/i, '.hwpx'), free = typedPath(want)
+      const same = free.slice(0, free.lastIndexOf('/') + 1) + want
+      if (free !== same) {
+        const ko = (() => { try { return (JSON.parse(localStorage.getItem('alleditor.settings') || '{}').language ?? 'ko') === 'ko' } catch { return true } })()
+        if (confirm(ko ? `HWPX 폴더에 '${want}'이(가) 이미 있습니다.\n\n[확인] 그 파일을 바꿉니다\n[취소] 둘 다 둡니다 (${free.slice(free.lastIndexOf('/') + 1)})` : `'${want}' is already in HWPX.\n\n[OK] Replace it\n[Cancel] Keep both (${free.slice(free.lastIndexOf('/') + 1)})`)) return same
+      }
+      return free
     }
   }
   applyPhoneLayer()
@@ -67,6 +76,15 @@ export function start(app: string, register: (open: string | null) => void, prel
     try { register(new URLSearchParams(location.search).get('open')); registerShellIpc() /* after the apps: shell-level settings (language…) must win */ } catch (e) { console.error(`[${app}] register failed`, e) }
     markReady()
     loading?.settle()
+    // the home's "save before closing?": the editor's own Save, sent as its File menu does; true once the document was
+    // written (an editor with nothing to save writes nothing, and that is not a failure the home waits on)
+    const menu: Record<string, string> = { docs: 'menu:command', slides: 'slides:menu', sheets: 'menu:action' }
+    if (menu[app]) (globalThis as any).__aeSave = async () => {
+      const before = documentWrites()
+      webContents.send(menu[app], 'save')
+      for (let i = 0; i < 60; i++) { await new Promise((r) => setTimeout(r, 250)); if (documentWrites() > before) { await flush(); return true } }
+      return false
+    }
   })()
 }
 

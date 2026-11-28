@@ -292,6 +292,11 @@ public final class AllEditorOfficePlugin: Plugin, WKNavigationDelegate {
                         coordinator.item(at: src, didMoveTo: dst)
                     } catch { opError = error }
                 }
+            case "download":
+                // a file iCloud keeps only in the cloud: ask for it, then a coordinated read waits until it is here
+                try? fm.startDownloadingUbiquitousItem(at: to)
+                coordinator.coordinate(readingItemAt: to, options: [], error: &coordError) { _ in }
+                if !fm.fileExists(atPath: to.path) { opError = NSError(domain: "AllEditor", code: 1, userInfo: [NSLocalizedDescriptionKey: "not downloaded"]) }
             case "delete":
                 coordinator.coordinate(writingItemAt: to, options: .forDeleting, error: &coordError) { dest in
                     do { try fm.removeItem(at: dest) } catch { opError = error }

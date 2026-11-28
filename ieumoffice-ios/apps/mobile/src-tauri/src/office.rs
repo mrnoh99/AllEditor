@@ -159,6 +159,18 @@ fn coordinate<R: Runtime>(app: &AppHandle<R>, op: &str, from: Option<&Path>, to:
     tauri_plugin_ieum_mobile::office_native_call(app, "coordinatedFile", args).map(|_| ())
 }
 
+/// whether a directory holds a file of this name (a downloaded file and its placeholder can briefly coexist)
+fn rd_has(dir: &Path, name: &str) -> bool {
+    dir.join(name).exists()
+}
+
+/// iCloud keeps a file it has not downloaded as a placeholder ".name.icloud" beside where the file will be.
+fn icloud_placeholder(path: &Path) -> Option<std::path::PathBuf> {
+    let name = path.file_name()?.to_string_lossy().into_owned();
+    let p = path.with_file_name(format!(".{name}.icloud"));
+    p.exists().then_some(p)
+}
+
 fn files_call<R: Runtime>(app: &AppHandle<R>, method: &str, args: &Value) -> Result<Value, String> {
     let dir = args.get("dir").and_then(Value::as_str).unwrap_or("documents");
     let base = storage_root(app, dir);
@@ -168,6 +180,10 @@ fn files_call<R: Runtime>(app: &AppHandle<R>, method: &str, args: &Value) -> Res
     let coordinated = cfg!(target_os = "ios") && dir == "documents" && base.to_string_lossy().contains("Mobile Documents");
     match method {
         "readFile" => {
+            // not downloaded yet: iCloud fetches it now (the Swift side waits under a file coordinator)
+            if coordinated && !path.exists() && icloud_placeholder(&path).is_some() {
+                coordinate(app, "download", None, &path).map_err(|e| format!("Cannot download from iCloud: {e}"))?;
+            }
             let bytes = fs::read(&path).map_err(|e| format!("Cannot read file: {e}"))?;
             Ok(json!({ "data": B64.encode(bytes) }))
         }
@@ -211,6 +227,15 @@ fn files_call<R: Runtime>(app: &AppHandle<R>, method: &str, args: &Value) -> Res
             Ok(json!({}))
         }
         "deleteFile" => {
+            if !path.exists() {
+                if let Some(ph) = icloud_placeholder(&path) {
+                    if coordinated && coordinate(app, "delete", None, &path).is_ok() {
+                        return Ok(json!({}));
+                    }
+                    fs::remove_file(&ph).map_err(|e| format!("Cannot delete file: {e}"))?;
+                    return Ok(json!({}));
+                }
+            }
             if coordinated && path.is_file() && coordinate(app, "delete", None, &path).is_ok() {
                 return Ok(json!({}));
             }
@@ -229,8 +254,17 @@ fn files_call<R: Runtime>(app: &AppHandle<R>, method: &str, args: &Value) -> Res
                         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                         .map(|d| d.as_millis() as u64)
                         .unwrap_or(0);
-                    let name = entry.file_name().to_string_lossy().into_owned();
+                    let mut name = entry.file_name().to_string_lossy().into_owned();
                     if name.ends_with(".ae-tmp") {
+                        continue;
+                    }
+                    // a file iCloud has not downloaded: listed under its own name, with no size yet
+                    if name.starts_with('.') && name.ends_with(".icloud") && name.len() > ".icloud".len() + 1 {
+                        name = name[1..name.len() - ".icloud".len()].to_string();
+                        if rd_has(&path, &name) {
+                            continue;
+                        }
+                        files.push(json!({ "name": name, "type": "file", "size": 0, "mtime": mtime, "cloud": true }));
                         continue;
                     }
                     files.push(json!({

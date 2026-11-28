@@ -16,11 +16,14 @@ http.createServer((req, res) => {
       const base = a.dir === 'support' ? SUP : DOCS; const f = path.join(base, a.path ?? '')
       let out = {}
       try {
+        // iCloud stand-in (office.rs): ".name.icloud" is a file not downloaded yet; reading the file "downloads" it
+        const ph = path.join(path.dirname(f), '.' + path.basename(f) + '.icloud')
+        if (method === 'readFile' && !fs.existsSync(f) && fs.existsSync(ph)) fs.renameSync(ph, f)
         if (method === 'readFile') out = { data: fs.readFileSync(f).toString('base64') }
         else if (method === 'writeFile') { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, Buffer.from(a.data, 'base64')) }
         else if (method === 'rename') { const to = path.join(base, a.to); if (fs.existsSync(to)) throw new Error('exists'); fs.renameSync(f, to) }
         else if (method === 'deleteFile') fs.rmSync(f, { recursive: true })
-        else if (method === 'readdir') out = { files: fs.existsSync(f) ? fs.readdirSync(f).map((n) => { const st = fs.statSync(path.join(f, n)); return { name: n, type: st.isDirectory() ? 'directory' : 'file', size: st.size, mtime: st.mtimeMs } }) : [] }
+        else if (method === 'readdir') out = { files: fs.existsSync(f) ? fs.readdirSync(f).map((n) => { const st = fs.statSync(path.join(f, n)); const cloud = /^\..+\.icloud$/.test(n); return { name: cloud ? n.slice(1, -7) : n, type: st.isDirectory() ? 'directory' : 'file', size: cloud ? 0 : st.size, mtime: st.mtimeMs, ...(cloud ? { cloud: true } : {}) } }) : [] }
         else if (plugin === 'AEAi' && method === 'get') out = { selectedProvider: ai.selected, modelByProvider: ai.models, configuredProviders: Object.fromEntries(Object.keys(ai.keys).map((k) => [k, { hasKey: !!ai.keys[k], models: [] }])) }
         else if (plugin === 'AEAi' && method === 'set') { ai.selected = a.provider; if (a.apiKey !== undefined) ai.keys[a.provider] = a.apiKey; if (a.model) ai.models[a.provider] = a.model; out = { selectedProvider: ai.selected, modelByProvider: ai.models, configuredProviders: Object.fromEntries(Object.keys(ai.keys).map((k) => [k, { hasKey: !!ai.keys[k], models: [] }])) } }
         else if (plugin === 'AEAi' && method === 'export') { const ids = [...new Set([...Object.keys(ai.keys), ...Object.keys(ai.models)])]; out = { provider: ['auto', 'chatgpt'].includes(ai.selected) ? (Object.keys(ai.keys)[0] ?? 'gemini') : ai.selected, providers: Object.fromEntries(ids.map((k) => [k, { apiKey: ai.keys[k] ?? '', model: ai.models[k] ?? '' }])) } }

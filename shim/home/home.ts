@@ -7,6 +7,8 @@ import { getPrinters, setPrinters, restorePrinters, restoreSettings, backupSetti
 import { nativeShare, nativeAi, isTauriOffice, nativeAppVersion, nativeRename, nativePickDocument, nativeStorageInfo, nativeSetStorage, Filesystem, Directory, type AiSnapshot } from '../runtime/native-files'
 import { openExternalUrl } from '../runtime/electron'
 import { typedPath, relName, KIND_FOLDERS } from '../runtime/folders'
+import { installDiag } from '../runtime/diag'
+import { pruneBackups, renderCleanup, renderDiagnostics } from './maint'
 
 const APP_BY_EXT: Record<string, string> = {
   docx: 'docs', dotx: 'docs', doc: 'docs', dot: 'docs', odt: 'docs', ott: 'docs', hwp: 'hwp', hwpx: 'hwp',
@@ -51,6 +53,14 @@ function addTab(tab: Omit<Tab, 'id'>, focus = true): Tab {
     f.src = `./${t2.app}/index.html` + (t2.path ? `?open=${encodeURIComponent(t2.path)}` + (t2.importOf ? '&import=1' : '') : '')
     f.setAttribute('allow', 'clipboard-read; clipboard-write')
     f.hidden = true
+    // shown from the first moment: the editor's own page takes a second or two before its loading card appears
+    if (t2.path) {
+      const ph = el('div', 'pane-wait'); ph.dataset.tab = t2.id
+      ph.append(el('div', 'spin'), el('div', '', t2.title))
+      $('panes').append(ph)
+      const gone = () => ph.remove()
+      f.addEventListener('load', () => setTimeout(gone, 300), { once: true }); setTimeout(gone, 20000)
+    }
     $('panes').append(f); frames.set(t2.id, f)
   }
   if (focus) activate(t2.id); else renderBar()
@@ -62,6 +72,7 @@ async function closeTab(id: string) {
   const f = frames.get(id)
   try { await (f?.contentWindow as any)?.__aeFlush?.() } catch {}
   f?.remove(); frames.delete(id)
+  document.querySelector(`.pane-wait[data-tab="${id}"]`)?.remove()
   const i = tabs.indexOf(tab); tabs.splice(i, 1)
   if (active === id) activate(tabs[Math.max(0, i - 1)].id); else { renderBar(); saveTabs() }
 }
@@ -172,10 +183,11 @@ async function settleImport(x: Tab): Promise<boolean> {
   if (choice === 'cancel') return false
   if (choice === 'discard') { await dropCopy(copy); return true }
   if (typeof w?.__aeSave === 'function') {
-    // the editor saves (a .hwp copy as .hwpx); a save that does not happen keeps the tab open with the editor's message
+    // the editor saves (its edits, even with autosave off; a .hwp copy as .hwpx). A 한글 save that does not happen keeps
+    // the tab open with the editor's message; the others write nothing when there is nothing to save
     let ok = false
     try { ok = await w.__aeSave() } catch {}
-    if (!ok) return false
+    if (!ok && /\.hwp$/i.test(copy)) return false
     try { await w.__aeFlush?.() } catch {}
     forgetImport(copy)
     return true
@@ -186,6 +198,7 @@ async function settleImport(x: Tab): Promise<boolean> {
 function activate(id: string) {
   active = id
   for (const [fid, f] of frames) f.hidden = fid !== id
+  for (const ph of Array.from(document.querySelectorAll<HTMLElement>('.pane-wait'))) ph.hidden = ph.dataset.tab !== id
   const tab = tabs.find((x) => x.id === id)!
   $('homePane').hidden = tab.kind !== 'home'
   $('settingsPane').hidden = tab.kind !== 'settings'
@@ -364,8 +377,13 @@ async function openPath(path: string, imported = false) {
   if (fs.existsSync(beside)) { openPath(beside); return }
   const base = stem.slice(stem.lastIndexOf('/') + 1) + '.' + outExt
   const kindDir = typedPath(base).replace(/\/[^/]*$/, '')
-  if (fs.existsSync(`${kindDir}/${base}`)) { openPath(`${kindDir}/${base}`); return }
-  const copy = `${kindDir}/${base}`
+  let copy = `${kindDir}/${base}`
+  if (fs.existsSync(copy)) {
+    // converted before: open that one (it may hold edits), or convert again into a new copy
+    const ko = lang() === 'ko'
+    if (!imported || confirm(ko ? `'${base}'(이전에 변환한 파일)이 이미 있습니다.\n\n[확인] 그 파일을 엽니다\n[취소] 다시 변환해 새 사본을 만듭니다` : `'${base}' (converted before) is already there.\n\n[OK] Open it\n[Cancel] Convert again into a new copy`)) { openPath(copy); return }
+    copy = typedPath(base)
+  }
   if (busy.has(path)) return
   // a .key read directly is the least faithful route: point to Keynote's own PowerPoint export first
   if (!confirm(`${name}\n\n${ext(name) === 'key' ? t('keyConfirm') : t('iworkConfirm')}`)) return
@@ -428,7 +446,21 @@ async function openPicked() {
       fs.mkdirSync(path.slice(0, path.lastIndexOf('/')), { recursive: true })
       fs.writeFileSync(path, u)
     }
-    void openPath(path, (r as any).copied === true)
+    let opened = path
+    // the copy was numbered because a file of that name is there: ask whether it replaces that file
+    const m = (r as any).copied === true ? /^(.*) (\d+)(\.[^./]+)$/.exec(r.name) : null
+    if (m && fs.existsSync(`${DOCS_ROOT}/${m[1]}${m[3]}`)) {
+      const base = `${m[1]}${m[3]}`, ko = lang() === 'ko', short = base.slice(base.lastIndexOf('/') + 1)
+      if (confirm(ko ? `'${short}'이(가) 이미 있습니다.\n\n[확인] 가져온 파일로 바꿉니다\n[취소] 둘 다 둡니다 (${r.name.slice(r.name.lastIndexOf('/') + 1)})` : `'${short}' is already there.\n\n[OK] Replace it with the picked file\n[Cancel] Keep both`)) {
+        try {
+          await ensureLoaded(path)
+          const bytes = fs.readFileSync(path) as Uint8Array
+          fs.writeFileSync(`${DOCS_ROOT}/${base}`, bytes); fs.unlinkSync(path); await flush()
+          opened = `${DOCS_ROOT}/${base}`
+        } catch (e) { console.warn('[picker replace]', e) }
+      }
+    }
+    void openPath(opened, (r as any).copied === true)
     if (tabs.find((x) => x.id === active)?.kind === 'home') renderHome()
   } catch (e: any) {
     // an older app build without the picker: fall back to the page's file input
@@ -439,7 +471,7 @@ async function openPicked() {
 // ---- 최근 문서 ----
 // The list is the AllEditor folder, newest first. ✕ only takes a document off this list (the file stays in the
 // folder); it comes back when the document is opened or changed again.
-type Row = { n: string; size: number; m: number }
+type Row = { n: string; size: number; m: number; cloud?: boolean }
 const HIDDEN_KEY = 'alleditor.recentHidden'
 const readHidden = (): Record<string, number> => { try { return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '{}') } catch { return {} } }
 const writeHidden = (h: Record<string, number>) => { try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(h)) } catch {} }
@@ -472,7 +504,7 @@ async function nativeRows(): Promise<Row[] | null> {
     for (const d of LIST_DIRS) {
       const { files } = await Filesystem.readdir({ path: d, directory: Directory.Documents }).catch(() => ({ files: [] as any[] }))
       for (const f of files as any[]) if (f.type !== 'directory' && !String(f.name).startsWith('.') && appFor(String(f.name)))
-        out.push({ n: d ? `${d}/${f.name}` : String(f.name), size: Number(f.size ?? 0), m: Number(f.mtime ?? 0) })
+        out.push({ n: d ? `${d}/${f.name}` : String(f.name), size: Number(f.size ?? 0), m: Number(f.mtime ?? 0), cloud: !!f.cloud })
     }
     return out
   } catch { return null }
@@ -511,7 +543,7 @@ function fillRecent(list: HTMLElement, all: Row[]) {
 function recentRow(r: Row, redraw: () => void): HTMLElement {
   const ko = lang() === 'ko'
   const row = el('div', 'row'); const b = el('button', 'file')
-  const meta = el('span', 'meta'); meta.append(el('span', 'nm', r.n.slice(r.n.lastIndexOf('/') + 1)), el('span', 'sz', [typeName(r.n), fmt(r.size), ago(r.m)].filter(Boolean).join(' · ')))
+  const meta = el('span', 'meta'); meta.append(el('span', 'nm', r.n.slice(r.n.lastIndexOf('/') + 1)), el('span', 'sz', [typeName(r.n), r.cloud ? (lang() === 'ko' ? '☁︎ iCloud (열면 내려받음)' : '☁︎ iCloud (downloads when opened)') : fmt(r.size), ago(r.m)].filter(Boolean).join(' · ')))
   b.append(badge(badgeFor(r.n)), meta); b.onclick = () => openPath(`${DOCS_ROOT}/${r.n}`)
   const rn = el('button', 'ren'); rn.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
   rn.setAttribute('aria-label', ko ? '이름 바꾸기' : 'Rename'); rn.title = rn.getAttribute('aria-label')!
@@ -586,6 +618,7 @@ function select(options: Array<[string, string]>, value: string, onchange: (v: s
 }
 function reloadFrames() { for (const f of frames.values()) try { f.contentWindow?.location.reload() } catch {} }
 
+let appVersion = ''
 function renderSettings() {
   const root = $('settingsPane'); root.textContent = ''
   const wrap = el('main'); root.append(wrap)
@@ -645,10 +678,12 @@ function renderSettings() {
   wrap.append(el('p', 'hint', t('printerHint')))
 
   renderStorage(wrap, toast)
+  renderCleanup(wrap, el, lang() === 'ko', toast)
+  renderDiagnostics(wrap, el, lang() === 'ko', toast, () => appVersion)
 
   const ver = el('p', 'hint ver')
   wrap.append(el('h2', '', t('about')), ver, el('p', 'hint', t('aboutText')), creditEl())
-  if (isTauriOffice()) void nativeAppVersion().then((v) => { ver.textContent = lang() === 'ko' ? `AllEditor 버전 ${v.version} (빌드 ${v.build})` : `AllEditor version ${v.version} (build ${v.build})` }, () => {})
+  if (isTauriOffice()) void nativeAppVersion().then((v) => { appVersion = `${v.version} (${v.build})`; ver.textContent = lang() === 'ko' ? `AllEditor 버전 ${v.version} (빌드 ${v.build})` : `AllEditor version ${v.version} (build ${v.build})` }, () => {})
 }
 
 // ---- AI 연결 (iPad): API-key providers only — the desktop subscriptions (Claude Code, Codex, ChatGPT sign-in)
@@ -853,7 +888,9 @@ function applyTheme() {
 async function boot() {
   applyTheme()
   document.documentElement.lang = lang()
+  installDiag('home')
   try { await hydrate() } catch (e) { console.warn('[home hydrate]', e) }
+  void pruneBackups() // save backups older than 30 days
   // printers saved in the AllEditor folder come back after a reinstall (redraw 설정 if it is open)
   // a reinstall: 설정 (author, theme, language …) and printers come back from the AllEditor folder
   void restoreSettings().then(async (got) => {
