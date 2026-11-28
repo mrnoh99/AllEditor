@@ -239,7 +239,8 @@ rmSync(www, { recursive: true, force: true })
 mkdirSync(www, { recursive: true })
 const shimFile = null
 // Per app: the real main-process module + how to start it. `open` = path from ?open= (launcher)
-const PRINT_WASM = [['/app/wasm/pdfium.wasm', 'wasm/pdfium.wasm'], ['/app/wasm/harfbuzz-subset.wasm', 'wasm/harfbuzz-subset.wasm']]
+// one copy for every editor, at the top of the office folder (office/wasm): ~5 MB each instead of five copies
+const PRINT_WASM = [['/app/wasm/pdfium.wasm', '../wasm/pdfium.wasm'], ['/app/wasm/harfbuzz-subset.wasm', '../wasm/harfbuzz-subset.wasm']]
 const RUNTIMES = {
   docs: { file: 'docs-main', imports: 'registerDocsIpc, registerAiIpc, registerProjectIpc, openExternalDocx',
     code: 'registerDocsIpc(); registerAiIpc(); registerProjectIpc(); if (open) openExternalDocx(open)' },
@@ -251,7 +252,7 @@ const RUNTIMES = {
     tools: "import { blankXlsxBuffer } from '" + upstream + "/packages/xlsx-gateway/src/gateway/csv-import'; import { newBlankSheet } from '" + join(root, 'shim/runtime/sheets-new.ts') + "'",
     code: 'createSheetsView(); registerProjectIpc(); if (open) queueWorkbookForView(webContents, open); else void newBlankSheet({ blankXlsxBuffer, markSheetsUnsavedNew, markSheetsUntitledPath, queueWorkbookForView, setSheetsNewBlank, webContents })' },
   pdf: { file: 'pdf-main', imports: 'createPdfView', code: 'createPdfView(open); registerAiIpc(); registerProjectIpc(); registerPdfTools(open)', tools: "import { registerPdfTools } from '" + join(root, 'shim/runtime/pdf-tools.ts') + "'; import { registerAiIpc, registerProjectIpc } from '" + upstream + "/apps/docs/src/main/docs-main'",
-    preload: [['/app/wasm/pdfium.wasm', 'wasm/pdfium.wasm'], ['/app/wasm/harfbuzz-subset.wasm', 'wasm/harfbuzz-subset.wasm']] },
+    preload: PRINT_WASM },
 }
 // 한글: the 이음오피스 desktop HWP app (hosts rhwp-studio). The studio is the one built in ieumoffice-ios/ (same
 // 이음오피스 pin + AllEditor's iOS input patches, apps/hwp/scripts/rhwp-patches.mjs).
@@ -260,7 +261,7 @@ RUNTIMES.hwp = {
   code: 'registerAiIpc(); registerProjectIpc(); createHwpView(open)',
   tools: `import { registerAiIpc, registerProjectIpc } from '${upstream}/apps/docs/src/main/docs-main'`,
   // its print panel (print-layout) renders the pages with PDFium, as the PDF editor does
-  preload: [['/app/wasm/pdfium.wasm', 'wasm/pdfium.wasm'], ['/app/wasm/harfbuzz-subset.wasm', 'wasm/harfbuzz-subset.wasm']],
+  preload: PRINT_WASM,
 }
 function prepareHwpStudio() {
   const ieumIos = join(root, 'ieumoffice-ios')
@@ -284,12 +285,6 @@ for (const app of APPS) {
   const out = join(www, app)
   run('npx', ['vite', 'build', '--config', 'vite.renderer.config.ts', '--outDir', out,
     '--emptyOutDir', '--base', `./`], appDir)
-  {
-    // every editor's print panel (print-layout) renders pages with PDFium
-    mkdirSync(join(out, 'wasm'), { recursive: true })
-    cpSync(join(upstream, 'node_modules/@embedpdf/pdfium/dist/pdfium.wasm'), join(out, 'wasm/pdfium.wasm'))
-    cpSync(join(upstream, 'node_modules/harfbuzzjs/dist/harfbuzz-subset.wasm'), join(out, 'wasm/harfbuzz-subset.wasm'))
-  }
   if (app === 'sheets') cpSync(join(root, 'dist/xlsx.wasm'), join(out, 'xlsx.wasm'))
   if (app === 'hwp') copyBundledFonts(join(out, 'studio'))
   const rt = RUNTIMES[app]
@@ -341,6 +336,10 @@ await bundleRuntime({
   entry: `import '${bootFile}'\nimport '${root}/shim/home/home'\n`,
 })
 // 4. the office suite the iOS app bundles (Xcode folder reference `office`, served on office://)
+// PDFium (print panels, PDF pictures) and HarfBuzz: one shared copy for all editors
+mkdirSync(join(www, 'wasm'), { recursive: true })
+cpSync(join(upstream, 'node_modules/@embedpdf/pdfium/dist/pdfium.wasm'), join(www, 'wasm/pdfium.wasm'))
+cpSync(join(upstream, 'node_modules/harfbuzzjs/dist/harfbuzz-subset.wasm'), join(www, 'wasm/harfbuzz-subset.wasm'))
 const office = join(root, 'office')
 rmSync(office, { recursive: true, force: true })
 cpSync(www, office, { recursive: true })

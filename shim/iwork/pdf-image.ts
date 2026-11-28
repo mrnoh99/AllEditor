@@ -1,12 +1,12 @@
 // A PDF used as a picture (Keynote keeps vector images as PDF in Data/) drawn to a PNG with PDFium, the engine the
-// editors already ship (slides/wasm/pdfium.wasm). First page, transparent background, long side up to 2000 px.
+// editors already ship (office/wasm/pdfium.wasm, shared). First page, transparent background, long side up to 2000 px.
 let mod: Promise<any> | null = null
 
 function pdfium(): Promise<any> {
   if (!mod) mod = (async () => {
     const { init } = (await import('@embedpdf/pdfium')) as unknown as { init(o: object): Promise<any> }
     const f: typeof fetch = (globalThis as any).__realFetch ?? fetch
-    const url = new URL('slides/wasm/pdfium.wasm', location.href).href
+    const url = new URL('wasm/pdfium.wasm', location.href).href
     const r = await f(url)
     if (!r.ok) throw new Error('pdfium.wasm ' + r.status)
     // locateFile: the loader asks for the file's address even when it is given the bytes
