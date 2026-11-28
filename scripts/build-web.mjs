@@ -41,6 +41,13 @@ const SOURCE_EDITS = {
     ['      if (mode !== \'saveAs\' && !saveAsHwpx && current && currentFormat) {\n        target = current\n',
      '      if (mode !== \'saveAs\' && !saveAsHwpx && current && currentFormat) {\n        const aeT = (globalThis as any).__aeImportTarget?.(current, mode === \'aeAuto\')\n        if (aeT === \'\') {\n          settleSave(wcId, false)\n          return { ok: true, canceled: true }\n        }\n        target = aeT ?? current\n'],
   ],
+  'apps/hwp/src/main/save-plan.ts': [
+    // the copy a save keeps of the bytes it replaces goes to AllEditor › Backup (same folders below it), not beside the
+    // document, where every saved 한글 file left a .bak in the folders the user browses
+    ["import type { HwpFormat } from '../shared/ipc'\n", "import type { HwpFormat } from '../shared/ipc'\nimport { mkdirSync } from 'node:fs'\n"],
+    ['export function backupPathFor(path: string): string {\n  return `${path}.bak`\n}',
+     "export function backupPathFor(path: string): string {\n  const docs = '/Documents/'\n  if (!path.startsWith(docs) || path.startsWith(docs + 'Backup/')) return `${path}.bak`\n  const kept = `${docs}Backup/${path.slice(docs.length)}.bak`\n  try { mkdirSync(kept.slice(0, kept.lastIndexOf('/')), { recursive: true }) } catch {}\n  return kept\n}"],
+  ],
   'apps/hwp/src/renderer/save-flow.ts': [
     // the main process tells an autosave from a Save: an imported .hwp asks for its .hwpx name only on a Save
     ['  const begin = await api.beginSave(mode)\n', '  const begin = await api.beginSave(automatic && mode === \'save\' ? (\'aeAuto\' as BeginSaveMode) : mode)\n'],
