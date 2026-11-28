@@ -295,6 +295,8 @@ async function openPicked() {
       const { data } = await Filesystem.readFile({ path: r.name, directory: Directory.Documents })
       const bin = atob(data as string); const u = new Uint8Array(bin.length)
       for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
+      // the copy may sit in a kind folder (한글, Word …) this page has not seen yet
+      fs.mkdirSync(path.slice(0, path.lastIndexOf('/')), { recursive: true })
       fs.writeFileSync(path, u)
     }
     void openPath(path)
