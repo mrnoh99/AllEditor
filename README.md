@@ -11,7 +11,7 @@ details in [`ieumoffice-ios/README-IOS.md`](ieumoffice-ios/README-IOS.md), proje
 
 ```bash
 git clone https://github.com/mrnoh99/AllEditor && cd AllEditor
-open AllEditor.xcworkspace          # scheme: ieumoffice-mobile_iOS
+open AllEditor.xcworkspace          # scheme: AllEditor_iOS
 ```
 Pick your Team under *Signing & Capabilities* (bundle id `com.mrnoh99.alleditor`), choose the iPad or a simulator,
 press Run. No npm, Node or Rust is needed: the office suite (`office/`) and the prebuilt Rust library are committed;

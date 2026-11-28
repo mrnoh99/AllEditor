@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "D361F05C6EE8EE7697A6D1A7"
-               BuildableName = "ieumoffice-mobile_iOS.app"
-               BlueprintName = "ieumoffice-mobile_iOS"
-               ReferencedContainer = "container:ieumoffice-mobile.xcodeproj">
+               BuildableName = "AllEditor_iOS.app"
+               BlueprintName = "AllEditor_iOS"
+               ReferencedContainer = "container:AllEditor.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "D361F05C6EE8EE7697A6D1A7"
-            BuildableName = "ieumoffice-mobile_iOS.app"
-            BlueprintName = "ieumoffice-mobile_iOS"
-            ReferencedContainer = "container:ieumoffice-mobile.xcodeproj">
+            BuildableName = "AllEditor_iOS.app"
+            BlueprintName = "AllEditor_iOS"
+            ReferencedContainer = "container:AllEditor.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -70,9 +70,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "D361F05C6EE8EE7697A6D1A7"
-            BuildableName = "ieumoffice-mobile_iOS.app"
-            BlueprintName = "ieumoffice-mobile_iOS"
-            ReferencedContainer = "container:ieumoffice-mobile.xcodeproj">
+            BuildableName = "AllEditor_iOS.app"
+            BlueprintName = "AllEditor_iOS"
+            ReferencedContainer = "container:AllEditor.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -101,9 +101,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "D361F05C6EE8EE7697A6D1A7"
-            BuildableName = "ieumoffice-mobile_iOS.app"
-            BlueprintName = "ieumoffice-mobile_iOS"
-            ReferencedContainer = "container:ieumoffice-mobile.xcodeproj">
+            BuildableName = "AllEditor_iOS.app"
+            BlueprintName = "AllEditor_iOS"
+            ReferencedContainer = "container:AllEditor.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
