@@ -456,6 +456,7 @@ func aeKindFolder(_ ext: String) -> String? {
     case "xlsx", "xlsm", "xls", "ods", "ots", "csv", "tsv": return "Excel"
     case "pdf": return "PDF"
     case "pages", "key", "keyx", "numbers": return "iWork"
-    default: return nil
+    case "": return nil
+    default: return ext.uppercased() // any other kind: a folder named after it, made when its first file arrives
     }
 }

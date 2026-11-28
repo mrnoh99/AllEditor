@@ -69,8 +69,31 @@ func aeSaveCustomBookmark(_ parent: URL) -> Bool {
     aeCustomAccess = nil
     return true
 }
+/// the kind folders the app saves into (한글 · Word · PowerPoint · Excel · PDF · iWork), made ahead so they are
+/// there in the Files app from the start (same names as aeKindFolder / shim/runtime/folders.ts)
+let aeKindFolderNames = ["한글", "Word", "PowerPoint", "Excel", "PDF", "iWork"]
+func aeEnsureKindFolders(_ root: URL) {
+    let fm = FileManager.default
+    // once per AllEditor folder (at install, or when a new location is chosen): a folder the user deletes later
+    // is not made again; other kinds get their folder when their first file is saved
+    let done = aeSupportDir().appendingPathComponent(".kind-folders")
+    let made = (try? String(contentsOf: done, encoding: .utf8))?.components(separatedBy: "\n") ?? []
+    if made.contains(root.standardizedFileURL.path) { return }
+    try? fm.createDirectory(at: aeSupportDir(), withIntermediateDirectories: true)
+    try? (made.filter { !$0.isEmpty } + [root.standardizedFileURL.path]).joined(separator: "\n").write(to: done, atomically: true, encoding: .utf8)
+    for name in aeKindFolderNames {
+        let dir = root.appendingPathComponent(name, isDirectory: true)
+        if fm.fileExists(atPath: dir.path) { continue }
+        var err: NSError?
+        NSFileCoordinator().coordinate(writingItemAt: dir, options: [], error: &err) { u in
+            try? fm.createDirectory(at: u, withIntermediateDirectories: true)
+        }
+    }
+}
+
 /// point the Rust side at a folder (nil: the local Documents folder)
 func aeWriteDocumentsMarker(_ url: URL?) {
+    aeEnsureKindFolders(url ?? aeLocalDocumentsURL())
     let marker = aeSupportDir().appendingPathComponent(aeICloudMarkerName)
     try? FileManager.default.createDirectory(at: aeSupportDir(), withIntermediateDirectories: true)
     if let url { try? url.path.write(to: marker, atomically: true, encoding: .utf8) } else { try? FileManager.default.removeItem(at: marker) }
@@ -91,6 +114,7 @@ func aeSetupICloudDocuments() {
         let chosen = aeStorageChoice() == "icloud" // chosen in 설정: no automatic move of the iPad's documents
         guard let container = fm.url(forUbiquityContainerIdentifier: nil) else {
             try? fm.removeItem(at: marker) // no iCloud now: back to On My iPad
+            aeEnsureKindFolders(aeLocalDocumentsURL())
             return
         }
         let cloudDocs = container.appendingPathComponent("Documents", isDirectory: true)
@@ -128,6 +152,7 @@ func aeSetupICloudDocuments() {
 
         try? fm.createDirectory(at: aeSupportDir(), withIntermediateDirectories: true)
         try? cloudDocs.path.write(to: marker, atomically: true, encoding: .utf8)
+        aeEnsureKindFolders(cloudDocs)
     }
 }
 
