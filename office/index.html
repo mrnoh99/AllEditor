@@ -27,6 +27,10 @@ body.ae-viewing #tabs{display:none}
 .gear{margin-left:auto;flex:none;padding:6px 12px;font-size:22px;color:var(--mut)}.gear.on{color:var(--acc)}
 #panes{flex:1;position:relative;min-height:0}
 .pane{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+/* the send icon shows only on a phone, where the labels give way to the tab's name */
+#tabs .send .ic{display:none}
+#tabs .tl{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+@media(max-width:600px){#tabs .viewbtn span,#tabs .send span{display:none}#tabs .send .ic{display:inline}#tabs .tab{max-width:150px}#tabs .viewbtn,#tabs .send{padding-left:8px;padding-right:8px}}
 .pane-wait{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:var(--bg);color:var(--text, inherit);font:15px -apple-system,system-ui,sans-serif;opacity:.85}
 .pane-wait[hidden]{display:none}
 .pane-wait .spin{width:34px;height:34px;border-radius:50%;border:3px solid rgba(43,108,212,.2);border-top-color:#2b6cd4;animation:ae-spin .9s linear infinite}
