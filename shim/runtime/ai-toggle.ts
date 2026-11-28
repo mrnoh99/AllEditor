@@ -30,6 +30,7 @@ const CSS = `
 #ae-ai-toggle.right{border-radius:12px 0 0 12px;border-right:0}
 #ae-ai-toggle .chev{font-size:15px;line-height:1}
 #ae-ai-toggle.dark{background:#2c2c2e;color:#eee}
+#ae-ai-toggle[hidden]{display:none!important}
 @media print{#ae-ai-toggle{display:none!important}}
 `
 /** a dialog (print, export, settings) over the editor: the handle would sit on top of it */

@@ -90,6 +90,20 @@ const SOURCE_EDITS = {
      "        ? (/emf|wmf/i.test(mime) ? `data:${mime};base64,${Buffer.from(bytes).toString('base64')}` : URL.createObjectURL(new Blob([bytes as BlobPart], { type: mime })))\n" +
      "        : `genoffice-slide-media://archive/${randomUUID()}?mime=${encodeURIComponent(mime)}`"],
   ],
+  // 한글 print: the same centred "인쇄" dialog as Word / PowerPoint / Excel / PDF (title, preview with its tools,
+  // settings on the right, PDF export · cancel · print at the bottom) instead of a full-screen preview
+  'apps/hwp/src/renderer/preview/PrintPreview.tsx': [
+    ["  return (\n    <div\n      ref={rootRef}\n      className=\"hwp-preview\"\n",
+     "  return (\n    <div className=\"ae-pp-backdrop\">\n    <div\n      ref={rootRef}\n      className=\"hwp-preview\"\n"],
+    ["      tabIndex={-1}\n    >\n",
+     "      tabIndex={-1}\n    >\n      <div className=\"ae-pp-head\">{lang === 'ko' ? '인쇄' : 'Print'}</div>\n"],
+    ["        <button\n          type=\"button\"\n          className=\"hwp-preview-button primary\"\n          data-hwp-print-primary=\"\"\n          disabled={\n            !canPrint ||\n            rangeInvalid ||\n            layoutProblem !== null ||\n            (printJob.isSaveImages && !printLayout.saveImages)\n          }\n          onClick={() => void doPrint('print')}\n        >\n          {printJob.isSave ? printLayoutText(lang, 'save') : t('filePrint')}\n        </button>\n        <button\n          type=\"button\"\n          className=\"hwp-preview-button\"\n          disabled={!canPrint}\n          onClick={() => void doPrint('pdf')}\n        >\n          {t('fileExportPdf')}\n        </button>\n        <span className=\"hwp-preview-separator\" />\n",
+     ""],
+    ["        <button type=\"button\" className=\"hwp-preview-button\" onClick={onClose}>\n          {t('dismiss')}\n        </button>\n",
+     ""],
+    ["      </div>\n    </div>\n  )\n}\n",
+     "      </div>\n      <div className=\"ae-pp-foot\">\n          <button\n            type=\"button\"\n            className=\"hwp-preview-button\"\n            disabled={!canPrint}\n            onClick={() => void doPrint('pdf')}\n          >\n            {t('fileExportPdf')}\n          </button>\n          <span className=\"ae-pp-gap\" />\n          <button type=\"button\" className=\"hwp-preview-button\" onClick={onClose}>\n            {lang === 'ko' ? '취소' : 'Cancel'}\n          </button>\n          <button\n            type=\"button\"\n            className=\"hwp-preview-button primary\"\n            data-hwp-print-primary=\"\"\n            disabled={\n              !canPrint ||\n              rangeInvalid ||\n              layoutProblem !== null ||\n              (printJob.isSaveImages && !printLayout.saveImages)\n            }\n            onClick={() => void doPrint('print')}\n          >\n            {printJob.isSave ? printLayoutText(lang, 'save') : t('filePrint')}\n          </button>\n      </div>\n    </div>\n    </div>\n  )\n}\n"],
+  ],
   // print preview: scale the cloned page with a transform, not CSS zoom. WebKit (iPad / Mac) keeps zoomed text at
   // a minimum logical font size (~9px), so a page zoomed to ~45% showed larger text and other line breaks than printed.
   'apps/docs/src/renderer/components/PrintDialog.tsx': [
