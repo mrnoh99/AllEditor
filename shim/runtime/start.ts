@@ -16,8 +16,17 @@ export function start(app: string, register: (open: string | null) => void, prel
   // a document picked from outside AllEditor is a copy (home: ?import=1); a .hwp copy is first saved as .hwpx
   {
     const q = new URLSearchParams(location.search), imp = q.get('import') === '1' ? q.get('open') : null
-    ;(globalThis as any).__aeImportTarget = (p: string) =>
-      imp && /\.hwp$/i.test(p) && p.normalize('NFC') === imp.normalize('NFC') ? typedPath(p.slice(p.lastIndexOf('/') + 1).replace(/\.hwp$/i, '.hwpx')) : null
+    // '' stops the save: an autosave leaves the copy alone, and a Save asks for the .hwpx name (취소 stops it)
+    ;(globalThis as any).__aeImportTarget = (p: string, automatic = false): string | null => {
+      if (!imp || !/\.hwp$/i.test(p) || p.normalize('NFC') !== imp.normalize('NFC')) return null
+      if (automatic) return ''
+      const stem = p.slice(p.lastIndexOf('/') + 1).replace(/\.hwp$/i, '')
+      const ko = (() => { try { return (JSON.parse(localStorage.getItem('alleditor.settings') || '{}').language ?? 'ko') === 'ko' } catch { return true } })()
+      const got = prompt(ko ? 'HWPX 형식으로 저장합니다. 파일 이름을 확인하세요.\n(가져온 .hwp 사본은 저장 후 지워집니다)' : 'Saving as HWPX. Check the file name.\n(The imported .hwp copy is removed after saving)', stem)
+      if (got == null) return ''
+      const name = got.trim().replace(/\.hwpx?$/i, '').replace(/[\\/:*?"<>|]/g, '_') || stem
+      return typedPath(name + '.hwpx')
+    }
   }
   applyPhoneLayer()
   if (app === 'sheets') addSheetsMenu()
