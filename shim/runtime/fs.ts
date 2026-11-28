@@ -110,16 +110,19 @@ async function hydrateInner() {
     const { files } = await Filesystem.readdir({ path: dir, directory }).catch(() => ({ files: [] as any[] }))
     for (const f of files) {
       const p = dir ? `${dir}/${f.name}` : f.name
+      // in memory every name is composed (NFC), whatever form the device keeps (see "Korean names" below)
+      const key = `${base}/${p}`.normalize('NFC')
       if (f.name.startsWith('.') || (f.size ?? 0) > 30e6) continue
-      if (f.type === 'directory') { vol.mkdirSync(`${base}/${p}`, { recursive: true }); await walk(base, directory, p) }
-      else if (base === DOCS_ROOT && (f.size ?? 0) > EAGER_MAX && `${base}/${p}` !== openedDoc) {
+      if (f.type === 'directory') { vol.mkdirSync(key, { recursive: true }); await walk(base, directory, p) }
+      else if (base === DOCS_ROOT && (f.size ?? 0) > EAGER_MAX && key !== openedDoc?.normalize('NFC')) {
         // memory: a big document is only listed; its bytes load when this page opens it (ensureLoaded)
-        lazy.set(`${base}/${p}`, { size: f.size ?? 0, mtime: f.mtime ?? 0 })
+        lazy.set(key, { size: f.size ?? 0, mtime: f.mtime ?? 0 })
       } else {
         const { data } = await Filesystem.readFile({ path: p, directory })
         const bin = atob(data as string); const u = new Uint8Array(bin.length)
         for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
-        fs.writeFileSync(`${base}/${p}`, u)
+        vol.mkdirSync(key.slice(0, key.lastIndexOf('/')), { recursive: true })
+        vol.writeFileSync(key, u)
       }
     }
   }
@@ -128,13 +131,43 @@ async function hydrateInner() {
   dirty.clear()
 }
 
+// ---- Korean names in two Unicode forms ----
+// iCloud Drive and the Mac keep a name as it was typed, often decomposed (NFD: 한 = ㅎ+ㅏ+ㄴ), while the app writes
+// composed names (NFC). The device file system treats both as the same file; this in-memory one does not, so a
+// name in the other form found nothing and the editor opened a blank document. A path that does not exist as
+// given is looked up in the other form too.
+{
+  const f: any = fs
+  const raw = { ex: f.existsSync.bind(f) }
+  const alt = (p: any): any => {
+    if (typeof p !== 'string' || raw.ex(p)) return p
+    for (const form of ['NFC', 'NFD'] as const) { const q = p.normalize(form); if (q !== p && raw.ex(q)) return q }
+    return p
+  }
+  for (const name of ['readFileSync', 'statSync', 'lstatSync', 'existsSync', 'openSync', 'readFile', 'stat', 'access', 'accessSync', 'copyFileSync']) {
+    const orig = f[name]; if (typeof orig !== 'function') continue
+    f[name] = function (p: any, ...rest: any[]) { return orig.call(f, alt(p), ...rest) }
+  }
+  for (const name of ['readFile', 'stat', 'access', 'lstat']) {
+    const orig = f.promises?.[name]; if (typeof orig !== 'function') continue
+    f.promises[name] = function (p: any, ...rest: any[]) { return orig.call(f.promises, alt(p), ...rest) }
+  }
+  // writes always land on the composed name, so a save never makes a second copy beside the first
+  const nfc = (p: any) => (typeof p === 'string' ? p.normalize('NFC') : p)
+  for (const name of ['writeFileSync', 'mkdirSync', 'unlinkSync']) {
+    const orig = f[name]; if (typeof orig !== 'function') continue
+    f[name] = function (p: any, ...rest: any[]) { return orig.call(f, nfc(p), ...rest) }
+  }
+  { const orig = f.renameSync; if (typeof orig === 'function') f.renameSync = (a: any, b: any) => orig.call(f, alt(a), nfc(b)) }
+}
+
 // ---- lazily loaded documents --------------------------------------------------------------------------------
 // Every page (the office home and each tab) has its own in-memory file system. Loading the whole Documents folder
 // into each of them costs (size of all documents) × (open tabs) of memory, which a large iPad library cannot afford.
 // Files up to EAGER_MAX load at start; bigger ones are only listed (name, size, date) until a page needs them.
 const EAGER_MAX = 512 * 1024
 const lazy = new Map<string, { size: number; mtime: number }>()
-const npath = (p: unknown) => (typeof p === 'string' ? p.replace(/\/+$/, '') : '')
+const npath = (p: unknown) => (typeof p === 'string' ? p.replace(/\/+$/, '').normalize('NFC') : '')
 const inVol = (p: string) => { try { vol.statSync(p); return true } catch { return false } }
 const lazyStat = (p: string) => {
   const m = lazy.get(p)!; const t = new Date(m.mtime)
@@ -150,6 +183,25 @@ export async function ensureLoaded(path: string) {
   for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
   vol.mkdirSync(p.slice(0, p.lastIndexOf('/')), { recursive: true }); vol.writeFileSync(p, u) // not a change: no mirror write
   lazy.delete(p)
+}
+/** the document a tab opens is read from the device itself when memory does not hold its bytes: listed-only, or kept
+ *  under its name in the other Unicode form, or not seen by the listing at all (iCloud still placing it) */
+export async function loadOpenedDocument(path: string) {
+  const p = npath(path)
+  if (!p || !native()) return
+  try { await ensureLoaded(p) } catch (e) { console.warn('[open] lazy load', e) }
+  try { if (vol.statSync(p).size > 0) return } catch {}
+  const root = rootOf(p); if (!root) return
+  for (const name of [rel(p), rel(p).normalize('NFD')]) {
+    try {
+      const { data } = await Filesystem.readFile({ path: name, directory: dirOfRoot(root) })
+      const bin = atob(data as string); const u = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
+      if (!u.length) continue
+      vol.mkdirSync(p.slice(0, p.lastIndexOf('/')), { recursive: true }); vol.writeFileSync(p, u); lazy.delete(p)
+      return
+    } catch (e) { console.warn('[open] device read', name, e) }
+  }
 }
 {
   const f: any = fs
