@@ -1,10 +1,10 @@
-// Inside the AllEditor folder, documents are kept in one folder per kind: Hangul · Word · PowerPoint · Excel · PDF ·
+// Inside the AllEditor folder, documents are kept in one folder per kind: HWP · HWPX · Word · PowerPoint · Excel · PDF ·
 // Pages · Numbers · Keynote (made at install by the app, AllEditorICloud.swift aeEnsureKindFolders; other kinds on their first file). New documents (save, import, a converted copy) go into the folder of their kind; documents already at the
 // top of AllEditor stay where they are and are still listed.
 import fs, { DOCS_ROOT } from './fs'
 
 const KIND_FOLDER: Record<string, string> = {
-  hwp: 'Hangul', hwpx: 'Hangul',
+  hwp: 'HWP', hwpx: 'HWPX',
   docx: 'Word', dotx: 'Word', doc: 'Word', dot: 'Word', odt: 'Word', ott: 'Word', rtf: 'Word',
   pptx: 'PowerPoint', potx: 'PowerPoint', ppt: 'PowerPoint', odp: 'PowerPoint', otp: 'PowerPoint',
   xlsx: 'Excel', xlsm: 'Excel', xls: 'Excel', ods: 'Excel', ots: 'Excel', csv: 'Excel', tsv: 'Excel',
