@@ -8,6 +8,7 @@ import { nativeShare, nativeAi, isTauriOffice, nativeAppVersion, nativeRename, n
 import { openExternalUrl } from '../runtime/electron'
 import { typedPath, relName, KIND_FOLDERS } from '../runtime/folders'
 import { installDiag } from '../runtime/diag'
+import { installPencilUi } from '../runtime/pencil-ui'
 import { pruneBackups, renderCleanup, renderDiagnostics } from './maint'
 
 const APP_BY_EXT: Record<string, string> = {
@@ -225,7 +226,16 @@ function renderBar() {
   const bar = $('tabs'); bar.textContent = ''
   for (const x of tabs) {
     const b = el('div', 'tab' + (x.id === active ? ' on' : '') + (x.app ? ' ' + x.app : ''))
-    const lab = el('button', 'tl', tabLabel(x)); lab.onclick = () => (x.id === active && x.kind === 'app' ? void renameTab(x) : activate(x.id)); b.append(lab)
+    // a tap opens the tab; a long press (0.6 s) on a document tab renames it. A tap on the open tab used to rename at
+    // once, which a stray touch did all too easily
+    const lab = el('button', 'tl', tabLabel(x))
+    let held: any = null, renamed = false
+    lab.onpointerdown = () => { renamed = false; if (x.kind === 'app') held = setTimeout(() => { renamed = true; void renameTab(x) }, 600) }
+    lab.onpointerup = lab.onpointerleave = lab.onpointercancel = () => clearTimeout(held)
+    lab.oncontextmenu = (e) => e.preventDefault()
+    lab.onclick = () => { if (renamed) { renamed = false; return } activate(x.id) }
+    if (x.kind === 'app') lab.title = lang() === 'ko' ? '길게 누르면 이름을 바꿉니다' : 'Press and hold to rename'
+    b.append(lab)
     if (x.id === active && x.kind === 'app') lab.title = lang() === 'ko' ? '눌러서 이름 바꾸기' : 'Tap to rename'
     if (x.kind !== 'home') { const c = el('button', 'tx', '✕'); c.setAttribute('aria-label', t('closeTab')); c.onclick = () => void closeTab(x.id); b.append(c) }
     bar.append(b)
@@ -236,7 +246,10 @@ function renderBar() {
     view.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg><span>' + (lang() === 'ko' ? '전체보기' : 'Full view') + '</span>'
     view.setAttribute('aria-label', lang() === 'ko' ? '전체보기 (보기 전용, 쪽 넘기기)' : 'Full view (read only, page by page)')
     view.onclick = () => startViewer(cur)
-    const send = el('button', 'send', sendLabel(cur)); send.setAttribute('aria-label', sendLabel(cur))
+    // on a phone only the icons show (web/index.html): the labels left no room for the tab's name
+    const send = el('button', 'send'); send.setAttribute('aria-label', sendLabel(cur))
+    send.innerHTML = '<svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg><span></span>'
+    send.querySelector('span')!.textContent = sendLabel(cur)
     send.onclick = () => void sendDoc(cur)
     bar.append(view, send)
   }
@@ -889,6 +902,7 @@ async function boot() {
   applyTheme()
   document.documentElement.lang = lang()
   installDiag('home')
+  installPencilUi()
   try { await hydrate() } catch (e) { console.warn('[home hydrate]', e) }
   void pruneBackups() // save backups older than 30 days
   // printers saved in the AllEditor folder come back after a reinstall (redraw 설정 if it is open)

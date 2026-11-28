@@ -152,3 +152,35 @@ func aeKeepWebViewFilling(_ webView: WKWebView) {
     }
     if Thread.isMainThread { start() } else { DispatchQueue.main.async(execute: start) }
 }
+
+// Scribble (handwriting with Apple Pencil) only on document text. A pencil tap on a toolbar field (font size, page
+// number…) was taken for handwriting and left a dot there. Each pencil touch reports from the page whether it is on
+// document text (shim/runtime/pencil-ui.ts, message "aeScribble"); Scribble starts only then.
+final class AEScribbleGate: NSObject, UIScribbleInteractionDelegate, WKScriptMessageHandler {
+    var allowed = false
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        allowed = (message.body as? Bool) ?? false
+    }
+    func scribbleInteraction(_ interaction: UIScribbleInteraction, shouldBeginAt location: CGPoint) -> Bool { allowed }
+}
+private let aeScribbleGate = AEScribbleGate()
+
+func aeInstallScribbleGate(_ webView: WKWebView) {
+    let start = {
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "aeScribble")
+        webView.configuration.userContentController.add(aeScribbleGate, name: "aeScribble")
+        // the view that takes text input inside the web view (WKContentView)
+        func attach(_ tries: Int) {
+            let content = webView.scrollView.subviews.first { String(describing: type(of: $0)).contains("ContentView") }
+            guard let view = content else {
+                if tries > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { attach(tries - 1) } }
+                return
+            }
+            if !view.interactions.contains(where: { ($0 as? UIScribbleInteraction)?.delegate === aeScribbleGate }) {
+                view.addInteraction(UIScribbleInteraction(delegate: aeScribbleGate))
+            }
+        }
+        attach(20)
+    }
+    if Thread.isMainThread { start() } else { DispatchQueue.main.async(execute: start) }
+}

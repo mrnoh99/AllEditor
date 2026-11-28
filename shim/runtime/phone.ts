@@ -27,6 +27,15 @@ html[data-device='phone'] .pdf-thumbs { width: 84px !important; }
 html[data-device='phone'] .ribbon-tab, html[data-device='phone'] .ribbon-tabs button { min-height: 40px; padding-left: 12px; padding-right: 12px; }
 html[data-device='phone'] .ribbon-body { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
 html[data-device='phone'] body { overscroll-behavior: none; }
+/* Excel holds its page at least 720 px wide: on a phone the page is the screen, and its bars scroll sideways */
+html[data-device='phone'] body { min-width: 0 !important; }
+/* a folded AI panel keeps a 34 px rail; the AI handle at the screen's edge opens the panel, so that column goes to
+   the document */
+html[data-device='phone'] .ai-dock.collapsed, html[data-device='phone'] .copilot.collapsed {
+  width: 0 !important; min-width: 0 !important; max-width: 0 !important; flex-basis: 0 !important;
+  overflow: hidden !important; border: 0 !important; padding: 0 !important;
+}
+html[data-device='phone'] .sheet-body:has(> .copilot.collapsed) { grid-template-columns: 0 1fr !important; }
 `
 
 export function applyPhoneLayer() {
