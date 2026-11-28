@@ -158,6 +158,7 @@ export async function importFile(f: File): Promise<string> {
   fs.writeFileSync(p, new Uint8Array(await f.arrayBuffer()))
   return p
 }
+import { showMessageBoxCard } from './message-box'
 export const dialog: any = {
   async showOpenDialog(a: any, b?: any) {
     const o = b ?? a ?? {}
@@ -185,9 +186,7 @@ export const dialog: any = {
   },
   async showMessageBox(a: any, b?: any) {
     const o = b ?? a ?? {}
-    const buttons: string[] = o.buttons ?? ['OK']
-    const ok = buttons.length < 2 ? (alert(`${o.message ?? ''}\n${o.detail ?? ''}`), true) : confirm(`${o.message ?? ''}\n${o.detail ?? ''}\n\n[OK] ${buttons[o.defaultId ?? 0]}  [Cancel] ${buttons[o.cancelId ?? buttons.length - 1]}`)
-    return { response: ok ? (o.defaultId ?? 0) : (o.cancelId ?? buttons.length - 1), checkboxChecked: false }
+    return showMessageBoxCard(o) // every button the editor offers (message-box.ts)
   },
   showMessageBoxSync: () => 0,
   showErrorBox: (t: string, c: string) => alert(`${t}\n${c}`),

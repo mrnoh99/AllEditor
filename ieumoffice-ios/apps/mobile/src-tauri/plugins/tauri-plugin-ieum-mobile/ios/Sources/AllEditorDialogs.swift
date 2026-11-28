@@ -113,6 +113,11 @@ func aeLockWebViewScroll(_ webView: WKWebView) {
         aeScrollLocks.append(sv.observe(\.contentOffset, options: [.new]) { sv, _ in
             if sv.contentOffset != .zero { sv.contentOffset = .zero }
         })
+        // iPhone: focusing small text zoomed the whole app in (WebKit resets the zoom limits from the page); the app
+        // stays at its own scale, and the editors zoom the document themselves
+        aeScrollLocks.append(sv.observe(\.zoomScale, options: [.new]) { sv, _ in
+            if abs(sv.zoomScale - 1) > 0.001 { sv.setZoomScale(1, animated: false) }
+        })
     }
     if Thread.isMainThread { lock() } else { DispatchQueue.main.async(execute: lock) }
 }

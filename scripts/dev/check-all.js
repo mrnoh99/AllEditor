@@ -45,6 +45,9 @@ const ls = (d) => { try { return fs.readdirSync(path.join(DOCS, d)).sort().join(
     const imp = (file, name) => p.evaluate(([b64, n]) => { const u = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)); const i = document.getElementById('picker'); const dt = new DataTransfer(); dt.items.add(new File([u], n)); i.files = dt.files; i.dispatchEvent(new Event('change')) }, [fs.readFileSync(file).toString('base64'), name])
 
     await p.goto('http://localhost:8766/index.html'); await p.waitForTimeout(3500)
+    const guide = await p.locator('.ae-ask-title').first().textContent().catch(() => '')
+    ok('첫 실행 안내', /환영/.test(guide || ''), guide || '')
+    if (guide) await p.getByRole('button', { name: '건너뛰기', exact: true }).click()
     const rows = await p.locator('#homePane .row').count()
     ok('홈 목록', rows >= 5, rows + '개'); ok('홈 오류 없음', !errs.length, takeErrs().join(' / '))
 
@@ -90,9 +93,17 @@ const ls = (d) => { try { return fs.readdirSync(path.join(DOCS, d)).sort().join(
     await home(); await p.waitForTimeout(1500)
     const names = await p.evaluate(() => [...document.querySelectorAll('#homePane .row')].map((r) => r.querySelector('button.file')?.textContent || ''))
     ok('홈: 원본 폴더(HWP·Keynote)와 Backup은 숨김', !names.some((r) => /가져온\.hwp(?!x)|키노트\.keyx|\.bak/.test(r)), names.length + '개')
+    await p.locator('.recent-search').fill('한글'); await p.waitForTimeout(400)
+    const found = await p.evaluate(() => [...document.querySelectorAll('#homePane .row')].map((r) => r.querySelector('button.file')?.textContent || ''))
+    ok('홈: 이름으로 찾기', found.length >= 1 && found.every((n) => n.includes('한글')), found.join(','))
+    await p.locator('.recent-search').fill(''); await p.waitForTimeout(300)
     await p.locator('button.gear').click(); await p.waitForTimeout(1500)
     const set = await p.evaluate(() => document.getElementById('settingsPane')?.innerText || '')
-    ok('설정 화면 (저장 공간 정리·진단 정보 포함)', set.length > 200 && set.includes('저장 공간 정리') && set.includes('진단 정보'), takeErrs().join(' / '))
+    ok('설정 화면 (정리·진단·이전 판·개인정보·라이선스)', ['저장 공간 정리', '진단 정보', '이전 판으로 되돌리기', '개인정보 안내', '오픈소스 라이선스'].every((w) => set.includes(w)), takeErrs().join(' / '))
+    await p.locator('#licenses + .group button', { hasText: '보기' }).nth(4).click(); await p.waitForTimeout(1500)
+    const lic = await p.evaluate(() => document.querySelector('.ae-ask pre')?.textContent || '')
+    ok('라이선스 전문 보기', /MIT License/.test(lic), lic.slice(0, 40))
+    await p.getByRole('button', { name: 'OK', exact: true }).click()
     // unsaved changes on close: a new document asks; with autosave off an edited document asks and 저장 keeps it;
     // with autosave on it is saved without asking
     {
