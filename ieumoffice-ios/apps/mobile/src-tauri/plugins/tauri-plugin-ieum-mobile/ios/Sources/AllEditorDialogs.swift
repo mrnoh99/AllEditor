@@ -116,3 +116,29 @@ func aeLockWebViewScroll(_ webView: WKWebView) {
     }
     if Thread.isMainThread { lock() } else { DispatchQueue.main.async(execute: lock) }
 }
+
+// The web view keeps the size of the window. After the iPad turns, or the app's window is resized (Split View, Stage
+// Manager) while it is in the background, the web view could keep its old width, leaving a blank strip at the side
+// until the app was switched away and back. Its frame follows its container whenever they differ.
+private var aeFitTimer: Timer?
+private var aeFitObservers: [Any] = []
+
+func aeKeepWebViewFilling(_ webView: WKWebView) {
+    let start = {
+        webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        let fit = { [weak webView] in
+            guard let wv = webView, let box = wv.superview else { return }
+            if wv.frame != box.bounds { wv.frame = box.bounds; wv.setNeedsLayout() }
+        }
+        fit()
+        let names: [Notification.Name] = [UIDevice.orientationDidChangeNotification, UIApplication.didBecomeActiveNotification, UIApplication.willEnterForegroundNotification]
+        for name in names {
+            aeFitObservers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in
+                fit(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: fit)
+            })
+        }
+        // a window resized without a notification (Stage Manager) is caught here: a frame compare twice a second
+        aeFitTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in fit() }
+    }
+    if Thread.isMainThread { start() } else { DispatchQueue.main.async(execute: start) }
+}

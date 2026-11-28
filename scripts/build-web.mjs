@@ -31,14 +31,19 @@ if (!existsSync(join(upstream, 'node_modules'))) {
  */
 const SOURCE_EDITS = {
   'apps/hwp/src/renderer/App.tsx': [
-    // the home's "save before closing?" saves an imported copy even when it was not edited (its .hwp becomes .hwpx)
+    // Save (the button, the menu, the home's "save before closing?") writes the document even when it was not edited:
+    // an imported .hwp becomes .hwpx, and the user sees it saved
     ["        const dirty =\n          mode === 'saveAs' ||\n",
-     "        const aeImport = (mode as string) === 'aeImport'\n        if (aeImport) mode = 'save'\n        const dirty =\n          mode === 'saveAs' || aeImport ||\n"],
+     "        if ((mode as string) === 'aeImport') mode = 'save'\n        const dirty =\n          mode === 'saveAs' || mode === 'save' ||\n"],
   ],
   'apps/hwp/src/main/hwp-main.ts': [
     // a .hwp picked from outside AllEditor is a copy to edit: its first save is the .hwpx beside it (shim/runtime/start.ts)
     ['      if (mode !== \'saveAs\' && !saveAsHwpx && current && currentFormat) {\n        target = current\n',
-     '      if (mode !== \'saveAs\' && !saveAsHwpx && current && currentFormat) {\n        target = (globalThis as any).__aeImportTarget?.(current) ?? current\n'],
+     '      if (mode !== \'saveAs\' && !saveAsHwpx && current && currentFormat) {\n        const aeT = (globalThis as any).__aeImportTarget?.(current, mode === \'aeAuto\')\n        if (aeT === \'\') {\n          settleSave(wcId, false)\n          return { ok: true, canceled: true }\n        }\n        target = aeT ?? current\n'],
+  ],
+  'apps/hwp/src/renderer/save-flow.ts': [
+    // the main process tells an autosave from a Save: an imported .hwp asks for its .hwpx name only on a Save
+    ['  const begin = await api.beginSave(mode)\n', '  const begin = await api.beginSave(automatic && mode === \'save\' ? (\'aeAuto\' as BeginSaveMode) : mode)\n'],
   ],
   'packages/ui/src/font-list.ts': [
     // the fonts neither the iPad nor the bundle has go to the end of every list (shim/runtime/fonts.ts MISSING)

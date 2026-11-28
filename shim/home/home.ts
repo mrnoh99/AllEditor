@@ -126,7 +126,9 @@ async function retireCopy(x: Tab) {
   const copy = x.importOf; if (!copy) return
   x.importOf = undefined; saveTabs()
   const was = readImports()[nfc(copy)], now = await deviceMark(copy)
-  if (was && now && now.size === was.size && now.mtime === was.mtime) await dropCopy(copy)
+  // the copy is ours (made when the file was picked); kept only when the user saved into it (its size changed).
+  // The date is not compared: the device may restamp a file it syncs.
+  if (now && (!was || now.size === was.size)) await dropCopy(copy)
   else forgetImport(copy)
   if (tabs.find((t) => t.id === active)?.kind === 'home') renderHome()
 }
@@ -139,7 +141,7 @@ async function settleImport(x: Tab): Promise<boolean> {
   const now = await deviceMark(copy)
   if (!now) { forgetImport(copy); return true }
   // saved into the copy itself: it is the user's document now
-  if (now.size !== was.size || now.mtime !== was.mtime) { forgetImport(copy); return true }
+  if (now.size !== was.size) { forgetImport(copy); return true }
   // saved under another name or format: the untouched copy is not needed
   const saved = tabPath(x)
   if (saved && nfc(saved) !== nfc(copy)) { await dropCopy(copy); return true }

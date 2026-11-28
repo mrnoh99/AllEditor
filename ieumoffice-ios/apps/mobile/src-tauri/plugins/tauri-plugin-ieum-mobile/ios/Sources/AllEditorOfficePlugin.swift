@@ -45,6 +45,7 @@ public final class AllEditorOfficePlugin: Plugin, WKNavigationDelegate {
     public override func load(webview: WKWebView) {
         aeInstallWebDialogs(webview) // alert / confirm / prompt (AllEditorDialogs.swift)
         aeLockWebViewScroll(webview) // the keyboard never pushes the app off the top of the screen
+        aeKeepWebViewFilling(webview) // the web view follows the window's size (AllEditorDialogs.swift)
         aeSetupICloudDocuments()
     }
 
