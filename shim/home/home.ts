@@ -4,8 +4,9 @@ import { AI_PROVIDERS, defaultAiSettings, sanitizeAiSettings } from '@genoffice/
 import { LANGS, tr } from './i18n'
 import { convertIwork, IWORK_EXT } from '../iwork/convert'
 import { getPrinters, setPrinters, restorePrinters, sendToPrinter, testPdf, type PrinterCfg } from '../runtime/print'
-import { nativeShare, nativeAi, isTauriOffice, nativeAppVersion, nativeRename, nativePickDocument, Filesystem, Directory, type AiSnapshot } from '../runtime/native-files'
+import { nativeShare, nativeAi, isTauriOffice, nativeAppVersion, nativeRename, nativePickDocument, nativeStorageInfo, nativeSetStorage, Filesystem, Directory, type AiSnapshot } from '../runtime/native-files'
 import { openExternalUrl } from '../runtime/electron'
+import { typedPath, relName, KIND_FOLDERS } from '../runtime/folders'
 
 const APP_BY_EXT: Record<string, string> = {
   docx: 'docs', dotx: 'docs', doc: 'docs', dot: 'docs', odt: 'docs', ott: 'docs', hwp: 'hwp', hwpx: 'hwp',
@@ -134,7 +135,7 @@ async function renamePath(path: string, before?: () => Promise<void>): Promise<s
     else { await ensureLoaded(path); fs.renameSync(path, to); await flush() }
   } catch (e: any) { alert((ko ? '이름을 바꾸지 못했습니다: ' : 'Could not rename: ') + (e?.message ?? e)); return null }
   try { if (fs.existsSync(path)) fs.renameSync(path, to) } catch {} // keep this page's listing in step
-  markUsed(to.slice(to.lastIndexOf('/') + 1), file)
+  markUsed(relName(to), relName(path))
   return to
 }
 /** an open tab follows its file to the new name */
@@ -222,8 +223,8 @@ const creditEl = () => {
 }
 const busy = new Set<string>()
 async function openPath(path: string) {
-  unhide(path.slice(path.lastIndexOf('/') + 1))
-  markUsed(path.slice(path.lastIndexOf('/') + 1))
+  unhide(relName(path))
+  markUsed(relName(path))
   const name = path.split('/').pop()!, app = appFor(name)
   if (!app) { alert(`${t('unsupported')}: ${name}`); return }
   const kind = IWORK_EXT[ext(name)]
@@ -231,8 +232,12 @@ async function openPath(path: string) {
   // iWork file: open its editable copy (made once, then independent of the original)
   const stem = path.replace(/\.[^.]+$/, '')
   const outExt = kind === 'pages' ? 'docx' : kind === 'keynote' ? 'pptx' : 'xlsx'
-  const copy = `${stem}.${outExt}`
-  if (fs.existsSync(copy)) { openPath(copy); return }
+  const beside = `${stem}.${outExt}`
+  if (fs.existsSync(beside)) { openPath(beside); return }
+  const base = stem.slice(stem.lastIndexOf('/') + 1) + '.' + outExt
+  const kindDir = typedPath(base).replace(/\/[^/]*$/, '')
+  if (fs.existsSync(`${kindDir}/${base}`)) { openPath(`${kindDir}/${base}`); return }
+  const copy = `${kindDir}/${base}`
   if (busy.has(path)) return
   // a .key read directly is the least faithful route: point to Keynote's own PowerPoint export first
   if (!confirm(`${name}\n\n${ext(name) === 'key' ? t('keyConfirm') : t('iworkConfirm')}`)) return
@@ -248,12 +253,7 @@ async function openPath(path: string) {
   finally { busy.delete(path) }
 }
 function newBlank(app: string) { addTab({ kind: 'app', app, title: APP_LABEL[app][lang() === 'ko' ? 0 : 1] + ' ' + (tabs.filter((x) => x.app === app).length + 1) }) }
-const uniq = (name: string) => {
-  const dot = name.lastIndexOf('.'); const stem = dot > 0 ? name.slice(0, dot) : name, e = dot > 0 ? name.slice(dot) : ''
-  let p = `${DOCS_ROOT}/${name}`, i = 1
-  while (fs.existsSync(p)) p = `${DOCS_ROOT}/${stem} ${i++}${e}`
-  return p
-}
+const uniq = (name: string) => typedPath(name) // new files go into the folder of their kind
 async function importFile(f: File) {
   const name = f.name.replace(/[\\/:*?"<>|]/g, '_')
   if (!appFor(name)) { alert(`${t('unsupported')}: ${name}`); return }
@@ -320,17 +320,27 @@ function markUsed(name: string, from?: string) {
   try { const u = readUsed(); if (from) delete u[from]; u[name] = Date.now(); localStorage.setItem(USED_KEY, JSON.stringify(u)) } catch {}
 }
 function unhide(name: string) { const h = readHidden(); if (name in h) { delete h[name]; writeHidden(h) } }
+// the documents at the top of AllEditor and in its kind folders (한글, Word, …): r.n is the path below AllEditor
+const LIST_DIRS = ['', ...KIND_FOLDERS]
 function memRows(): Row[] {
-  let names: string[] = []
-  try { names = fs.readdirSync(DOCS_ROOT).map(String).filter((n: string) => !n.startsWith('.') && appFor(n)) } catch {}
-  return names.map((n) => { const st = fs.statSync(`${DOCS_ROOT}/${n}`); return { n, size: st.size as number, m: Number(st.mtimeMs ?? 0) } })
+  const out: Row[] = []
+  for (const d of LIST_DIRS) {
+    let names: string[] = []
+    try { names = fs.readdirSync(d ? `${DOCS_ROOT}/${d}` : DOCS_ROOT).map(String).filter((n: string) => !n.startsWith('.') && appFor(n)) } catch {}
+    for (const n of names) { const rel = d ? `${d}/${n}` : n; try { const st = fs.statSync(`${DOCS_ROOT}/${rel}`); if (st.isFile()) out.push({ n: rel, size: st.size as number, m: Number(st.mtimeMs ?? 0) }) } catch {} }
+  }
+  return out
 }
 async function nativeRows(): Promise<Row[] | null> {
   if (!isTauriOffice()) return null
   try {
-    const { files } = await Filesystem.readdir({ path: '', directory: Directory.Documents })
-    return (files as any[]).filter((f) => f.type !== 'directory' && !String(f.name).startsWith('.') && appFor(String(f.name)))
-      .map((f) => ({ n: String(f.name), size: Number(f.size ?? 0), m: Number(f.mtime ?? 0) }))
+    const out: Row[] = []
+    for (const d of LIST_DIRS) {
+      const { files } = await Filesystem.readdir({ path: d, directory: Directory.Documents }).catch(() => ({ files: [] as any[] }))
+      for (const f of files as any[]) if (f.type !== 'directory' && !String(f.name).startsWith('.') && appFor(String(f.name)))
+        out.push({ n: d ? `${d}/${f.name}` : String(f.name), size: Number(f.size ?? 0), m: Number(f.mtime ?? 0) })
+    }
+    return out
   } catch { return null }
 }
 // grouped by kind (한글 · Word · PowerPoint · Excel · PDF · Pages · Keynote · Numbers), newest first in each group,
@@ -367,7 +377,7 @@ function fillRecent(list: HTMLElement, all: Row[]) {
 function recentRow(r: Row, redraw: () => void): HTMLElement {
   const ko = lang() === 'ko'
   const row = el('div', 'row'); const b = el('button', 'file')
-  const meta = el('span', 'meta'); meta.append(el('span', 'nm', r.n), el('span', 'sz', [typeName(r.n), fmt(r.size), ago(r.m)].filter(Boolean).join(' · ')))
+  const meta = el('span', 'meta'); meta.append(el('span', 'nm', r.n.slice(r.n.lastIndexOf('/') + 1)), el('span', 'sz', [typeName(r.n), fmt(r.size), ago(r.m)].filter(Boolean).join(' · ')))
   b.append(badge(badgeFor(r.n)), meta); b.onclick = () => openPath(`${DOCS_ROOT}/${r.n}`)
   const rn = el('button', 'ren'); rn.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
   rn.setAttribute('aria-label', ko ? '이름 바꾸기' : 'Rename'); rn.title = rn.getAttribute('aria-label')!
@@ -496,6 +506,8 @@ function renderSettings() {
   }
   drawPrinters()
   wrap.append(el('p', 'hint', t('printerHint')))
+
+  renderStorage(wrap, toast)
 
   const ver = el('p', 'hint ver')
   wrap.append(el('h2', '', t('about')), ver, el('p', 'hint', t('aboutText')), creditEl())
@@ -648,6 +660,52 @@ function renderAiConnect(wrap: HTMLElement, toast: (m: string) => void) {
     }
     draw()
   }, (e) => { box.textContent = ''; box.append(el('p', 'hint', '✕ ' + (e?.message ?? e))) })
+}
+
+// ---- 문서 저장 위치: where the AllEditor folder lives (iCloud Drive by default) ----
+function renderStorage(wrap: HTMLElement, toast: (m: string) => void) {
+  const ko = lang() === 'ko'
+  const h = el('h2', '', ko ? '문서 저장 위치' : 'Document location'); h.id = 'storage'; wrap.append(h)
+  const box = el('div', 'group'); wrap.append(box)
+  if (!isTauriOffice()) { box.append(el('p', 'hint', ko ? 'iPad 앱에서 고를 수 있습니다.' : 'Available in the iPad app.')); return }
+  box.append(el('p', 'hint', ko ? '불러오는 중…' : 'Loading…'))
+  const CHOICES: Array<[string, string, string]> = [
+    ['icloud', 'iCloud Drive › AllEditor', ko ? '기본. Mac·iPhone 등 같은 Apple 계정의 기기에서도 보입니다.' : 'Default. Also on your other Apple devices.'],
+    ['local', ko ? '나의 iPad › AllEditor' : 'On My iPad › AllEditor', ko ? '이 iPad에만 저장합니다 (앱을 지우면 함께 지워집니다).' : 'Only on this iPad (removed with the app).'],
+    ['custom', ko ? '다른 위치 › AllEditor' : 'Elsewhere › AllEditor', ko ? '파일 앱의 다른 폴더(다른 클라우드, 외장 드라이브 등) 안에 AllEditor 폴더를 만듭니다.' : 'An AllEditor folder inside another Files location (another cloud, an external drive…).'],
+  ]
+  const draw = (info: any) => {
+    box.textContent = ''
+    box.append(el('p', 'hint ai-status on', `● ${ko ? '현재' : 'Now'}: ${info.label}`))
+    const cards = el('div', 'ai-cards'); box.append(cards)
+    for (const [kind, name, sub] of CHOICES) {
+      const b = el('button', 'ai-card' + (info.kind === kind ? ' sel cur' : ''))
+      b.append(el('b', '', name), el('span', '', sub))
+      if (kind === 'icloud' && !info.icloudAvailable) { b.disabled = true; b.title = ko ? 'iCloud Drive가 꺼져 있습니다' : 'iCloud Drive is off' }
+      b.onclick = () => void change(kind, info)
+      cards.append(b)
+    }
+    box.append(el('p', 'hint', ko ? '어디에 두든 폴더 이름은 AllEditor입니다. 프린터 같은 설정은 위치를 바꿀 때 함께 옮겨집니다.' : 'Wherever it is, the folder is named AllEditor. Settings such as printers move with it.'))
+  }
+  const change = async (kind: string, info: any) => {
+    if (kind === info.kind && kind !== 'custom') return
+    const target = CHOICES.find((c) => c[0] === kind)![1]
+    if (!confirm(ko ? `문서 저장 위치를 "${target}"(으)로 바꿀까요?` : `Change the document location to "${target}"?`)) return
+    const copy = confirm(ko
+      ? `지금 폴더(${info.label})의 문서를 새 위치로 복사할까요?\n\n확인: 문서를 복사합니다 (원래 폴더의 문서는 그대로 남습니다)\n취소: 문서는 복사하지 않습니다\n\n프린터 등 설정은 어느 쪽이든 새 위치로 옮겨집니다.`
+      : `Copy the documents of the current folder (${info.label}) to the new location?\n\nOK: copy them (the originals stay)\nCancel: don't copy\n\nSettings such as printers move either way.`)
+    try { await flush() } catch {}
+    const wait = el('div', 'toast', ko ? '바꾸는 중…' : 'Changing…'); document.body.append(wait)
+    try {
+      const r = await nativeSetStorage(kind, copy)
+      wait.remove()
+      if (r.canceled) return
+      const note = copy ? (ko ? `문서 ${r.copied ?? 0}개를 복사했습니다.` : `${r.copied ?? 0} documents copied.`) + (r.failed ? (ko ? ` (${r.failed}개는 복사하지 못했습니다)` : ` (${r.failed} could not be copied)`) : '') : ''
+      alert((ko ? `문서 저장 위치: ${r.label}` : `Document location: ${r.label}`) + (note ? '\n' + note : '') + (ko ? '\n\n새 위치로 다시 엽니다.' : '\n\nReopening with the new location.'))
+      location.reload()
+    } catch (e: any) { wait.remove(); alert((ko ? '바꾸지 못했습니다: ' : 'Could not change: ') + (e?.message ?? e)) }
+  }
+  nativeStorageInfo().then(draw, (e) => { box.textContent = ''; box.append(el('p', 'hint', '✕ ' + (e?.message ?? e))) })
 }
 
 function applyTheme() {
