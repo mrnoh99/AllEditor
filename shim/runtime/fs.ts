@@ -139,26 +139,28 @@ async function hydrateInner() {
 {
   const f: any = fs
   const raw = { ex: f.existsSync.bind(f) }
+  // the name as given when it exists, else its other form when that exists, else the composed form that memory keeps
   const alt = (p: any): any => {
     if (typeof p !== 'string' || raw.ex(p)) return p
-    for (const form of ['NFC', 'NFD'] as const) { const q = p.normalize(form); if (q !== p && raw.ex(q)) return q }
-    return p
+    const c = p.normalize('NFC'); if (raw.ex(c)) return c
+    const d = p.normalize('NFD'); if (raw.ex(d)) return d
+    return c
   }
-  for (const name of ['readFileSync', 'statSync', 'lstatSync', 'existsSync', 'openSync', 'readFile', 'stat', 'access', 'accessSync', 'copyFileSync']) {
-    const orig = f[name]; if (typeof orig !== 'function') continue
-    f[name] = function (p: any, ...rest: any[]) { return orig.call(f, alt(p), ...rest) }
+  const one = ['readFileSync', 'statSync', 'lstatSync', 'existsSync', 'openSync', 'accessSync', 'writeFileSync', 'appendFileSync',
+    'mkdirSync', 'unlinkSync', 'rmSync', 'rmdirSync', 'readdirSync', 'realpathSync', 'utimesSync', 'truncateSync', 'createReadStream',
+    'createWriteStream', 'readFile', 'writeFile', 'appendFile', 'stat', 'lstat', 'access', 'open', 'mkdir', 'unlink', 'rm', 'readdir']
+  const two = ['renameSync', 'copyFileSync', 'cpSync', 'rename', 'copyFile']
+  const patch = (o: any, names: string[], both: boolean) => {
+    for (const name of names) {
+      const orig = o?.[name]; if (typeof orig !== 'function') continue
+      o[name] = both
+        ? function (this: any, x: any, y: any, ...rest: any[]) { return orig.call(this, alt(x), alt(y), ...rest) }
+        : function (this: any, x: any, ...rest: any[]) { return orig.call(this, alt(x), ...rest) }
+    }
   }
-  for (const name of ['readFile', 'stat', 'access', 'lstat']) {
-    const orig = f.promises?.[name]; if (typeof orig !== 'function') continue
-    f.promises[name] = function (p: any, ...rest: any[]) { return orig.call(f.promises, alt(p), ...rest) }
-  }
-  // writes always land on the composed name, so a save never makes a second copy beside the first
-  const nfc = (p: any) => (typeof p === 'string' ? p.normalize('NFC') : p)
-  for (const name of ['writeFileSync', 'mkdirSync', 'unlinkSync']) {
-    const orig = f[name]; if (typeof orig !== 'function') continue
-    f[name] = function (p: any, ...rest: any[]) { return orig.call(f, nfc(p), ...rest) }
-  }
-  { const orig = f.renameSync; if (typeof orig === 'function') f.renameSync = (a: any, b: any) => orig.call(f, alt(a), nfc(b)) }
+  patch(f, one, false); patch(f, two, true)
+  patch(f.promises, ['readFile', 'writeFile', 'appendFile', 'stat', 'lstat', 'access', 'open', 'mkdir', 'unlink', 'rm', 'readdir', 'truncate', 'utimes', 'realpath'], false)
+  patch(f.promises, ['rename', 'copyFile', 'cp'], true)
 }
 
 // ---- lazily loaded documents --------------------------------------------------------------------------------
