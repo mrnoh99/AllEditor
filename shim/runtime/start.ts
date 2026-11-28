@@ -10,8 +10,15 @@ import { installViewer } from './viewer'
 import { installHwpPrintDialog } from './hwp-print'
 import { setUiLang } from '@genoffice/i18n'
 import { USER_ROOT } from './fs'
+import { typedPath } from './folders'
 
 export function start(app: string, register: (open: string | null) => void, preload: Array<[string, string]> = []) {
+  // a document picked from outside AllEditor is a copy (home: ?import=1); a .hwp copy is first saved as .hwpx
+  {
+    const q = new URLSearchParams(location.search), imp = q.get('import') === '1' ? q.get('open') : null
+    ;(globalThis as any).__aeImportTarget = (p: string) =>
+      imp && /\.hwp$/i.test(p) && p.normalize('NFC') === imp.normalize('NFC') ? typedPath(p.slice(p.lastIndexOf('/') + 1).replace(/\.hwp$/i, '.hwpx')) : null
+  }
   applyPhoneLayer()
   if (app === 'sheets') addSheetsMenu()
   ;(window as any).__aeFlush = flush

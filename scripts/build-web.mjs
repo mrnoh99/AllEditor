@@ -30,6 +30,16 @@ if (!existsSync(join(upstream, 'node_modules'))) {
  *  - template fonts: loaded from the bundled folder instead of the desktop shell's genoffice-docx-media:// scheme
  */
 const SOURCE_EDITS = {
+  'apps/hwp/src/renderer/App.tsx': [
+    // the home's "save before closing?" saves an imported copy even when it was not edited (its .hwp becomes .hwpx)
+    ["        const dirty =\n          mode === 'saveAs' ||\n",
+     "        const aeImport = (mode as string) === 'aeImport'\n        if (aeImport) mode = 'save'\n        const dirty =\n          mode === 'saveAs' || aeImport ||\n"],
+  ],
+  'apps/hwp/src/main/hwp-main.ts': [
+    // a .hwp picked from outside AllEditor is a copy to edit: its first save is the .hwpx beside it (shim/runtime/start.ts)
+    ['      if (mode !== \'saveAs\' && !saveAsHwpx && current && currentFormat) {\n        target = current\n',
+     '      if (mode !== \'saveAs\' && !saveAsHwpx && current && currentFormat) {\n        target = (globalThis as any).__aeImportTarget?.(current) ?? current\n'],
+  ],
   'packages/ui/src/font-list.ts': [
     // the fonts neither the iPad nor the bundle has go to the end of every list (shim/runtime/fonts.ts MISSING)
     ['export const BUILTIN_FONT_FAMILIES: readonly string[] = [', 'const BUILTIN_FONT_FAMILIES_UPSTREAM: readonly string[] = ['],
@@ -257,8 +267,9 @@ const RUNTIMES = {
 // 한글: the 이음오피스 desktop HWP app (hosts rhwp-studio). The studio is the one built in ieumoffice-ios/ (same
 // 이음오피스 pin + AllEditor's iOS input patches, apps/hwp/scripts/rhwp-patches.mjs).
 RUNTIMES.hwp = {
-  file: 'hwp-main', imports: 'createHwpView',
-  code: 'registerAiIpc(); registerProjectIpc(); createHwpView(open)',
+  file: 'hwp-main', imports: 'createHwpView, requestHwpSave',
+  // __aeSave: the home's "save before closing?" asks the editor to save (an imported .hwp becomes .hwpx)
+  code: 'registerAiIpc(); registerProjectIpc(); { const v = createHwpView(open); (globalThis as any).__aeSave = () => requestHwpSave(v.webContents, "aeImport" as any) }',
   tools: `import { registerAiIpc, registerProjectIpc } from '${upstream}/apps/docs/src/main/docs-main'`,
   // its print panel (print-layout) renders the pages with PDFium, as the PDF editor does
   preload: PRINT_WASM,
