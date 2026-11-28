@@ -1,5 +1,5 @@
 // Inside the AllEditor folder, documents are kept in one folder per kind: 한글 · Word · PowerPoint · Excel · PDF ·
-// iWork (made at install by the app, AllEditorICloud.swift aeEnsureKindFolders; other kinds on their first file). New documents (save, import, a converted copy) go into the folder of their kind; documents already at the
+// Pages · Numbers · Keynote (made at install by the app, AllEditorICloud.swift aeEnsureKindFolders; other kinds on their first file). New documents (save, import, a converted copy) go into the folder of their kind; documents already at the
 // top of AllEditor stay where they are and are still listed.
 import fs, { DOCS_ROOT } from './fs'
 
@@ -9,7 +9,7 @@ const KIND_FOLDER: Record<string, string> = {
   pptx: 'PowerPoint', potx: 'PowerPoint', ppt: 'PowerPoint', odp: 'PowerPoint', otp: 'PowerPoint',
   xlsx: 'Excel', xlsm: 'Excel', xls: 'Excel', ods: 'Excel', ots: 'Excel', csv: 'Excel', tsv: 'Excel',
   pdf: 'PDF',
-  pages: 'iWork', key: 'iWork', keyx: 'iWork', numbers: 'iWork',
+  pages: 'Pages', numbers: 'Numbers', key: 'Keynote', keyx: 'Keynote',
 }
 export const KIND_FOLDERS = [...new Set(Object.values(KIND_FOLDER))]
 /** the folder of a document's kind; any other kind gets a folder named after its extension (RTF, TXT …),

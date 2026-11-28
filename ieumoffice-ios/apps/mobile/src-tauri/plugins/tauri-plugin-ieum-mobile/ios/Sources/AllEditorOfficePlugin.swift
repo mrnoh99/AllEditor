@@ -455,7 +455,9 @@ func aeKindFolder(_ ext: String) -> String? {
     case "pptx", "potx", "ppt", "odp", "otp": return "PowerPoint"
     case "xlsx", "xlsm", "xls", "ods", "ots", "csv", "tsv": return "Excel"
     case "pdf": return "PDF"
-    case "pages", "key", "keyx", "numbers": return "iWork"
+    case "pages": return "Pages"
+    case "numbers": return "Numbers"
+    case "key", "keyx": return "Keynote"
     case "": return nil
     default: return ext.uppercased() // any other kind: a folder named after it, made when its first file arrives
     }

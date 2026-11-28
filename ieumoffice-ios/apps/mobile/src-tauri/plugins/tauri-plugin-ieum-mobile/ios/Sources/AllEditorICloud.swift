@@ -69,9 +69,9 @@ func aeSaveCustomBookmark(_ parent: URL) -> Bool {
     aeCustomAccess = nil
     return true
 }
-/// the kind folders the app saves into (한글 · Word · PowerPoint · Excel · PDF · iWork), made ahead so they are
+/// the kind folders the app saves into (한글 · Word · PowerPoint · Excel · PDF · Pages · Numbers · Keynote), made ahead so they are
 /// there in the Files app from the start (same names as aeKindFolder / shim/runtime/folders.ts)
-let aeKindFolderNames = ["한글", "Word", "PowerPoint", "Excel", "PDF", "iWork"]
+let aeKindFolderNames = ["한글", "Word", "PowerPoint", "Excel", "PDF", "Pages", "Numbers", "Keynote"]
 func aeEnsureKindFolders(_ root: URL) {
     let fm = FileManager.default
     // once per AllEditor folder (at install, or when a new location is chosen): a folder the user deletes later
