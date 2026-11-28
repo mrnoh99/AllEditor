@@ -295,7 +295,7 @@ async function openPicked() {
       const { data } = await Filesystem.readFile({ path: r.name, directory: Directory.Documents })
       const bin = atob(data as string); const u = new Uint8Array(bin.length)
       for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
-      // the copy may sit in a kind folder (한글, Word …) this page has not seen yet
+      // the copy may sit in a kind folder (Hangul, Word …) this page has not seen yet
       fs.mkdirSync(path.slice(0, path.lastIndexOf('/')), { recursive: true })
       fs.writeFileSync(path, u)
     }
@@ -322,7 +322,7 @@ function markUsed(name: string, from?: string) {
   try { const u = readUsed(); if (from) delete u[from]; u[name] = Date.now(); localStorage.setItem(USED_KEY, JSON.stringify(u)) } catch {}
 }
 function unhide(name: string) { const h = readHidden(); if (name in h) { delete h[name]; writeHidden(h) } }
-// the documents at the top of AllEditor and in its kind folders (한글, Word, …): r.n is the path below AllEditor
+// the documents at the top of AllEditor and in its kind folders (Hangul, Word, …): r.n is the path below AllEditor
 const LIST_DIRS = ['', ...KIND_FOLDERS]
 function memRows(): Row[] {
   const out: Row[] = []
