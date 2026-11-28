@@ -107,3 +107,36 @@ export function renderDiagnostics(wrap: HTMLElement, el: El, ko: boolean, toast:
   }
   draw()
 }
+
+/** 이전 판으로 되돌리기: the copy a save kept of the document as it was before (Backup/<folder>/<name>.bak). 되살리기
+ *  swaps the two, so the version replaced is kept as the backup in turn and the step can be undone. */
+export function renderVersions(wrap: HTMLElement, el: El, ko: boolean, toast: (m: string) => void, isOpen: (docPath: string) => boolean, after: () => void) {
+  const h = el('h2', '', ko ? '이전 판으로 되돌리기' : 'Earlier versions'); h.id = 'versions'; wrap.append(h)
+  const box = el('div', 'group'); wrap.append(box)
+  if (!isTauriOffice()) { box.append(el('p', 'hint', ko ? 'iPad 앱에서 쓸 수 있습니다.' : 'Available in the iPad app.')); return }
+  const draw = async () => {
+    box.textContent = ''
+    const baks = (await listDevice('Backup')).filter((f) => /\.bak$/i.test(f.path)).sort((a, b) => b.mtime - a.mtime)
+    if (!baks.length) { box.append(el('p', 'hint', ko ? '저장 전 백업이 없습니다. 한글 문서를 저장하면 그 전 상태가 여기에 남습니다.' : 'No backups yet. Saving a Hangul document keeps the state before it here.')); return }
+    for (const f of baks.slice(0, 50)) {
+      const doc = f.path.slice('Backup/'.length).replace(/\.bak$/i, '')
+      const row = el('div', 'fld')
+      const txt = el('span', 'fl'); txt.append(el('b', '', doc.slice(doc.lastIndexOf('/') + 1)), el('br'), el('small', 'nm', `${doc.slice(0, doc.lastIndexOf('/') + 1) || ''}${ko ? ' · 저장 전 상태 ' : ' · before the save of '}${new Date(f.mtime).toLocaleString()} · ${mb(f.size)}`))
+      const b = el('button', 'mini', ko ? '되살리기' : 'Restore')
+      b.onclick = async () => {
+        if (isOpen(`/Documents/${doc}`)) { alert(ko ? '이 문서가 열려 있습니다. 탭을 닫은 뒤 되살리세요.' : 'This document is open. Close its tab first.'); return }
+        if (!confirm(ko ? `${doc}\n\n${new Date(f.mtime).toLocaleString()} 저장 전 상태로 되돌릴까요?\n지금 상태는 백업으로 남아 다시 되돌릴 수 있습니다.` : `${doc}\n\nGo back to the state before the save of ${new Date(f.mtime).toLocaleString()}?\nThe current state is kept as the backup, so this can be undone.`)) return
+        b.disabled = true
+        try {
+          const old = (await Filesystem.readFile({ path: f.path, directory: Directory.Documents })).data as string
+          const cur = await Filesystem.readFile({ path: doc, directory: Directory.Documents }).then((r) => r.data as string, () => null)
+          await Filesystem.writeFile({ path: doc, data: old, directory: Directory.Documents })
+          if (cur) await Filesystem.writeFile({ path: f.path, data: cur, directory: Directory.Documents })
+          toast(ko ? '되살렸습니다' : 'Restored'); after(); void draw()
+        } catch (e: any) { alert((ko ? '되살리지 못했습니다: ' : 'Could not restore: ') + (e?.message ?? e)); b.disabled = false }
+      }
+      row.append(txt, b); box.append(row)
+    }
+  }
+  void draw()
+}

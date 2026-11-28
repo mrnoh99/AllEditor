@@ -329,7 +329,10 @@ start('${app}', (open) => { ${rt.code} }, ${JSON.stringify(rt.preload ?? PRINT_W
   })
   const idx = join(out, 'index.html')
   // runtime must run before the app bundle (module scripts are deferred, classic ones are not)
-  writeFileSync(idx, readFileSync(idx, 'utf8').replace('<head>', '<head><script src="./runtime.js"></script>').replace(/script-src 'self'( 'wasm-unsafe-eval')?/, "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'").replace(/connect-src 'self'/, "connect-src 'self' https: wss: blob: data:"))
+  writeFileSync(idx, readFileSync(idx, 'utf8').replace('<head>', '<head><script src="./runtime.js"></script>').replace(/script-src 'self'( 'wasm-unsafe-eval')?/, "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'").replace(/connect-src 'self'/, "connect-src 'self' https: wss: blob: data:")
+    // iPhone: a tap into small text (the document) zoomed the whole screen in, and only a double tap outside zoomed it
+    // back; the page keeps its scale (a pinch zooms the document inside the editor, shim/runtime/pinch.ts)
+    .replace(/<meta name="viewport" content="[^"]*"/, '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"'))
 }
 
 // 2b. AllEditor branding: the AI panel / ribbon entry read "AI", not the upstream product name "Genspark".
@@ -362,6 +365,16 @@ await bundleRuntime({
   upstream, outfile: join(www, 'home.js'),
   entry: `import '${bootFile}'\nimport '${root}/shim/home/home'\n`,
 })
+// 3b. 설정 › 오픈소스 라이선스: the license texts the app ships (the fonts' are in hwp/studio/fonts/licenses)
+{
+  const lic = join(www, 'licenses'); mkdirSync(lic, { recursive: true })
+  const rhwp = join(root, 'ieumoffice-ios/apps/hwp/node_modules/.cache/rhwp-studio/v0.9.1')
+  for (const [from, to] of [[join(root, 'LICENSE'), 'AllEditor-LICENSE.txt'], [join(root, 'NOTICE'), 'AllEditor-NOTICE.txt'],
+    [join(upstream, 'LICENSE'), 'IeumOffice-LICENSE.txt'], [join(upstream, 'NOTICE'), 'IeumOffice-NOTICE.txt'], [join(upstream, 'LICENSE-UNICODE.txt'), 'Unicode-LICENSE.txt'],
+    [join(rhwp, 'LICENSE'), 'rhwp-LICENSE.txt'], [join(rhwp, 'THIRD_PARTY_LICENSES.md'), 'rhwp-THIRD_PARTY_LICENSES.txt']]) {
+    if (existsSync(from)) cpSync(from, join(lic, to)); else console.warn('license file missing:', from)
+  }
+}
 // 4. the office suite the iOS app bundles (Xcode folder reference `office`, served on office://)
 // PDFium (print panels, PDF pictures) and HarfBuzz: one shared copy for all editors
 mkdirSync(join(www, 'wasm'), { recursive: true })

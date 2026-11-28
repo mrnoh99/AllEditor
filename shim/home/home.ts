@@ -9,7 +9,8 @@ import { openExternalUrl } from '../runtime/electron'
 import { typedPath, relName, KIND_FOLDERS } from '../runtime/folders'
 import { installDiag } from '../runtime/diag'
 import { installPencilUi } from '../runtime/pencil-ui'
-import { pruneBackups, renderCleanup, renderDiagnostics } from './maint'
+import { pruneBackups, renderCleanup, renderDiagnostics, renderVersions } from './maint'
+import { showGuide, renderAbout } from './about'
 
 const APP_BY_EXT: Record<string, string> = {
   docx: 'docs', dotx: 'docs', doc: 'docs', dot: 'docs', odt: 'docs', ott: 'docs', hwp: 'hwp', hwpx: 'hwp',
@@ -552,13 +553,21 @@ const RECENT_VIEW_KEY = 'alleditor.recentView'
 const recentView = (): 'kind' | 'time' => { try { return localStorage.getItem(RECENT_VIEW_KEY) === 'time' ? 'time' : 'kind' } catch { return 'kind' } }
 const KIND_ORDER = ['hwp', 'docs', 'slides', 'sheets', 'pdf', 'pages', 'key', 'numbers']
 const kindOf = (n: string) => (ext(n) === 'keyx' ? 'key' : IWORK_LABEL[ext(n)] ? ext(n) : appFor(n))
+/** 문서 검색: the words typed above the list (every document in AllEditor, also those taken off the recent list) */
+let recentQuery = ''
+const matches = (n: string, q: string) => q.split(/\s+/).filter(Boolean).every((w) => n.normalize('NFC').toLowerCase().includes(w))
 function fillRecent(list: HTMLElement, all: Row[]) {
   const ko = lang() === 'ko'
   const hidden = readHidden()
   const used = readUsed()
+  const q = recentQuery.trim().normalize('NFC').toLowerCase()
   const rows = all.map((r) => ({ ...r, m: Math.max(r.m, used[r.n] ?? 0) }))
-    .filter((r) => !(r.n in hidden) || r.m > hidden[r.n]).sort((a, b) => b.m - a.m)
+    .filter((r) => (q ? matches(r.n.slice(r.n.lastIndexOf('/') + 1), q) : !(r.n in hidden) || r.m > hidden[r.n])).sort((a, b) => b.m - a.m)
   list.textContent = ''
+  if (!rows.length && q) {
+    const box = el('div', 'files none'); box.append(el('p', 'empty', ko ? `'${recentQuery.trim()}'이(가) 들어간 문서가 없습니다.` : `No document named like '${recentQuery.trim()}'.`))
+    list.append(box); return
+  }
   if (!rows.length) {
     const box = el('div', 'files none'); box.append(el('p', 'empty', ko ? '최근 문서가 없습니다. 새로 만들거나 파일을 여세요.' : 'No recent documents. Create one or open a file.'))
     list.append(box); return
@@ -637,7 +646,11 @@ function renderHome() {
     btn.onclick = () => { try { localStorage.setItem(RECENT_VIEW_KEY, v) } catch {}; for (const x of seg.children) x.classList.toggle('on', x === btn); fillRecent(list, last) }
     seg.append(btn)
   }
-  rhead.append(el('h2', '', ko ? '최근 문서' : 'Recent documents'), seg)
+  const search = el('input', 'recent-search'); search.type = 'search'
+  search.placeholder = ko ? '문서 이름으로 찾기' : 'Find a document by name'; search.setAttribute('aria-label', search.placeholder)
+  search.value = recentQuery; search.autocapitalize = 'off'; search.spellcheck = false
+  search.oninput = () => { recentQuery = search.value; fillRecent(list, last) }
+  rhead.append(el('h2', '', ko ? '최근 문서' : 'Recent documents'), search, seg)
   wrap.append(rhead, list)
   if (!isTauriOffice()) draw(last)
   // documents saved by an editor tab (each tab is its own page) or added in the Files app: ask the device
@@ -715,8 +728,11 @@ function renderSettings() {
   wrap.append(el('p', 'hint', t('printerHint')))
 
   renderStorage(wrap, toast)
+  // restoring a backup changes the file on the device: this page's copy of the document is dropped so it is read again
+  renderVersions(wrap, el, lang() === 'ko', toast, (p) => tabs.some((x) => x.path && x.path.normalize('NFC') === p.normalize('NFC')), () => { void hydrate().catch(() => {}) })
   renderCleanup(wrap, el, lang() === 'ko', toast)
   renderDiagnostics(wrap, el, lang() === 'ko', toast, () => appVersion)
+  renderAbout(wrap, el, lang() === 'ko')
 
   const ver = el('p', 'hint ver')
   wrap.append(el('h2', '', t('about')), ver, el('p', 'hint', t('aboutText')), creditEl())
@@ -929,6 +945,7 @@ async function boot() {
   installPencilUi()
   try { await hydrate() } catch (e) { console.warn('[home hydrate]', e) }
   void pruneBackups() // save backups older than 30 days
+  setTimeout(() => showGuide(el, lang() === 'ko'), 800) // once, on the first start
   // printers saved in the AllEditor folder come back after a reinstall (redraw 설정 if it is open)
   // a reinstall: 설정 (author, theme, language …) and printers come back from the AllEditor folder
   void restoreSettings().then(async (got) => {
