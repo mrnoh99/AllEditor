@@ -28,13 +28,16 @@ let docPath: string | null = (() => { try { const o = new URLSearchParams(locati
 ;(globalThis as any).__aeReadFile = (p: string) => new Uint8Array(fs.readFileSync(p))
 /** paths that live only in this page's memory (never mirrored to the device), e.g. the AI settings with keys */
 const memoryOnly = new Set<string>()
+/** how many times this page has written a document (the home's "save before closing?" waits for the next one) */
+let docWrites = 0
+export const documentWrites = () => docWrites
 export const keepInMemory = (p: string) => { memoryOnly.add(p) }
 function mark(...ps: unknown[]) {
   for (const p of ps) {
     const n = norm(p)
     if (n && memoryOnly.has(n)) continue
     if (n && lazy.has(n) && inVol(n)) lazy.delete(n)
-    if (n && n.startsWith(DOC_EXT_ROOT()) && DOC_EXT.test(n) && !n.split('/').pop()!.startsWith('.')) docPath = n
+    if (n && n.startsWith(DOC_EXT_ROOT()) && DOC_EXT.test(n) && !n.split('/').pop()!.startsWith('.')) { docPath = n; docWrites++ }
     if (n && (n.startsWith(DOCS_ROOT + '/') && !n.includes('/.') || n.startsWith(USER_ROOT + '/'))) dirty.add(n)
   }
   if (dirty.size && !timer) timer = setTimeout(flush, 250)
@@ -112,12 +115,16 @@ async function hydrateInner() {
       const p = dir ? `${dir}/${f.name}` : f.name
       // in memory every name is composed (NFC), whatever form the device keeps (see "Korean names" below)
       const key = `${base}/${p}`.normalize('NFC')
-      if (f.name.startsWith('.') || (f.size ?? 0) > 30e6) continue
-      if (f.type === 'directory') { vol.mkdirSync(key, { recursive: true }); await walk(base, directory, p) }
-      else if (base === DOCS_ROOT && (f.size ?? 0) > EAGER_MAX && key !== openedDoc?.normalize('NFC')) {
-        // memory: a big document is only listed; its bytes load when this page opens it (ensureLoaded)
+      if (f.name.startsWith('.')) continue
+      if (f.type === 'directory') {
+        // save backups are written there, never read back by the app
+        if (base === DOCS_ROOT && !dir && f.name === 'Backup') continue
+        vol.mkdirSync(key, { recursive: true }); await walk(base, directory, p)
+      } else if (base === DOCS_ROOT && key !== openedDoc?.normalize('NFC')) {
+        // memory and time: the other documents are only listed; their bytes load when a page needs them (ensureLoaded).
+        // A file iCloud has not downloaded yet is listed the same way (cloud) and downloads when it is opened.
         lazy.set(key, { size: f.size ?? 0, mtime: f.mtime ?? 0 })
-      } else {
+      } else if ((f.size ?? 0) <= 30e6) {
         const { data } = await Filesystem.readFile({ path: p, directory })
         const bin = atob(data as string); const u = new Uint8Array(bin.length)
         for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i)
@@ -166,8 +173,7 @@ async function hydrateInner() {
 // ---- lazily loaded documents --------------------------------------------------------------------------------
 // Every page (the office home and each tab) has its own in-memory file system. Loading the whole Documents folder
 // into each of them costs (size of all documents) × (open tabs) of memory, which a large iPad library cannot afford.
-// Files up to EAGER_MAX load at start; bigger ones are only listed (name, size, date) until a page needs them.
-const EAGER_MAX = 512 * 1024
+// A page loads at start only the document it opens; the others are listed (name, size, date) until it needs them.
 const lazy = new Map<string, { size: number; mtime: number }>()
 const npath = (p: unknown) => (typeof p === 'string' ? p.replace(/\/+$/, '').normalize('NFC') : '')
 const inVol = (p: string) => { try { vol.statSync(p); return true } catch { return false } }
