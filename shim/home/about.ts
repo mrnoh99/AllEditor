@@ -37,15 +37,16 @@ export function showGuide(el: El, ko: boolean, force = false) {
   box.append(title, body, dots, row); back.append(box); document.body.append(back); draw()
 }
 
-const LICENSES: Array<[string, string, string]> = [
-  ['AllEditor', 'Apache-2.0', 'licenses/AllEditor-NOTICE.txt'],
-  ['AllEditor', 'Apache License 2.0 전문', 'licenses/AllEditor-LICENSE.txt'],
-  ['이음오피스 (IeumOffice) · GenOffice', 'Apache-2.0', 'licenses/IeumOffice-NOTICE.txt'],
-  ['이음오피스 (IeumOffice)', 'Apache License 2.0 전문', 'licenses/IeumOffice-LICENSE.txt'],
-  ['rhwp (한글 편집 엔진)', 'MIT', 'licenses/rhwp-LICENSE.txt'],
-  ['rhwp가 쓰는 구성요소와 글꼴', 'MIT · Apache-2.0 · OFL 등', 'licenses/rhwp-THIRD_PARTY_LICENSES.txt'],
-  ['Unicode 데이터', 'Unicode License', 'licenses/Unicode-LICENSE.txt'],
-  ['함께 넣은 글꼴 (나눔, Noto, Pretendard, 고운, RHWP Old Hangul …)', 'SIL Open Font License 1.1', 'hwp/studio/fonts/README.md'],
+const LICENSES: Array<[string, string, string, string, string]> = [
+  // [name ko, name en, license ko, license en, file]
+  ['AllEditor', 'AllEditor', 'Apache-2.0', 'Apache-2.0', 'licenses/AllEditor-NOTICE.txt'],
+  ['AllEditor', 'AllEditor', 'Apache License 2.0 전문', 'Apache License 2.0, full text', 'licenses/AllEditor-LICENSE.txt'],
+  ['이음오피스 (IeumOffice) · GenOffice', 'IeumOffice · GenOffice', 'Apache-2.0', 'Apache-2.0', 'licenses/IeumOffice-NOTICE.txt'],
+  ['이음오피스 (IeumOffice)', 'IeumOffice', 'Apache License 2.0 전문', 'Apache License 2.0, full text', 'licenses/IeumOffice-LICENSE.txt'],
+  ['rhwp (한글 편집 엔진)', 'rhwp (the Hangul editing engine)', 'MIT', 'MIT', 'licenses/rhwp-LICENSE.txt'],
+  ['rhwp가 쓰는 구성요소와 글꼴', 'Components and fonts rhwp uses', 'MIT · Apache-2.0 · OFL 등', 'MIT · Apache-2.0 · OFL and others', 'licenses/rhwp-THIRD_PARTY_LICENSES.txt'],
+  ['Unicode 데이터', 'Unicode data', 'Unicode License', 'Unicode License', 'licenses/Unicode-LICENSE.txt'],
+  ['함께 넣은 글꼴 (나눔, Noto, Pretendard, 고운, RHWP Old Hangul …)', 'Bundled fonts (Nanum, Noto, Pretendard, Gowun, RHWP Old Hangul…)', 'SIL Open Font License 1.1', 'SIL Open Font License 1.1', 'hwp/studio/fonts/README.md'],
 ]
 
 function showText(el: El, title: string, url: string) {
@@ -77,7 +78,8 @@ export function renderAbout(wrap: HTMLElement, el: El, ko: boolean) {
 
   const h2 = el('h2', '', ko ? '오픈소스 라이선스' : 'Open source licenses'); h2.id = 'licenses'; wrap.append(h2)
   const g = el('div', 'group'); wrap.append(g)
-  for (const [name, kind, url] of LICENSES) {
+  for (const [nko, nen, lko, len, url] of LICENSES) {
+    const name = ko ? nko : nen, kind = ko ? lko : len
     const row = el('div', 'fld'); const txt = el('span', 'fl'); txt.append(el('b', '', name), el('br'), el('small', 'nm', kind))
     const b = el('button', 'mini', ko ? '보기' : 'View'); b.onclick = () => showText(el, name, url)
     row.append(txt, b); g.append(row)
