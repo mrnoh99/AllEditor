@@ -11,6 +11,7 @@ import { installHwpPrintDialog } from './hwp-print'
 import { setUiLang } from '@genoffice/i18n'
 import { USER_ROOT } from './fs'
 import { typedPath } from './folders'
+import { showLoading } from './loading'
 
 export function start(app: string, register: (open: string | null) => void, preload: Array<[string, string]> = []) {
   // a document picked from outside AllEditor is a copy (home: ?import=1); a .hwp copy is first saved as .hwpx
@@ -42,8 +43,13 @@ export function start(app: string, register: (open: string | null) => void, prel
   installPinchZoom() // two fingers zoom the document, not the app
   installViewer(app) // 전체보기
   ;(async () => {
+    const openDoc = new URLSearchParams(location.search).get('open')
+    const loading = showLoading(openDoc) // a large document must not look stuck
+    loading?.step('iCloud에서 문서를 가져오는 중…', 'Getting the document from iCloud…')
     try { await hydrate() } catch (e) { console.warn('[hydrate]', e) }
-    { const o = new URLSearchParams(location.search).get('open'); if (o) await loadOpenedDocument(o) }
+    if (openDoc) await loadOpenedDocument(openDoc)
+    if (openDoc) loading?.sizeOf(openDoc)
+    loading?.step('문서를 여는 중…', 'Opening the document…')
     if (app === 'hwp') try {
       const f = `${USER_ROOT}/app-settings.json`
       const cur = fs.existsSync(f) ? JSON.parse(String(fs.readFileSync(f, 'utf8'))) : {}
@@ -60,6 +66,7 @@ export function start(app: string, register: (open: string | null) => void, prel
     try { await syncAiFromNative() } catch (e) { console.warn('[ai sync]', e) }
     try { register(new URLSearchParams(location.search).get('open')); registerShellIpc() /* after the apps: shell-level settings (language…) must win */ } catch (e) { console.error(`[${app}] register failed`, e) }
     markReady()
+    loading?.settle()
   })()
 }
 
