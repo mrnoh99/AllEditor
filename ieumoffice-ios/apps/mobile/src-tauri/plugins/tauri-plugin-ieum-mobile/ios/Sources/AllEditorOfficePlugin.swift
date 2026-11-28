@@ -46,6 +46,7 @@ public final class AllEditorOfficePlugin: Plugin, WKNavigationDelegate {
         aeInstallWebDialogs(webview) // alert / confirm / prompt (AllEditorDialogs.swift)
         aeLockWebViewScroll(webview) // the keyboard never pushes the app off the top of the screen
         aeKeepWebViewFilling(webview) // the web view follows the window's size (AllEditorDialogs.swift)
+        aeInstallScribbleGate(webview) // pencil handwriting only on document text, not on toolbar fields
         aeSetupICloudDocuments()
     }
 

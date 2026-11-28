@@ -13,9 +13,11 @@ import { USER_ROOT } from './fs'
 import { typedPath } from './folders'
 import { showLoading } from './loading'
 import { installDiag } from './diag'
+import { installPencilUi } from './pencil-ui'
 
 export function start(app: string, register: (open: string | null) => void, preload: Array<[string, string]> = []) {
   installDiag(app) // errors are kept for 설정 › 진단 정보
+  installPencilUi() // the pencil neither selects menu words nor writes into toolbar fields
   // a document picked from outside AllEditor is a copy (home: ?import=1); a .hwp copy is first saved as .hwpx
   {
     const q = new URLSearchParams(location.search), imp = q.get('import') === '1' ? q.get('open') : null

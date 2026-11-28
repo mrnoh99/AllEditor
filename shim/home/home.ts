@@ -8,6 +8,7 @@ import { nativeShare, nativeAi, isTauriOffice, nativeAppVersion, nativeRename, n
 import { openExternalUrl } from '../runtime/electron'
 import { typedPath, relName, KIND_FOLDERS } from '../runtime/folders'
 import { installDiag } from '../runtime/diag'
+import { installPencilUi } from '../runtime/pencil-ui'
 import { pruneBackups, renderCleanup, renderDiagnostics } from './maint'
 
 const APP_BY_EXT: Record<string, string> = {
@@ -901,6 +902,7 @@ async function boot() {
   applyTheme()
   document.documentElement.lang = lang()
   installDiag('home')
+  installPencilUi()
   try { await hydrate() } catch (e) { console.warn('[home hydrate]', e) }
   void pruneBackups() // save backups older than 30 days
   // printers saved in the AllEditor folder come back after a reinstall (redraw 설정 if it is open)
