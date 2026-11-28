@@ -93,6 +93,30 @@ const ls = (d) => { try { return fs.readdirSync(path.join(DOCS, d)).sort().join(
     await p.locator('button.gear').click(); await p.waitForTimeout(1500)
     const set = await p.evaluate(() => document.getElementById('settingsPane')?.innerText || '')
     ok('설정 화면 (저장 공간 정리·진단 정보 포함)', set.length > 200 && set.includes('저장 공간 정리') && set.includes('진단 정보'), takeErrs().join(' / '))
+    // unsaved changes on close: a new document asks; with autosave off an edited document asks and 저장 keeps it;
+    // with autosave on it is saved without asking
+    {
+      const setAuto = (on) => p.evaluate((v) => { const s = JSON.parse(localStorage.getItem('alleditor.settings') || '{}'); s.autoSave = { on: v, updatedAt: Date.now() }; localStorage.setItem('alleditor.settings', JSON.stringify(s)) }, on)
+      await closeLast() // the 설정 tab opened above
+      const typeIn = async (txt) => { await frameOf('docs').locator('[contenteditable="true"]').first().click(); await p.keyboard.type(txt); await p.waitForTimeout(1200) }
+      await home(); await p.locator('.newcard[data-app="docs"]').click(); await waitLoaded('docs'); await typeIn('새 문서 내용')
+      await closeLast(); const askNew = await p.locator('.ae-ask').count()
+      if (askNew) { await p.getByRole('button', { name: '저장 안 함', exact: true }).click(); await p.waitForTimeout(1200) }
+      ok('닫기: 새 문서에 쓴 내용 → 확인창', askNew === 1 && (await tabs()).length === 1, (await tabs()).join('|'))
+      const file = path.join(DOCS, 'Word/문서.docx')
+      await setAuto(false); await home(); await row('문서.docx').click(); await waitLoaded('docs')
+      const size0 = fs.statSync(file).size; await typeIn('자동 저장 끔 고침')
+      await closeLast(); const askOff = await p.locator('.ae-ask').count()
+      if (askOff) { await p.getByRole('button', { name: '저장', exact: true }).click(); await p.waitForTimeout(4000) }
+      ok('닫기: 자동 저장 끔, 고친 문서 → 확인창 → 저장', askOff === 1 && fs.statSync(file).size !== size0 && (await tabs()).length === 1, `size ${size0}→${fs.statSync(file).size}`)
+      await setAuto(true); await home(); await row('문서.docx').click(); await waitLoaded('docs')
+      const size1 = fs.statSync(file).size; await typeIn('자동 저장 켬 고침')
+      await closeLast(); await p.waitForTimeout(3000); const askOn = await p.locator('.ae-ask').count()
+      ok('닫기: 자동 저장 켬, 고친 문서 → 묻지 않고 저장', askOn === 0 && fs.statSync(file).size !== size1 && (await tabs()).length === 1, `size ${size1}→${fs.statSync(file).size}`)
+      takeErrs()
+    }
+    const font = await p.evaluate(async () => (await fetch('/hwp/studio/fonts/RHWPOldHangul-Regular.woff2')).status)
+    ok('옛한글 글꼴 포함', font === 200, String(font))
     await home(); await p.waitForTimeout(500)
     await row('문서.docx').click(); await waitLoaded('docs')
     await p.reload(); await p.waitForTimeout(4000)

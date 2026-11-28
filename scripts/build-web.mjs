@@ -41,6 +41,10 @@ const SOURCE_EDITS = {
     ['      if (mode !== \'saveAs\' && !saveAsHwpx && current && currentFormat) {\n        target = current\n',
      '      if (mode !== \'saveAs\' && !saveAsHwpx && current && currentFormat) {\n        const aeT = (globalThis as any).__aeImportTarget?.(current, mode === \'aeAuto\')\n        if (aeT === \'\') {\n          settleSave(wcId, false)\n          return { ok: true, canceled: true }\n        }\n        target = aeT ?? current\n'],
   ],
+  'apps/docs/src/main/docs-main.ts': [
+    // the archive of opened originals: 500 MB of a desktop disk is too much of an iPad's; 50 MB keeps the recent ones
+    ['const ORIGINALS_MAX_BYTES = 500 * 1024 * 1024\n', 'const ORIGINALS_MAX_BYTES = 50 * 1024 * 1024 // AllEditor (iPad): 500 MB on the desktop\n'],
+  ],
   'apps/hwp/src/main/save-plan.ts': [
     // the copy a save keeps of the bytes it replaces goes to AllEditor › Backup (same folders below it), not beside the
     // document, where every saved 한글 file left a .bak in the folders the user browses
