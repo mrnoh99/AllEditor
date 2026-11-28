@@ -72,6 +72,7 @@ export function setPrinters(list: PrinterCfg[]) {
   let s: Record<string, any> = {}; try { s = JSON.parse(localStorage.getItem(SKEY) || '{}') } catch {}
   s.printers = list; localStorage.setItem(SKEY, JSON.stringify(s))
   void backupPrinters(list)
+  backupSettings()
 }
 
 // The printer list also lives in the iCloud AllEditor folder (hidden: .alleditor/printers.json), so it comes back
@@ -83,6 +84,32 @@ async function backupPrinters(list: PrinterCfg[]) {
   if (!isNative()) return
   try { await Filesystem.writeFile({ path: PRINTERS_FILE, directory: Directory.Documents, data: b64(JSON.stringify({ version: 1, printers: list }, null, 2)) }) }
   catch (e) { console.warn('[printers] backup', e) }
+}
+// All of 설정 (author, language, theme, printers, 한글 menu …) is kept in the AllEditor folder too
+// (.alleditor/settings.json), so a reinstall or another device starts with the same settings.
+const SETTINGS_FILE = '.alleditor/settings.json'
+let settingsTimer: any = 0
+export function backupSettings() {
+  if (!isNative()) return
+  clearTimeout(settingsTimer)
+  settingsTimer = setTimeout(async () => {
+    try { await Filesystem.writeFile({ path: SETTINGS_FILE, directory: Directory.Documents, data: b64(JSON.stringify({ version: 1, settings: JSON.parse(localStorage.getItem(SKEY) || '{}') }, null, 2)) }) }
+    catch (e) { console.warn('[settings] backup', e) }
+  }, 400)
+}
+/** a fresh install (no settings on this device yet): take the ones saved in the AllEditor folder */
+export async function restoreSettings(): Promise<boolean> {
+  if (!isNative()) return false
+  let here: Record<string, any> | null = null
+  try { here = JSON.parse(localStorage.getItem(SKEY) || 'null') } catch {}
+  if (here && Object.keys(here).length) { backupSettings(); return false }
+  try {
+    const { data } = await Filesystem.readFile({ path: SETTINGS_FILE, directory: Directory.Documents })
+    const saved = JSON.parse(unb64(data))?.settings
+    if (!saved || typeof saved !== 'object') return false
+    localStorage.setItem(SKEY, JSON.stringify(saved))
+    return true
+  } catch { return false }
 }
 /** a fresh install (no printer list on this device yet): take the one saved in the AllEditor folder */
 export async function restorePrinters(): Promise<boolean> {
