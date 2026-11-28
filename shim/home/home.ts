@@ -30,7 +30,7 @@ const lang = () => sGet('language', 'ko') as string
 const t = (k: string) => tr(lang(), k)
 
 // ---- tabs ----
-interface Tab { id: string; kind: 'home' | 'settings' | 'app'; app?: string; path?: string; title: string }
+interface Tab { id: string; kind: 'home' | 'settings' | 'app'; app?: string; path?: string; title: string; /** the copy of a file picked from outside AllEditor */ importOf?: string }
 const TABS_KEY = 'alleditor.tabs'
 let tabs: Tab[] = []
 let active = ''
@@ -39,7 +39,7 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text = '') => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e }
 
 function saveTabs() {
-  try { localStorage.setItem(TABS_KEY, JSON.stringify({ active, tabs: tabs.filter((x) => x.kind === 'app').map(({ app, path, title }) => ({ app, path, title })) })) } catch {}
+  try { localStorage.setItem(TABS_KEY, JSON.stringify({ active, tabs: tabs.filter((x) => x.kind === 'app').map(({ app, path, title, importOf }) => ({ app, path, title, importOf })) })) } catch {}
 }
 function addTab(tab: Omit<Tab, 'id'>, focus = true): Tab {
   const existing = tabs.find((x) => x.kind === tab.kind && x.app === tab.app && x.path && x.path === tab.path) ?? (tab.kind !== 'app' ? tabs.find((x) => x.kind === tab.kind) : undefined)
@@ -48,7 +48,7 @@ function addTab(tab: Omit<Tab, 'id'>, focus = true): Tab {
   tabs.push(t2)
   if (t2.kind === 'app') {
     const f = el('iframe', 'pane')
-    f.src = `./${t2.app}/index.html` + (t2.path ? `?open=${encodeURIComponent(t2.path)}` : '')
+    f.src = `./${t2.app}/index.html` + (t2.path ? `?open=${encodeURIComponent(t2.path)}` + (t2.importOf ? '&import=1' : '') : '')
     f.setAttribute('allow', 'clipboard-read; clipboard-write')
     f.hidden = true
     $('panes').append(f); frames.set(t2.id, f)
@@ -58,11 +58,98 @@ function addTab(tab: Omit<Tab, 'id'>, focus = true): Tab {
 }
 async function closeTab(id: string) {
   const tab = tabs.find((x) => x.id === id); if (!tab || tab.kind === 'home') return
+  if (tab.importOf && !(await settleImport(tab))) return
   const f = frames.get(id)
   try { await (f?.contentWindow as any)?.__aeFlush?.() } catch {}
   f?.remove(); frames.delete(id)
   const i = tabs.indexOf(tab); tabs.splice(i, 1)
   if (active === id) activate(tabs[Math.max(0, i - 1)].id); else { renderBar(); saveTabs() }
+}
+// ---- copies of files picked from outside AllEditor ----
+// Such a file is copied into its kind folder to be edited. Closed unsaved, the copy goes (the original stays where it
+// was); saved into the copy, it stays; saved in another format (.hwp → .hwpx, .doc → .docx), the copy goes and the
+// saved file stays. Closing an unsaved copy asks first: 저장 / 저장 안 함 / 취소.
+const IMPORTS_KEY = 'alleditor.importCopies'
+type FileMark = { size: number; mtime: number }
+const readImports = (): Record<string, FileMark> => { try { return JSON.parse(localStorage.getItem(IMPORTS_KEY) || '{}') } catch { return {} } }
+const writeImports = (m: Record<string, FileMark>) => { try { localStorage.setItem(IMPORTS_KEY, JSON.stringify(m)) } catch {} }
+const nfc = (p: string) => p.normalize('NFC')
+/** size and date of a document as the device has it now (the home's own memory does not see a tab's saves) */
+async function deviceMark(path: string): Promise<FileMark | null> {
+  const rel = path.replace(/^\/Documents\/?/, ''), i = rel.lastIndexOf('/')
+  const dir = i < 0 ? '' : rel.slice(0, i), name = nfc(rel.slice(i + 1))
+  try {
+    const { files } = await Filesystem.readdir({ path: dir, directory: Directory.Documents })
+    const f = (files as any[]).find((x) => nfc(String(x.name)) === name)
+    return f ? { size: Number(f.size ?? 0), mtime: Number(f.mtime ?? 0) } : null
+  } catch { return null }
+}
+async function noteImport(path: string) {
+  const m = await deviceMark(path); if (!m) return
+  const all = readImports(); all[nfc(path)] = m; writeImports(all)
+}
+function forgetImport(path: string) { const all = readImports(); if (nfc(path) in all) { delete all[nfc(path)]; writeImports(all) } }
+async function dropCopy(path: string) {
+  try { if (fs.existsSync(path)) fs.unlinkSync(path) } catch {}
+  await flush()
+  try { await Filesystem.deleteFile({ path: path.replace(/^\/Documents\/?/, ''), directory: Directory.Documents }) } catch {}
+  try { const u = readUsed(); delete u[relName(path)]; localStorage.setItem(USED_KEY, JSON.stringify(u)) } catch {}
+  forgetImport(path)
+}
+function askSave(name: string, note: string): Promise<'save' | 'discard' | 'cancel'> {
+  const ko = lang() === 'ko'
+  return new Promise((done) => {
+    const back = el('div', 'ae-ask-back'), box = el('div', 'ae-ask')
+    const head = el('div', 'ae-ask-title', ko ? `'${name}'을(를) 저장하지 않겠습니까?` : `Save '${name}' before closing?`)
+    const body = el('div', 'ae-ask-body', ko
+      ? `저장하지 않으면 AllEditor로 가져온 사본은 지워집니다. 원본은 원래 위치에 그대로 있습니다.${note}`
+      : `If you don't save, the copy brought into AllEditor is removed. The original stays where it was.${note}`)
+    const row = el('div', 'ae-ask-row')
+    const b = (label: string, v: 'save' | 'discard' | 'cancel', cls = '') => { const x = el('button', cls, label); x.onclick = () => { back.remove(); done(v) }; return x }
+    row.append(b(ko ? '저장 안 함' : "Don't save", 'discard', 'danger'), el('span', 'gap'), b(ko ? '취소' : 'Cancel', 'cancel'), b(ko ? '저장' : 'Save', 'save', 'primary'))
+    box.append(head, body, row); back.append(box); document.body.append(back)
+  })
+}
+{
+  const st = document.createElement('style')
+  st.textContent = `.ae-ask-back{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px}
+.ae-ask{background:var(--card,#fff);color:var(--text,#111);border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.3);max-width:440px;width:100%;padding:20px 20px 16px;font:15px -apple-system,system-ui,sans-serif}
+.ae-ask-title{font-weight:600;font-size:17px;margin-bottom:8px;word-break:break-all}.ae-ask-body{opacity:.8;line-height:1.45;margin-bottom:18px}
+.ae-ask-row{display:flex;gap:8px;align-items:center}.ae-ask-row .gap{flex:1}
+.ae-ask-row button{border:1px solid rgba(128,128,128,.35);background:transparent;color:inherit;border-radius:9px;padding:8px 14px;font:inherit}
+.ae-ask-row button.primary{background:#2b6cd4;border-color:#2b6cd4;color:#fff}.ae-ask-row button.danger{color:#d33}
+@media (prefers-color-scheme:dark){.ae-ask{background:#2c2c2e;color:#f2f2f7}}`
+  document.head.append(st)
+}
+/** true: the tab may close */
+async function settleImport(x: Tab): Promise<boolean> {
+  const copy = x.importOf!, was = readImports()[nfc(copy)]
+  if (!was) return true
+  const w = frames.get(x.id)?.contentWindow as any
+  try { await w?.__aeFlush?.() } catch {}
+  const now = await deviceMark(copy)
+  if (!now) { forgetImport(copy); return true }
+  // saved into the copy itself: it is the user's document now
+  if (now.size !== was.size || now.mtime !== was.mtime) { forgetImport(copy); return true }
+  // saved under another name or format: the untouched copy is not needed
+  const saved = tabPath(x)
+  if (saved && nfc(saved) !== nfc(copy)) { await dropCopy(copy); return true }
+  const name = copy.slice(copy.lastIndexOf('/') + 1), hwp = /\.hwp$/i.test(name)
+  const choice = await askSave(name, hwp ? (lang() === 'ko' ? ' 저장하면 .hwpx로 저장됩니다.' : ' It is saved as .hwpx.') : '')
+  if (choice === 'cancel') return false
+  if (choice === 'discard') { await dropCopy(copy); return true }
+  if (typeof w?.__aeSave === 'function') {
+    // the editor saves (a .hwp copy as .hwpx); a save that does not happen keeps the tab open with the editor's message
+    let ok = false
+    try { ok = await w.__aeSave() } catch {}
+    if (!ok) return false
+    try { await w.__aeFlush?.() } catch {}
+    const p = tabPath(x)
+    if (p && nfc(p) !== nfc(copy)) await dropCopy(copy); else forgetImport(copy)
+    return true
+  }
+  // the other editors: the copy is the document as it is, kept in AllEditor
+  forgetImport(copy); return true
 }
 function activate(id: string) {
   active = id
@@ -222,13 +309,13 @@ const creditEl = () => {
   return p
 }
 const busy = new Set<string>()
-async function openPath(path: string) {
+async function openPath(path: string, imported = false) {
   unhide(relName(path))
   markUsed(relName(path))
   const name = path.split('/').pop()!, app = appFor(name)
   if (!app) { alert(`${t('unsupported')}: ${name}`); return }
   const kind = IWORK_EXT[ext(name)]
-  if (!kind) { addTab({ kind: 'app', app, path, title: name }); return }
+  if (!kind) { if (imported) await noteImport(path); addTab({ kind: 'app', app, path, title: name, ...(imported ? { importOf: path } : {}) }); return }
   // iWork file: open its editable copy (made once, then independent of the original)
   const stem = path.replace(/\.[^.]+$/, '')
   const outExt = kind === 'pages' ? 'docx' : kind === 'keynote' ? 'pptx' : 'xlsx'
@@ -248,7 +335,9 @@ async function openPath(path: string) {
     const b = fs.readFileSync(path) as Uint8Array
     const r = await convertIwork(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer, kind)
     fs.writeFileSync(copy, r.bytes); await flush()
-    wait.remove(); openPath(copy)
+    // a picked iWork file: its converted copy is the one to edit, and the picked copy is not needed
+    if (imported) await dropCopy(path)
+    wait.remove(); openPath(copy, imported)
   } catch (e: any) { wait.remove(); alert(`${t('convertFailed')}: ${e?.message ?? e}`) }
   finally { busy.delete(path) }
 }
@@ -260,7 +349,7 @@ async function importFile(f: File) {
   const p = uniq(name)
   fs.writeFileSync(p, new Uint8Array(await f.arrayBuffer()))
   await flush()
-  void openPath(p)
+  void openPath(p, true)
 }
 const fmt = (n: number) => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB')
 
@@ -299,7 +388,7 @@ async function openPicked() {
       fs.mkdirSync(path.slice(0, path.lastIndexOf('/')), { recursive: true })
       fs.writeFileSync(path, u)
     }
-    void openPath(path)
+    void openPath(path, (r as any).copied === true)
     if (tabs.find((x) => x.id === active)?.kind === 'home') renderHome()
   } catch (e: any) {
     // an older app build without the picker: fall back to the page's file input
@@ -733,7 +822,9 @@ async function boot() {
   tabs = [{ id: 'home', kind: 'home', title: t('home') }]
   let restore: { active?: string; tabs?: Array<{ app: string; path?: string; title: string }> } = {}
   try { restore = JSON.parse(localStorage.getItem(TABS_KEY) || '{}') } catch {}
-  for (const x of restore.tabs ?? []) if (!x.path || fs.existsSync(x.path)) addTab({ kind: 'app', app: x.app, path: x.path, title: x.title }, false)
+  for (const x of restore.tabs ?? []) if (!x.path || fs.existsSync(x.path)) addTab({ kind: 'app', app: x.app, path: x.path, title: x.title, ...(x.importOf ? { importOf: x.importOf } : {}) }, false)
+  // copies whose tab is gone (the app was closed with it open) are kept: they are documents in AllEditor now
+  { const all = readImports(), open = new Set(tabs.map((x) => x.importOf && nfc(x.importOf))); for (const k of Object.keys(all)) if (!open.has(k)) delete all[k]; writeImports(all) }
   activate('home')
   // single-window rule: remember which tab was focused last
   const last = (restore.tabs ?? []).length ? tabs[tabs.length - 1].id : 'home'
