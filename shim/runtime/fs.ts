@@ -120,6 +120,10 @@ async function hydrateInner() {
         // save backups are written there, never read back by the app
         if (base === DOCS_ROOT && !dir && f.name === 'Backup') continue
         vol.mkdirSync(key, { recursive: true }); await walk(base, directory, p)
+      } else if (base === USER_ROOT && (/^originals\//.test(p) || (f.size ?? 0) > 1048576)) {
+        // the app's own store: Word's archive of originals (written, never read back) and anything large are only
+        // listed; the settings and small records every page needs still load at start
+        lazy.set(key, { size: f.size ?? 0, mtime: f.mtime ?? 0 })
       } else if (base === DOCS_ROOT && key !== openedDoc?.normalize('NFC')) {
         // memory and time: the other documents are only listed; their bytes load when a page needs them (ensureLoaded).
         // A file iCloud has not downloaded yet is listed the same way (cloud) and downloads when it is opened.

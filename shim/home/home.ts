@@ -69,7 +69,7 @@ function addTab(tab: Omit<Tab, 'id'>, focus = true): Tab {
 }
 async function closeTab(id: string) {
   const tab = tabs.find((x) => x.id === id); if (!tab || tab.kind === 'home') return
-  if (tab.importOf && !(await settleImport(tab))) return
+  if (tab.importOf ? !(await settleImport(tab)) : !(await settleUnsaved(tab))) return
   const f = frames.get(id)
   try { await (f?.contentWindow as any)?.__aeFlush?.() } catch {}
   f?.remove(); frames.delete(id)
@@ -108,14 +108,16 @@ async function dropCopy(path: string) {
   try { const u = readUsed(); delete u[relName(path)]; localStorage.setItem(USED_KEY, JSON.stringify(u)) } catch {}
   forgetImport(path)
 }
-function askSave(name: string, note: string): Promise<'save' | 'discard' | 'cancel'> {
+function askSave(name: string, note: string, unsaved = false): Promise<'save' | 'discard' | 'cancel'> {
   const ko = lang() === 'ko'
   return new Promise((done) => {
     const back = el('div', 'ae-ask-back'), box = el('div', 'ae-ask')
     const head = el('div', 'ae-ask-title', ko ? `'${name}'을(를) 저장하지 않겠습니까?` : `Save '${name}' before closing?`)
-    const body = el('div', 'ae-ask-body', ko
-      ? `저장하지 않으면 이 파일은 AllEditor에서 지워집니다. 원래 파일은 그대로 있습니다.${note}`
-      : `If you don't save, this file is removed from AllEditor. The original file stays as it was.${note}`)
+    const body = el('div', 'ae-ask-body', unsaved
+      ? (ko ? `저장하지 않은 변경이 있습니다. 저장하지 않으면 변경한 내용이 사라집니다.${note}` : `There are unsaved changes. If you don't save, they are lost.${note}`)
+      : ko
+        ? `저장하지 않으면 이 파일은 AllEditor에서 지워집니다. 원래 파일은 그대로 있습니다.${note}`
+        : `If you don't save, this file is removed from AllEditor. The original file stays as it was.${note}`)
     const row = el('div', 'ae-ask-row')
     const b = (label: string, v: 'save' | 'discard' | 'cancel', cls = '') => { const x = el('button', cls, label); x.onclick = () => { back.remove(); done(v) }; return x }
     row.append(b(ko ? '저장 안 함' : "Don't save", 'discard', 'danger'), el('span', 'gap'), b(ko ? '취소' : 'Cancel', 'cancel'), b(ko ? '저장' : 'Save', 'save', 'primary'))
@@ -165,6 +167,28 @@ async function retireCopy(x: Tab) {
   // the copy the document came from stays (as the .hwp, Keynote, Pages and Numbers copies do); only unsaved copies go
   forgetImport(copy)
   if (tabs.find((t) => t.id === active)?.kind === 'home') renderHome()
+}
+/** a tab with unsaved changes: saved at once when autosave is on and it has a file; otherwise 저장 / 저장 안 함 / 취소
+ *  (a new document asks its name when saved). true: the tab may close */
+async function settleUnsaved(x: Tab): Promise<boolean> {
+  if (x.kind !== 'app') return true
+  const w = frames.get(x.id)?.contentWindow as any
+  let dirty = false
+  try { dirty = (await w?.__aeDirty?.()) === true } catch {}
+  if (!dirty) return true
+  const path = (() => { try { return w?.__aeDocPath?.() ?? x.path ?? null } catch { return x.path ?? null } })()
+  if (path && sGet('autoSave', { on: true }).on !== false) {
+    let ok = false
+    try { ok = (await w.__aeSave?.()) === true } catch {}
+    if (ok) return true
+  }
+  const name = (path ?? x.title).slice((path ?? x.title).lastIndexOf('/') + 1)
+  const choice = await askSave(name, path ? '' : (lang() === 'ko' ? ' 저장하면 이름을 정합니다.' : ' Saving asks for a name.'), true)
+  if (choice === 'cancel') return false
+  if (choice === 'discard') return true
+  let ok = false
+  try { ok = (await w?.__aeSave?.()) === true } catch {}
+  return ok // not saved (a declined name, a failed save): the tab stays open
 }
 /** true: the tab may close */
 async function settleImport(x: Tab): Promise<boolean> {

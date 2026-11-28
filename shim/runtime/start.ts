@@ -1,4 +1,4 @@
-import fs, { hydrate, flush, loadOpenedDocument, documentWrites } from './fs'
+import fs, { hydrate, flush, loadOpenedDocument } from './fs'
 import { markReady, webContents } from './electron'
 import { registerShellIpc, syncAiFromNative } from './shell-ipc'
 import { applyPhoneLayer, isPhone } from './phone'
@@ -14,6 +14,7 @@ import { typedPath } from './folders'
 import { showLoading } from './loading'
 import { installDiag } from './diag'
 import { installPencilUi } from './pencil-ui'
+import { installCloseGuard } from './close-guard'
 
 export function start(app: string, register: (open: string | null) => void, preload: Array<[string, string]> = []) {
   installDiag(app) // errors are kept for 설정 › 진단 정보
@@ -78,15 +79,7 @@ export function start(app: string, register: (open: string | null) => void, prel
     try { register(new URLSearchParams(location.search).get('open')); registerShellIpc() /* after the apps: shell-level settings (language…) must win */ } catch (e) { console.error(`[${app}] register failed`, e) }
     markReady()
     loading?.settle()
-    // the home's "save before closing?": the editor's own Save, sent as its File menu does; true once the document was
-    // written (an editor with nothing to save writes nothing, and that is not a failure the home waits on)
-    const menu: Record<string, string> = { docs: 'menu:command', slides: 'slides:menu', sheets: 'menu:action' }
-    if (menu[app]) (globalThis as any).__aeSave = async () => {
-      const before = documentWrites()
-      webContents.send(menu[app], 'save')
-      for (let i = 0; i < 60; i++) { await new Promise((r) => setTimeout(r, 250)); if (documentWrites() > before) { await flush(); return true } }
-      return false
-    }
+    installCloseGuard(app) // unsaved changes: asked about on close, saved when the app goes to the background
   })()
 }
 
