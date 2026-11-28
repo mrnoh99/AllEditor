@@ -121,6 +121,15 @@ function askSave(name: string, note: string): Promise<'save' | 'discard' | 'canc
 @media (prefers-color-scheme:dark){.ae-ask{background:#2c2c2e;color:#f2f2f7}}`
   document.head.append(st)
 }
+/** the tab's document was saved elsewhere: its untouched imported copy is removed */
+async function retireCopy(x: Tab) {
+  const copy = x.importOf; if (!copy) return
+  x.importOf = undefined; saveTabs()
+  const was = readImports()[nfc(copy)], now = await deviceMark(copy)
+  if (was && now && now.size === was.size && now.mtime === was.mtime) await dropCopy(copy)
+  else forgetImport(copy)
+  if (tabs.find((t) => t.id === active)?.kind === 'home') renderHome()
+}
 /** true: the tab may close */
 async function settleImport(x: Tab): Promise<boolean> {
   const copy = x.importOf!, was = readImports()[nfc(copy)]
@@ -250,7 +259,10 @@ setInterval(() => {
   for (const x of tabs) {
     if (x.kind !== 'app') continue
     const p = tabPath(x)
-    if (p && p !== x.path) { const from = x.path ? x.path.slice(x.path.lastIndexOf('/') + 1) : undefined; x.path = p; x.title = p.slice(p.lastIndexOf('/') + 1); markUsed(x.title, from); changed = true }
+    if (p && p !== x.path) { const from = x.path ? x.path.slice(x.path.lastIndexOf('/') + 1) : undefined; x.path = p; x.title = p.slice(p.lastIndexOf('/') + 1); markUsed(x.title, from); changed = true
+      // an imported copy saved under another name or format (.hwp → .hwpx): the copy goes now, not at close
+      if (x.importOf && nfc(p) !== nfc(x.importOf)) void retireCopy(x)
+    }
   }
   if (changed) { renderBar(); saveTabs(); if (tabs.find((x) => x.id === active)?.kind === 'home') renderHome() }
 }, 1500)
