@@ -1,4 +1,4 @@
-import fs, { hydrate, flush } from './fs'
+import fs, { hydrate, flush, loadOpenedDocument } from './fs'
 import { markReady, webContents } from './electron'
 import { registerShellIpc, syncAiFromNative } from './shell-ipc'
 import { applyPhoneLayer, isPhone } from './phone'
@@ -32,6 +32,7 @@ export function start(app: string, register: (open: string | null) => void, prel
   installViewer(app) // 전체보기
   ;(async () => {
     try { await hydrate() } catch (e) { console.warn('[hydrate]', e) }
+    { const o = new URLSearchParams(location.search).get('open'); if (o) await loadOpenedDocument(o) }
     if (app === 'hwp') try {
       const f = `${USER_ROOT}/app-settings.json`
       const cur = fs.existsSync(f) ? JSON.parse(String(fs.readFileSync(f, 'utf8'))) : {}
