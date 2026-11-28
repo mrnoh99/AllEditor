@@ -451,7 +451,8 @@ func initPluginAeOffice() -> Plugin {
 /// the folder inside AllEditor a document of this extension is kept in (same table as shim/runtime/folders.ts)
 func aeKindFolder(_ ext: String) -> String? {
     switch ext.lowercased() {
-    case "hwp", "hwpx": return "Hangul"
+    case "hwp": return "HWP"
+    case "hwpx": return "HWPX"
     case "docx", "dotx", "doc", "dot", "odt", "ott", "rtf": return "Word"
     case "pptx", "potx", "ppt", "odp", "otp": return "PowerPoint"
     case "xlsx", "xlsm", "xls", "ods", "ots", "csv", "tsv": return "Excel"

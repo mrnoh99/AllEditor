@@ -71,12 +71,12 @@ func aeSaveCustomBookmark(_ parent: URL) -> Bool {
 }
 /// the kind folders the app saves into (한글 · Word · PowerPoint · Excel · PDF · Pages · Numbers · Keynote), made ahead so they are
 /// there in the Files app from the start (same names as aeKindFolder / shim/runtime/folders.ts)
-let aeKindFolderNames = ["Hangul", "Word", "PowerPoint", "Excel", "PDF", "Pages", "Numbers", "Keynote"]
+let aeKindFolderNames = ["HWP", "HWPX", "Word", "PowerPoint", "Excel", "PDF", "Pages", "Numbers", "Keynote"]
 func aeEnsureKindFolders(_ root: URL) {
     let fm = FileManager.default
     // once per AllEditor folder (at install, or when a new location is chosen): a folder the user deletes later
     // is not made again; other kinds get their folder when their first file is saved
-    let done = aeSupportDir().appendingPathComponent(".kind-folders-2") // -2: Hangul replaced 한글
+    let done = aeSupportDir().appendingPathComponent(".kind-folders-3") // -3: HWP and HWPX replaced Hangul
     let made = (try? String(contentsOf: done, encoding: .utf8))?.components(separatedBy: "\n") ?? []
     if made.contains(root.standardizedFileURL.path) { return }
     try? fm.createDirectory(at: aeSupportDir(), withIntermediateDirectories: true)

@@ -102,8 +102,8 @@ function askSave(name: string, note: string): Promise<'save' | 'discard' | 'canc
     const back = el('div', 'ae-ask-back'), box = el('div', 'ae-ask')
     const head = el('div', 'ae-ask-title', ko ? `'${name}'을(를) 저장하지 않겠습니까?` : `Save '${name}' before closing?`)
     const body = el('div', 'ae-ask-body', ko
-      ? `저장하지 않으면 AllEditor로 가져온 사본은 지워집니다. 원본은 원래 위치에 그대로 있습니다.${note}`
-      : `If you don't save, the copy brought into AllEditor is removed. The original stays where it was.${note}`)
+      ? `저장하지 않으면 이 파일은 AllEditor에서 지워집니다. 원래 파일은 그대로 있습니다.${note}`
+      : `If you don't save, this file is removed from AllEditor. The original file stays as it was.${note}`)
     const row = el('div', 'ae-ask-row')
     const b = (label: string, v: 'save' | 'discard' | 'cancel', cls = '') => { const x = el('button', cls, label); x.onclick = () => { back.remove(); done(v) }; return x }
     row.append(b(ko ? '저장 안 함' : "Don't save", 'discard', 'danger'), el('span', 'gap'), b(ko ? '취소' : 'Cancel', 'cancel'), b(ko ? '저장' : 'Save', 'save', 'primary'))
@@ -121,15 +121,37 @@ function askSave(name: string, note: string): Promise<'save' | 'discard' | 'canc
 @media (prefers-color-scheme:dark){.ae-ask{background:#2c2c2e;color:#f2f2f7}}`
   document.head.append(st)
 }
-/** the tab's document was saved elsewhere: its untouched imported copy is removed */
+/** an imported .hwp: the editor saves it as .hwpx (start.ts __aeImportTarget) once it has loaded; the .hwp copy goes
+ *  and the .hwpx is the tab's imported copy from then on (closing it unsaved asks, as for the others) */
+const converting = new Set<string>()
+async function convertImportedHwp(x: Tab) {
+  const copy = x.importOf; if (!copy) return
+  converting.add(x.id)
+  try {
+    let ok = false
+    for (let i = 0; i < 30 && !ok; i++) {
+      await new Promise((r) => setTimeout(r, 1500))
+      if (!tabs.includes(x)) return
+      const w = frames.get(x.id)?.contentWindow as any
+      if (typeof w?.__aeSave !== 'function') continue
+      try { ok = await w.__aeSave() } catch {}
+      if (ok) try { await w.__aeFlush?.() } catch {}
+    }
+    const p = tabPath(x)
+    if (!ok || !p || nfc(p) === nfc(copy)) return
+    forgetImport(copy) // the .hwp copy stays in HWP, as a Keynote, Pages or Numbers copy stays in its folder
+    x.path = p; x.title = p.slice(p.lastIndexOf('/') + 1); x.importOf = p
+    await noteImport(p)
+    markUsed(relName(p)); renderBar(); saveTabs()
+    if (tabs.find((t) => t.id === active)?.kind === 'home') renderHome()
+  } finally { converting.delete(x.id) }
+}
+/** the tab's document was saved elsewhere: the saved file is the user's, and no close prompt is needed */
 async function retireCopy(x: Tab) {
   const copy = x.importOf; if (!copy) return
   x.importOf = undefined; saveTabs()
-  const was = readImports()[nfc(copy)], now = await deviceMark(copy)
-  // the copy is ours (made when the file was picked); kept only when the user saved into it (its size changed).
-  // The date is not compared: the device may restamp a file it syncs.
-  if (now && (!was || now.size === was.size)) await dropCopy(copy)
-  else forgetImport(copy)
+  // the copy the document came from stays (as the .hwp, Keynote, Pages and Numbers copies do); only unsaved copies go
+  forgetImport(copy)
   if (tabs.find((t) => t.id === active)?.kind === 'home') renderHome()
 }
 /** true: the tab may close */
@@ -142,9 +164,9 @@ async function settleImport(x: Tab): Promise<boolean> {
   if (!now) { forgetImport(copy); return true }
   // saved into the copy itself: it is the user's document now
   if (now.size !== was.size) { forgetImport(copy); return true }
-  // saved under another name or format: the untouched copy is not needed
+  // saved under another name or format: the saved file is the user's; the copy it came from stays
   const saved = tabPath(x)
-  if (saved && nfc(saved) !== nfc(copy)) { await dropCopy(copy); return true }
+  if (saved && nfc(saved) !== nfc(copy)) { forgetImport(copy); return true }
   const name = copy.slice(copy.lastIndexOf('/') + 1), hwp = /\.hwp$/i.test(name)
   const choice = await askSave(name, hwp ? (lang() === 'ko' ? ' 저장하면 .hwpx로 저장됩니다.' : ' It is saved as .hwpx.') : '')
   if (choice === 'cancel') return false
@@ -155,8 +177,7 @@ async function settleImport(x: Tab): Promise<boolean> {
     try { ok = await w.__aeSave() } catch {}
     if (!ok) return false
     try { await w.__aeFlush?.() } catch {}
-    const p = tabPath(x)
-    if (p && nfc(p) !== nfc(copy)) await dropCopy(copy); else forgetImport(copy)
+    forgetImport(copy)
     return true
   }
   // the other editors: the copy is the document as it is, kept in AllEditor
@@ -263,7 +284,7 @@ setInterval(() => {
     const p = tabPath(x)
     if (p && p !== x.path) { const from = x.path ? x.path.slice(x.path.lastIndexOf('/') + 1) : undefined; x.path = p; x.title = p.slice(p.lastIndexOf('/') + 1); markUsed(x.title, from); changed = true
       // an imported copy saved under another name or format (.hwp → .hwpx): the copy goes now, not at close
-      if (x.importOf && nfc(p) !== nfc(x.importOf)) void retireCopy(x)
+      if (x.importOf && nfc(p) !== nfc(x.importOf) && !converting.has(x.id)) void retireCopy(x)
     }
   }
   if (changed) { renderBar(); saveTabs(); if (tabs.find((x) => x.id === active)?.kind === 'home') renderHome() }
@@ -329,7 +350,13 @@ async function openPath(path: string, imported = false) {
   const name = path.split('/').pop()!, app = appFor(name)
   if (!app) { alert(`${t('unsupported')}: ${name}`); return }
   const kind = IWORK_EXT[ext(name)]
-  if (!kind) { if (imported) await noteImport(path); addTab({ kind: 'app', app, path, title: name, ...(imported ? { importOf: path } : {}) }); return }
+  if (!kind) {
+    if (imported) await noteImport(path)
+    const tab = addTab({ kind: 'app', app, path, title: name, ...(imported ? { importOf: path } : {}) })
+    // a picked .hwp is converted at once, as Keynote, Pages and Numbers are: the .hwpx (HWPX) is the one to edit
+    if (imported && /\.hwp$/i.test(name)) void convertImportedHwp(tab)
+    return
+  }
   // iWork file: open its editable copy (made once, then independent of the original)
   const stem = path.replace(/\.[^.]+$/, '')
   const outExt = kind === 'pages' ? 'docx' : kind === 'keynote' ? 'pptx' : 'xlsx'
@@ -349,8 +376,7 @@ async function openPath(path: string, imported = false) {
     const b = fs.readFileSync(path) as Uint8Array
     const r = await convertIwork(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer, kind)
     fs.writeFileSync(copy, r.bytes); await flush()
-    // a picked iWork file: its converted copy is the one to edit, and the picked copy is not needed
-    if (imported) await dropCopy(path)
+    // a picked iWork file: its converted copy is the one to edit (the picked copy stays in its folder)
     wait.remove(); openPath(copy, imported)
   } catch (e: any) { wait.remove(); alert(`${t('convertFailed')}: ${e?.message ?? e}`) }
   finally { busy.delete(path) }
@@ -426,7 +452,10 @@ function markUsed(name: string, from?: string) {
 }
 function unhide(name: string) { const h = readHidden(); if (name in h) { delete h[name]; writeHidden(h) } }
 // the documents at the top of AllEditor and in its kind folders (Hangul, Word, …): r.n is the path below AllEditor
-const LIST_DIRS = ['', ...KIND_FOLDERS]
+// the folders that keep only the files documents were converted from (HWP → HWPX, Pages → Word, Keynote → PowerPoint,
+// Numbers → Excel) are not listed: their converted copies are
+const SOURCE_FOLDERS = new Set(['HWP', 'Pages', 'Keynote', 'Numbers'])
+const LIST_DIRS = ['', ...KIND_FOLDERS.filter((d) => !SOURCE_FOLDERS.has(d))]
 function memRows(): Row[] {
   const out: Row[] = []
   for (const d of LIST_DIRS) {
