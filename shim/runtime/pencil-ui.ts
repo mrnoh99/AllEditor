@@ -9,6 +9,8 @@ body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none
 input, textarea, select, [contenteditable]:not([contenteditable="false"]), [contenteditable]:not([contenteditable="false"]) *,
 .ProseMirror, .ProseMirror *, .textLayer, .textLayer *, .text-layer, .text-layer *, [class*="ai-msg"], [class*="ai-msg"] *,
 .ae-selectable, .ae-selectable * { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+/* the 한글 editor's page area: a drag stops at the page's edge instead of springing past it */
+#scroll-container { overscroll-behavior: none; }
 `
 const DOC_TEXT = '[contenteditable]:not([contenteditable="false"]), .ProseMirror, textarea'
 // fields in bars and menus take typed values, not handwriting

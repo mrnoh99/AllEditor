@@ -340,6 +340,14 @@ const PATCHES = {
     find: "return protocol === 'http:' || protocol === 'https:';",
     replace: `return protocol === 'http:' || protocol === 'https:' || protocol === '${APP_SCHEME}:' || protocol === '${MOBILE_SCHEME}:' || protocol === '${OFFICE_SCHEME}:';`,
   },
+  // AllEditor (iPad, iPhone): a page a little wider than the window (iPad upright, or with the AI panel open)
+  // got 220 px or more of empty pan space on each side, and a one-finger drag took the page far past its margins.
+  // On a touch screen the page scrolls within itself only.
+  'studio-no-pan-space': {
+    file: /[\\/]rhwp-studio[\\/]src[\\/]view[\\/]virtual-scroll\.ts$/,
+    find: '    if (contentWidth <= viewportWidth) return 0;\n',
+    replace: '    if (contentWidth <= viewportWidth) return 0;\n    if (contentWidth > 0) return 0; // AllEditor: no pan space beside the pages (touch screens)\n',
+  },
   'studio-password-flag': {
     file: /[\\/]rhwp-studio[\\/]src[\\/]main\.ts$/,
     find: '    isDirty: documentState.isDirty(),',
@@ -2338,6 +2346,7 @@ const PATCHES = {
 /** The patches the studio build applies, in order; the SDK's own is applied by the renderer builds. */
 export const STUDIO_PATCHES = /** @type {const} */ ([
   'studio-scheme',
+  'studio-no-pan-space',
   'studio-ios-input-run-state',
   'studio-ios-input-run-keys',
   'studio-ios-input-run-click',
