@@ -54,13 +54,16 @@ export function installAiToggle() {
       const r = d.getBoundingClientRect()
       // panel on the left (default) or moved to the right by the user
       const right = open ? r.left > window.innerWidth / 2 : d.classList.contains('ai-dock-right') || getComputedStyle(d).order === '2'
-      b.className = (right ? 'right' : 'left') + (appDark() ? ' dark' : '')
+      // only what changed is written: each write is a page change the observer below sees, and rewriting everything
+      // made the button redraw itself every frame
+      const set = (o: any, k: string, v: string) => { if (o[k] !== v) o[k] = v }
+      set(b, 'className', (right ? 'right' : 'left') + (appDark() ? ' dark' : ''))
       const top = open ? r.top + r.height / 2 : window.innerHeight / 2
-      b.style.top = `${Math.round(top)}px`
-      if (right) { b.style.left = ''; b.style.right = `${Math.round(open ? window.innerWidth - r.left : 0)}px` }
-      else { b.style.right = ''; b.style.left = `${Math.round(open ? r.right : 0)}px` }
+      set(b.style, 'top', `${Math.round(top)}px`)
+      if (right) { set(b.style, 'left', ''); set(b.style, 'right', `${Math.round(open ? window.innerWidth - r.left : 0)}px`) }
+      else { set(b.style, 'right', ''); set(b.style, 'left', `${Math.round(open ? r.right : 0)}px`) }
       const chev = open ? (right ? '›' : '‹') : (right ? '‹' : '›')
-      b.innerHTML = `<span>AI</span><span class="chev">${chev}</span>`
+      set(b, 'innerHTML', `<span>AI</span><span class="chev">${chev}</span>`)
       b.setAttribute('aria-label', open ? (ko() ? 'AI 패널 접기' : 'Fold the AI panel') : (ko() ? 'AI 패널 펼치기' : 'Unfold the AI panel'))
       b.setAttribute('aria-expanded', String(open))
       // remembered choice: fold once the app has rendered its panel
@@ -77,7 +80,7 @@ export function installAiToggle() {
 
     let raf = 0
     const schedule = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(place) }
-    new MutationObserver(schedule).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] })
+    new MutationObserver((list) => { if (list.some((m) => !b.contains(m.target))) schedule() }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] })
     addEventListener('resize', schedule)
     addEventListener('storage', schedule)
     matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', schedule)
