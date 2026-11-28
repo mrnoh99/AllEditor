@@ -115,8 +115,11 @@ public final class AllEditorOfficePlugin: Plugin, WKNavigationDelegate {
                 guard let url else { invoke.resolve(["canceled": true]); return }
                 DispatchQueue.global(qos: .userInitiated).async {
                     let fm = FileManager.default
-                    let inside = url.standardizedFileURL.deletingLastPathComponent().resolvingSymlinksInPath().path
-                        == docs.standardizedFileURL.resolvingSymlinksInPath().path
+                    // a file anywhere below the AllEditor folder (its kind folders included) opens where it is
+                    let docsPath = docs.standardizedFileURL.resolvingSymlinksInPath().path
+                    let filePath = url.standardizedFileURL.resolvingSymlinksInPath().path
+                    let inside = filePath.hasPrefix(docsPath + "/")
+                    let relative = inside ? String(filePath.dropFirst(docsPath.count + 1)) : url.lastPathComponent
                     let scoped = url.startAccessingSecurityScopedResource()
                     defer { if scoped { url.stopAccessingSecurityScopedResource() } }
                     // a Pages / Keynote / Numbers document saved as a package is a folder: it is handed over as the
@@ -126,13 +129,16 @@ public final class AllEditorOfficePlugin: Plugin, WKNavigationDelegate {
                         // an iCloud file not downloaded yet is fetched before the app reads it
                         var coordError: NSError?
                         NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordError) { _ in }
-                        invoke.resolve(["name": url.lastPathComponent, "copied": false]); return
+                        invoke.resolve(["name": relative, "copied": false]); return
                     }
+                    // a file from elsewhere is copied into the folder of its kind (한글, Word, PowerPoint …)
                     let stem = url.deletingPathExtension().lastPathComponent, ext = url.pathExtension
-                    var target = docs.appendingPathComponent(url.lastPathComponent)
-                    var n = 1
+                    let kindDir = aeKindFolder(ext).map { docs.appendingPathComponent($0, isDirectory: true) } ?? docs
+                    try? fm.createDirectory(at: kindDir, withIntermediateDirectories: true)
+                    var target = kindDir.appendingPathComponent(url.lastPathComponent)
+                    var n = 2
                     while fm.fileExists(atPath: target.path) {
-                        target = docs.appendingPathComponent(ext.isEmpty ? "\(stem) \(n)" : "\(stem) \(n).\(ext)")
+                        target = kindDir.appendingPathComponent(ext.isEmpty ? "\(stem) \(n)" : "\(stem) \(n).\(ext)")
                         n += 1
                     }
                     var failure: Error?
@@ -142,12 +148,107 @@ public final class AllEditorOfficePlugin: Plugin, WKNavigationDelegate {
                         do { try fm.copyItem(at: readable, to: target) } catch { failure = error }
                     }
                     if let failure = failure ?? (coordError as Error?) { invoke.reject("could not copy the file: \(failure.localizedDescription)"); return }
-                    invoke.resolve(["name": target.lastPathComponent, "copied": true])
+                    let rel = kindDir == docs ? target.lastPathComponent : "\(kindDir.lastPathComponent)/\(target.lastPathComponent)"
+                    invoke.resolve(["name": rel, "copied": true])
                 }
             }
             self.openPicker = delegate
             picker.delegate = delegate
             top.present(picker, animated: true)
+        }
+    }
+
+    // MARK: 문서 저장 위치 — where the AllEditor folder lives (iCloud Drive / On My iPad / inside a picked folder)
+
+    struct AEStorageArgs: Decodable {
+        let kind: String   // "icloud" | "local" | "custom"
+        let copy: Bool?    // copy the documents of the current folder to the new one
+    }
+
+    private func storageLabel(_ kind: String, _ url: URL) -> String {
+        switch kind {
+        case "icloud": return "iCloud Drive › AllEditor"
+        case "local": return "나의 iPad › AllEditor"
+        default:
+            let parent = url.deletingLastPathComponent().lastPathComponent
+            return "\(parent) › AllEditor"
+        }
+    }
+
+    @objc public func storageInfo(_ invoke: Invoke) throws {
+        let current = aeDocumentsDir()
+        let kind = aeStorageChoice() ?? "icloud"
+        let shown = current.path.contains("Mobile Documents") && kind != "custom" ? "icloud" : (current.standardizedFileURL == aeLocalDocumentsURL().standardizedFileURL ? "local" : kind)
+        invoke.resolve(["kind": shown, "chosen": kind, "path": current.path, "label": storageLabel(shown, current),
+                        "icloudAvailable": FileManager.default.ubiquityIdentityToken != nil])
+    }
+
+    /// Change where the AllEditor folder lives. The setup data (.alleditor: printers …) always comes along; the
+    /// documents are copied when `copy` is true (a name already in the new folder is left as it is).
+    @objc public func setStorageLocation(_ invoke: Invoke) throws {
+        let a = try invoke.parseArgs(AEStorageArgs.self)
+        let finish: (URL) -> Void = { target in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let fm = FileManager.default
+                let old = aeDocumentsDir()
+                var copied = 0, failed = 0
+                if old.standardizedFileURL != target.standardizedFileURL {
+                    let items = (try? fm.contentsOfDirectory(at: old, includingPropertiesForKeys: nil, options: [])) ?? []
+                    for item in items {
+                        let name = item.lastPathComponent
+                        let isSetup = name == ".alleditor"
+                        if !isSetup && (name.hasPrefix(".") || a.copy != true) { continue }
+                        let dest = target.appendingPathComponent(name)
+                        var err: NSError?
+                        NSFileCoordinator().coordinate(readingItemAt: item, options: [], writingItemAt: dest, options: .forReplacing, error: &err) { src, dst in
+                            do {
+                                if isSetup {
+                                    // the settings follow the user: the current ones replace any older copy there
+                                    if fm.fileExists(atPath: dst.path) { try fm.removeItem(at: dst) }
+                                    try fm.copyItem(at: src, to: dst)
+                                } else if !fm.fileExists(atPath: dst.path) {
+                                    try fm.copyItem(at: src, to: dst); copied += 1
+                                }
+                            } catch { failed += 1; NSLog("[AllEditor] copy \(name): \(error.localizedDescription)") }
+                        }
+                        if err != nil { failed += 1 }
+                    }
+                }
+                aeSetStorageChoice(a.kind)
+                aeWriteDocumentsMarker(a.kind == "local" ? nil : target)
+                invoke.resolve(["ok": true, "path": target.path, "label": self.storageLabel(a.kind, target), "copied": copied, "failed": failed])
+            }
+        }
+        switch a.kind {
+        case "icloud":
+            DispatchQueue.global(qos: .userInitiated).async {
+                guard let d = aeICloudDocumentsURL() else { invoke.reject("iCloud Drive를 쓸 수 없습니다. 설정 › Apple 계정 › iCloud › iCloud Drive를 켜 주세요."); return }
+                finish(d)
+            }
+        case "local":
+            finish(aeLocalDocumentsURL())
+        case "custom":
+            DispatchQueue.main.async {
+                guard let presenter = self.manager.viewController else { invoke.reject("missing presenter"); return }
+                var top: UIViewController = presenter
+                while let next = top.presentedViewController { top = next }
+                let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder], asCopy: false)
+                picker.allowsMultipleSelection = false
+                let delegate = AEPickerDelegate { url in
+                    self.openPicker = nil
+                    guard let url else { invoke.resolve(["canceled": true]); return }
+                    _ = url.startAccessingSecurityScopedResource()
+                    guard aeSaveCustomBookmark(url), let folder = aeCustomDocumentsURL() else {
+                        invoke.reject("이 폴더는 AllEditor가 계속 쓸 수 없습니다. 다른 폴더를 골라 주세요."); return
+                    }
+                    finish(folder)
+                }
+                self.openPicker = delegate
+                picker.delegate = delegate
+                top.present(picker, animated: true)
+            }
+        default:
+            invoke.reject("unknown location \(a.kind)")
         }
     }
 
@@ -344,4 +445,17 @@ public final class AllEditorOfficePlugin: Plugin, WKNavigationDelegate {
 @_cdecl("init_plugin_ae_office")
 func initPluginAeOffice() -> Plugin {
     return AllEditorOfficePlugin()
+}
+
+/// the folder inside AllEditor a document of this extension is kept in (same table as shim/runtime/folders.ts)
+func aeKindFolder(_ ext: String) -> String? {
+    switch ext.lowercased() {
+    case "hwp", "hwpx": return "한글"
+    case "docx", "dotx", "doc", "dot", "odt", "ott", "rtf": return "Word"
+    case "pptx", "potx", "ppt", "odp", "otp": return "PowerPoint"
+    case "xlsx", "xlsm", "xls", "ods", "ots", "csv", "tsv": return "Excel"
+    case "pdf": return "PDF"
+    case "pages", "key", "keyx", "numbers": return "iWork"
+    default: return nil
+    }
 }

@@ -261,6 +261,9 @@ fn native_call<R: Runtime>(app: &AppHandle<R>, plugin: &str, method: &str, args:
         }
         // 파일 열기: the system picker opening at the AllEditor folder (AllEditorOfficePlugin.pickDocument)
         "AEPick" if method == "open" => tauri_plugin_ieum_mobile::office_native_call(app, "pickDocument", args),
+        // 설정 › 문서 저장 위치 (AllEditorOfficePlugin.storageInfo / setStorageLocation)
+        "AEStorage" if method == "info" => tauri_plugin_ieum_mobile::office_native_call(app, "storageInfo", args),
+        "AEStorage" if method == "set" => tauri_plugin_ieum_mobile::office_native_call(app, "setStorageLocation", args),
         "AEShare" if method == "share" => {
             let name = args.get("name").and_then(Value::as_str).unwrap_or("document");
             let mime = args.get("mime").and_then(Value::as_str).unwrap_or("application/octet-stream");

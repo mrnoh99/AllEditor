@@ -18,10 +18,77 @@ private func aeSupportDir() -> URL {
     return lib.appendingPathComponent("Application Support/AllEditorOffice", isDirectory: true)
 }
 
+// ---- 문서 저장 위치 (설정 › 문서 저장 위치) ----
+// The user picks where the AllEditor folder lives: iCloud Drive (default), On My iPad, or inside another folder of the
+// Files app (a provider, an external drive…). The choice is kept in Application Support:
+//   .storage-location  "icloud" | "local" | "custom"   (absent: never chosen, the iCloud default with its first move)
+//   .storage-bookmark  the custom folder (a bookmark, since the app may only reach it through the picker's grant)
+// Every launch turns the choice into the path written to .icloud-documents, which the Rust side reads.
+private let aeLocationName = ".storage-location"
+private let aeBookmarkName = ".storage-bookmark"
+private var aeCustomAccess: URL? // the custom folder stays reachable while the app runs
+
+func aeStorageChoice() -> String? {
+    (try? String(contentsOf: aeSupportDir().appendingPathComponent(aeLocationName), encoding: .utf8))?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+}
+func aeSetStorageChoice(_ kind: String) {
+    try? FileManager.default.createDirectory(at: aeSupportDir(), withIntermediateDirectories: true)
+    try? kind.write(to: aeSupportDir().appendingPathComponent(aeLocationName), atomically: true, encoding: .utf8)
+}
+func aeICloudDocumentsURL() -> URL? {
+    guard let c = FileManager.default.url(forUbiquityContainerIdentifier: nil) else { return nil }
+    let d = c.appendingPathComponent("Documents", isDirectory: true)
+    try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+    return d
+}
+func aeLocalDocumentsURL() -> URL { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0] }
+
+/// the AllEditor folder inside the folder the user picked (kept with a bookmark)
+func aeCustomDocumentsURL() -> URL? {
+    if let u = aeCustomAccess { return u }
+    guard let data = try? Data(contentsOf: aeSupportDir().appendingPathComponent(aeBookmarkName)) else { return nil }
+    var stale = false
+    guard let parent = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
+    _ = parent.startAccessingSecurityScopedResource()
+    if stale, let fresh = try? parent.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) {
+        try? fresh.write(to: aeSupportDir().appendingPathComponent(aeBookmarkName))
+    }
+    let folder = parent.lastPathComponent == "AllEditor" ? parent : parent.appendingPathComponent("AllEditor", isDirectory: true)
+    var err: NSError?
+    NSFileCoordinator().coordinate(writingItemAt: folder, options: [], error: &err) { u in
+        try? FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
+    }
+    aeCustomAccess = folder
+    return folder
+}
+func aeSaveCustomBookmark(_ parent: URL) -> Bool {
+    guard let data = try? parent.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) else { return false }
+    try? FileManager.default.createDirectory(at: aeSupportDir(), withIntermediateDirectories: true)
+    do { try data.write(to: aeSupportDir().appendingPathComponent(aeBookmarkName)) } catch { return false }
+    aeCustomAccess = nil
+    return true
+}
+/// point the Rust side at a folder (nil: the local Documents folder)
+func aeWriteDocumentsMarker(_ url: URL?) {
+    let marker = aeSupportDir().appendingPathComponent(aeICloudMarkerName)
+    try? FileManager.default.createDirectory(at: aeSupportDir(), withIntermediateDirectories: true)
+    if let url { try? url.path.write(to: marker, atomically: true, encoding: .utf8) } else { try? FileManager.default.removeItem(at: marker) }
+}
+
 func aeSetupICloudDocuments() {
     DispatchQueue.global(qos: .utility).async {
         let fm = FileManager.default
         let marker = aeSupportDir().appendingPathComponent(aeICloudMarkerName)
+        switch aeStorageChoice() {
+        case "local":
+            aeWriteDocumentsMarker(nil); return
+        case "custom":
+            // the picked folder; if it cannot be reached any more, the documents of On My iPad are used meanwhile
+            aeWriteDocumentsMarker(aeCustomDocumentsURL()); return
+        default: break
+        }
+        let chosen = aeStorageChoice() == "icloud" // chosen in 설정: no automatic move of the iPad's documents
         guard let container = fm.url(forUbiquityContainerIdentifier: nil) else {
             try? fm.removeItem(at: marker) // no iCloud now: back to On My iPad
             return
@@ -36,7 +103,7 @@ func aeSetupICloudDocuments() {
 
         // one-time move of the local documents (and any left behind later, e.g. saved while iCloud was off)
         let local = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        if let items = try? fm.contentsOfDirectory(at: local, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
+        if !chosen, let items = try? fm.contentsOfDirectory(at: local, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
             for item in items {
                 let target = cloudDocs.appendingPathComponent(item.lastPathComponent)
                 if fm.fileExists(atPath: target.path) { continue }

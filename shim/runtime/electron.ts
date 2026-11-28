@@ -2,6 +2,7 @@ import { isNative, nativeOpenUrl } from './native-files'
 // Minimal in-page "Electron": ipcMain/ipcRenderer talk directly, dialogs are iOS pickers,
 // everything else is an inert deep Proxy so unported features no-op instead of crashing.
 import fs, { DOCS_ROOT, flush } from './fs'
+import { typedPath, kindFolder } from './folders'
 import { printCurrentDocument, htmlToPdf, printerChoices, sendToPrinter, pageInchesFromElectron } from './print'
 
 const g = globalThis as any
@@ -153,7 +154,7 @@ function pickFiles(accept: string, multiple: boolean): Promise<File[]> {
 }
 /** copy a picked File into Documents so it has a real path the app code can read/save */
 export async function importFile(f: File): Promise<string> {
-  const p = uniq(DOCS_ROOT, f.name.replace(/[\\/:*?"<>|]/g, '_'))
+  const p = typedPath(f.name.replace(/[\\/:*?"<>|]/g, '_'))
   fs.writeFileSync(p, new Uint8Array(await f.arrayBuffer()))
   return p
 }
@@ -175,10 +176,12 @@ export const dialog: any = {
     const dot = full.lastIndexOf('.'), stem = dot > 0 ? full.slice(0, dot) : full, extn = dot > 0 ? full.slice(dot) : ''
     let ko = true
     try { ko = (JSON.parse(localStorage.getItem('alleditor.settings') || '{}').language ?? 'ko') !== 'en' } catch {}
-    const typed = prompt(ko ? `저장할 이름 (${extn || '확장자 없음'} 은 그대로 둡니다)\n파일 앱 › AllEditor 에 저장됩니다.` : `Name to save as (${extn || 'no extension'} is kept)\nSaved in Files › AllEditor.`, stem)
+    const kf = kindFolder(full)
+    const where = kf ? ` › ${kf}` : ''
+    const typed = prompt(ko ? `저장할 이름 (${extn || '확장자 없음'} 은 그대로 둡니다)\n파일 앱 › AllEditor${where} 에 저장됩니다.` : `Name to save as (${extn || 'no extension'} is kept)\nSaved in Files › AllEditor${where}.`, stem)
     if (typed === null) return { canceled: true, filePath: undefined }
     const clean = typed.trim().replace(/[\\/:*?"<>|]/g, '_').replace(new RegExp((extn || '$^').replace('.', '\\.') + '$', 'i'), '') || stem
-    return { canceled: false, filePath: uniq(DOCS_ROOT, clean + extn) }
+    return { canceled: false, filePath: typedPath(clean + extn) } // in the folder of its kind (Word, Excel …)
   },
   async showMessageBox(a: any, b?: any) {
     const o = b ?? a ?? {}

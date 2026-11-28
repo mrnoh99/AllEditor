@@ -83,6 +83,16 @@ interface AEPick { open(o: Record<string, never>): Promise<{ canceled?: boolean;
 const pickPlugin = bridge<AEPick>('AEPick')
 export const nativePickDocument = () => pickPlugin.open({})
 
+// ---- AEStorage: where the AllEditor folder lives (iCloud Drive / On My iPad / inside a picked folder) ----
+export interface StorageInfo { kind: 'icloud' | 'local' | 'custom'; label: string; path: string; icloudAvailable: boolean }
+interface AEStorage {
+  info(o: Record<string, never>): Promise<StorageInfo>
+  set(o: { kind: string; copy: boolean }): Promise<{ ok?: boolean; canceled?: boolean; label?: string; copied?: number; failed?: number }>
+}
+const storagePlugin = bridge<AEStorage>('AEStorage')
+export const nativeStorageInfo = () => storagePlugin.info({})
+export const nativeSetStorage = (kind: string, copy: boolean) => storagePlugin.set({ kind, copy })
+
 // ---- AEApp.openUrl: open a link in Safari (key pages of the AI providers, help links) ----
 interface AEApp { openUrl(o: { url: string }): Promise<unknown> }
 const appPlugin = bridge<AEApp>('AEApp')
